@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Optimizer - License Control Center</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-card: #1e293b;
+            --border-color: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-primary: #3b82f6;
+            --accent-hover: #2563eb;
+            --accent-success: #10b981;
+            --accent-danger: #ef4444;
+            --accent-warning: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-badge {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary { background: var(--accent-primary); color: white; }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-danger { background: var(--accent-danger); color: white; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-outline { background: transparent; border: 1px solid var(--border-color); color: var(--text-primary); }
+        .btn-outline:hover { background: rgba(255,255,255,0.05); }
+        .btn-sm { padding: 4px 8px; font-size: 12px; }
+
+        /* Login Card */
+        .login-wrap {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 70vh;
+        }
+
+        .login-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 32px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--text-secondary);
+            font-size: 13px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px 14px;
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+        }
+
+        .form-control:focus {
+            border-color: var(--accent-primary);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px 20px;
+        }
+
+        .stat-val {
+            font-size: 26px;
+            font-weight: 700;
+            margin-top: 4px;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 12px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .tab-btn {
+            padding: 10px 16px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-weight: 600;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab-btn.active {
+            color: var(--accent-primary);
+            border-bottom-color: var(--accent-primary);
+        }
+
+        /* Table */
+        .table-wrap {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background: #162032;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .badge {
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-active { background: rgba(16, 185, 129, 0.2); color: var(--accent-success); }
+        .badge-revoked { background: rgba(239, 68, 68, 0.2); color: var(--accent-danger); }
+        .badge-expired { background: rgba(245, 158, 11, 0.2); color: var(--accent-warning); }
+
+        .key-text {
+            font-family: monospace;
+            font-size: 14px;
+            font-weight: 600;
+            color: #60a5fa;
+            letter-spacing: 0.5px;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            width: 100%;
+            max-width: 520px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #1e293b;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 2000;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <div class="logo-area">
+            <span class="logo-badge">ROOT-FREE OPTIMIZER</span>
+            <span style="font-weight: 600; font-size: 16px;">License Authority & Management</span>
+        </div>
+        <div id="userSection" style="display: none; align-items: center; gap: 16px;">
+            <span id="adminUsername" style="color: var(--text-secondary); font-size: 14px;"></span>
+            <button class="btn btn-outline btn-sm" onclick="logout()">Sign Out</button>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- Login View -->
+        <div id="loginView" class="login-wrap">
+            <div class="login-card">
+                <h2 style="margin-bottom: 8px; font-size: 20px;">Admin Authentication</h2>
+                <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 20px;">Enter credentials to manage licenses and devices.</p>
+                <div id="loginError" style="color: var(--accent-danger); font-size: 13px; margin-bottom: 12px; display: none;"></div>
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="loginUser" class="form-control" placeholder="admin" autofocus>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="loginPass" class="form-control" placeholder="••••••••">
+                </div>
+                <button class="btn btn-primary" style="width: 100%; margin-top: 8px;" onclick="handleLogin()">Sign In</button>
+            </div>
+        </div>
+
+        <!-- Dashboard View -->
+        <div id="dashboardView" style="display: none;">
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Licenses</div>
+                    <div class="stat-val" id="statTotal">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Active Licenses</div>
+                    <div class="stat-val" id="statActive" style="color: var(--accent-success);">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Bound Devices</div>
+                    <div class="stat-val" id="statDevices" style="color: var(--accent-primary);">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Revoked Keys</div>
+                    <div class="stat-val" id="statRevoked" style="color: var(--accent-danger);">-</div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('licenses')">Licenses</button>
+                <button class="tab-btn" onclick="switchTab('logs')">Audit & History</button>
+            </div>
+
+            <!-- Tab: Licenses -->
+            <div id="tabLicenses">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 8px; flex: 1; max-width: 400px;">
+                        <input type="text" id="searchInput" class="form-control" placeholder="Search by key or notes..." oninput="filterLicenses()">
+                    </div>
+                    <button class="btn btn-primary" onclick="openGenerateModal()">
+                        <span style="font-size: 16px;">+</span> Generate License
+                    </button>
+                </div>
+
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>License Key</th>
+                                <th>Status</th>
+                                <th>Duration / Expiry</th>
+                                <th>Activations</th>
+                                <th>Notes / Client</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="licensesTableBody">
+                            <tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">Loading licenses...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tab: Logs -->
+            <div id="tabLogs" style="display: none;">
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Event</th>
+                                <th>Details</th>
+                                <th>IP Address</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logsTableBody">
+                            <tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">Loading logs...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Generate License -->
+    <div id="generateModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 style="font-size: 18px;">Generate Activation Key(s)</h3>
+                <button class="btn btn-outline btn-sm" onclick="closeModal('generateModal')">✕</button>
+            </div>
+            <div class="form-group">
+                <label>Key Prefix</label>
+                <input type="text" id="genPrefix" class="form-control" value="RO">
+            </div>
+            <div class="form-group">
+                <label>Validity Duration</label>
+                <select id="genDuration" class="form-control">
+                    <option value="7">7 Days</option>
+                    <option value="30" selected>30 Days (1 Month)</option>
+                    <option value="90">90 Days (3 Months)</option>
+                    <option value="180">180 Days (6 Months)</option>
+                    <option value="365">365 Days (1 Year)</option>
+                    <option value="-1">Lifetime / Permanent</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Max Device Activations</label>
+                <input type="number" id="genMaxDevices" class="form-control" value="1" min="1" max="100">
+            </div>
+            <div class="form-group">
+                <label>Number of Keys to Generate</label>
+                <input type="number" id="genCount" class="form-control" value="1" min="1" max="50">
+            </div>
+            <div class="form-group">
+                <label>Client Reference / Notes</label>
+                <input type="text" id="genNotes" class="form-control" placeholder="e.g. VIP Customer, Device replacement...">
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+                <button class="btn btn-outline" onclick="closeModal('generateModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="submitGenerate()">Generate Key(s)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: View & Manage Activations -->
+    <div id="activationsModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 style="font-size: 18px;">Device Activations</h3>
+                <button class="btn btn-outline btn-sm" onclick="closeModal('activationsModal')">✕</button>
+            </div>
+            <div style="margin-bottom: 16px;">
+                <span class="key-text" id="modalLicenseKey"></span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Device Model</th>
+                            <th>Device ID</th>
+                            <th>Activated At</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="activationsTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">Action completed</div>
+
+    <script>
+        let adminToken = localStorage.getItem('admin_token') || null;
+        let cachedLicenses = [];
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        async function api(path, options = {}) {
+            options.headers = options.headers || {};
+            if (adminToken) {
+                options.headers['Authorization'] = `Bearer ${adminToken}`;
+            }
+            if (options.body && typeof options.body === 'object') {
+                options.headers['Content-Type'] = 'application/json';
+                options.body = JSON.stringify(options.body);
+            }
+            const res = await fetch(path, options);
+            const data = await res.json();
+            if (res.status === 401) {
+                logout();
+                throw new Error('Session expired');
+            }
+            return data;
+        }
+
+        // Auth
+        async function handleLogin() {
+            const username = document.getElementById('loginUser').value.trim();
+            const password = document.getElementById('loginPass').value;
+            const errEl = document.getElementById('loginError');
+            errEl.style.display = 'none';
+
+            try {
+                const res = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    adminToken = data.token;
+                    localStorage.setItem('admin_token', adminToken);
+                    localStorage.setItem('admin_user', data.username);
+                    initDashboard();
+                } else {
+                    errEl.textContent = data.message || 'Login failed';
+                    errEl.style.display = 'block';
+                }
+            } catch (e) {
+                errEl.textContent = e.message;
+                errEl.style.display = 'block';
+            }
+        }
+
+        function logout() {
+            if (adminToken) {
+                api('/api/admin/logout', { method: 'POST' }).catch(() => {});
+            }
+            adminToken = null;
+            localStorage.removeItem('admin_token');
+            localStorage.removeItem('admin_user');
+            document.getElementById('loginView').style.display = 'flex';
+            document.getElementById('dashboardView').style.display = 'none';
+            document.getElementById('userSection').style.display = 'none';
+        }
+
+        function initDashboard() {
+            document.getElementById('loginView').style.display = 'none';
+            document.getElementById('dashboardView').style.display = 'block';
+            document.getElementById('userSection').style.display = 'flex';
+            document.getElementById('adminUsername').textContent = 'Admin: ' + (localStorage.getItem('admin_user') || 'Admin');
+            loadStats();
+            loadLicenses();
+        }
+
+        // Stats & Data
+        async function loadStats() {
+            try {
+                const data = await api('/api/admin/stats');
+                if (data.success) {
+                    document.getElementById('statTotal').textContent = data.stats.total_licenses;
+                    document.getElementById('statActive').textContent = data.stats.active_licenses;
+                    document.getElementById('statDevices').textContent = data.stats.active_devices;
+                    document.getElementById('statRevoked').textContent = data.stats.revoked_licenses;
+                }
+            } catch (e) {}
+        }
+
+        async function loadLicenses() {
+            try {
+                const data = await api('/api/admin/licenses');
+                if (data.success) {
+                    cachedLicenses = data.licenses;
+                    renderLicenses(cachedLicenses);
+                }
+            } catch (e) {}
+        }
+
+        function filterLicenses() {
+            const query = document.getElementById('searchInput').value.toLowerCase().trim();
+            const filtered = cachedLicenses.filter(l => 
+                l.license_key.toLowerCase().includes(query) || 
+                (l.notes && l.notes.toLowerCase().includes(query))
+            );
+            renderLicenses(filtered);
+        }
+
+        function renderLicenses(licenses) {
+            const tbody = document.getElementById('licensesTableBody');
+            if (licenses.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">No licenses found.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = licenses.map(l => {
+                const badgeClass = l.status === 'ACTIVE' ? 'badge-active' : (l.status === 'REVOKED' ? 'badge-revoked' : 'badge-expired');
+                const expiryText = l.duration_days === -1 ? 'Lifetime' : (l.expires_at ? new Date(l.expires_at).toLocaleDateString() : `${l.duration_days} Days`);
+                const actCount = `${l.active_activations || 0} / ${l.max_activations}`;
+
+                return `
+                    <tr>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span class="key-text">${l.license_key}</span>
+                                <button class="btn btn-outline btn-sm" onclick="copyKey('${l.license_key}')" title="Copy Key">📋</button>
+                            </div>
+                        </td>
+                        <td><span class="badge ${badgeClass}">${l.status}</span></td>
+                        <td>${expiryText}</td>
+                        <td>${actCount}</td>
+                        <td style="color: var(--text-secondary);">${l.notes || '-'}</td>
+                        <td>
+                            <div style="display: flex; gap: 6px;">
+                                <button class="btn btn-outline btn-sm" onclick="viewActivations(${l.id})">Devices</button>
+                                ${l.status === 'ACTIVE' 
+                                    ? `<button class="btn btn-danger btn-sm" onclick="revokeKey(${l.id})">Revoke</button>`
+                                    : `<button class="btn btn-primary btn-sm" onclick="activateKey(${l.id})">Activate</button>`
+                                }
+                                <button class="btn btn-outline btn-sm" onclick="deleteKey(${l.id})" style="color: var(--accent-danger);">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function copyKey(key) {
+            navigator.clipboard.writeText(key).then(() => {
+                showToast(`Copied key ${key} to clipboard!`);
+            });
+        }
+
+        async function revokeKey(id) {
+            if (!confirm('Are you sure you want to revoke this license?')) return;
+            const res = await api(`/api/admin/licenses/${id}/revoke`, { method: 'POST' });
+            if (res.success) {
+                showToast('License revoked');
+                loadStats();
+                loadLicenses();
+            }
+        }
+
+        async function activateKey(id) {
+            const res = await api(`/api/admin/licenses/${id}/activate`, { method: 'POST' });
+            if (res.success) {
+                showToast('License reactivated');
+                loadStats();
+                loadLicenses();
+            }
+        }
+
+        async function deleteKey(id) {
+            if (!confirm('Permanently delete this license and all its activations?')) return;
+            const res = await api(`/api/admin/licenses/${id}`, { method: 'DELETE' });
+            if (res.success) {
+                showToast('License deleted');
+                loadStats();
+                loadLicenses();
+            }
+        }
+
+        async function viewActivations(licenseId) {
+            const res = await api(`/api/admin/licenses/${licenseId}/activations`);
+            if (res.success) {
+                document.getElementById('modalLicenseKey').textContent = `Key: ${res.license.license_key} (${res.activations.length} Active Devices)`;
+                const tbody = document.getElementById('activationsTableBody');
+                if (res.activations.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">No devices activated yet.</td></tr>';
+                } else {
+                    tbody.innerHTML = res.activations.map(a => `
+                        <tr>
+                            <td><strong>${a.device_model || 'Android Device'}</strong></td>
+                            <td style="font-family: monospace; font-size: 11px; color: var(--text-secondary);">${a.device_id.substring(0, 16)}...</td>
+                            <td style="font-size: 12px;">${new Date(a.activated_at).toLocaleString()}</td>
+                            <td>
+                                ${a.is_active ? `<button class="btn btn-danger btn-sm" onclick="unbindDevice(${a.id}, ${licenseId})">Unbind</button>` : '<span style="color: var(--text-secondary);">Unbound</span>'}
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+                document.getElementById('activationsModal').classList.add('active');
+            }
+        }
+
+        async function unbindDevice(activationId, licenseId) {
+            if (!confirm('Unbind this device? The user will be able to activate a new device on this key.')) return;
+            const res = await api(`/api/admin/activations/${activationId}`, { method: 'DELETE' });
+            if (res.success) {
+                showToast('Device unbound successfully');
+                viewActivations(licenseId);
+                loadStats();
+                loadLicenses();
+            }
+        }
+
+        // Modals
+        function openGenerateModal() {
+            document.getElementById('generateModal').classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        async function submitGenerate() {
+            const prefix = document.getElementById('genPrefix').value.trim() || 'RO';
+            const duration_days = parseInt(document.getElementById('genDuration').value);
+            const max_activations = parseInt(document.getElementById('genMaxDevices').value) || 1;
+            const count = parseInt(document.getElementById('genCount').value) || 1;
+            const notes = document.getElementById('genNotes').value.trim();
+
+            const res = await api('/api/admin/licenses/generate', {
+                method: 'POST',
+                body: { prefix, duration_days, max_activations, count, notes }
+            });
+
+            if (res.success) {
+                closeModal('generateModal');
+                showToast(`Generated ${count} key(s)!`);
+                loadStats();
+                loadLicenses();
+            }
+        }
+
+        // Tabs
+        async function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+
+            if (tab === 'licenses') {
+                document.getElementById('tabLicenses').style.display = 'block';
+                document.getElementById('tabLogs').style.display = 'none';
+            } else {
+                document.getElementById('tabLicenses').style.display = 'none';
+                document.getElementById('tabLogs').style.display = 'block';
+                loadLogs();
+            }
+        }
+
+        async function loadLogs() {
+            try {
+                const res = await api('/api/admin/logs');
+                if (res.success) {
+                    const tbody = document.getElementById('logsTableBody');
+                    if (res.logs.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">No logs yet.</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = res.logs.map(log => `
+                        <tr>
+                            <td style="font-size: 12px; color: var(--text-secondary);">${new Date(log.timestamp).toLocaleString()}</td>
+                            <td><span class="badge badge-active">${log.event_type}</span></td>
+                            <td style="font-size: 12px;">${log.details}</td>
+                            <td style="font-family: monospace; font-size: 12px;">${log.ip_address || '-'}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (e) {}
+        }
+
+        // Init
+        if (adminToken) {
+            initDashboard();
+        }
+    </script>
+</body>
+</html>
