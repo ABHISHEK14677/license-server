@@ -58,5 +58,11 @@
     "duration_hours": -1,
     "max_devices": 1,
     "notes": "Worldwide Access Key #8"
+  },
+  {
+    "key": "MADARA-FF-WK9D-7P4M-JCH9-NDZE",
+    "duration_hours": -1,
+    "max_devices": 1,
+    "notes": "Test Worldwide CLI Key"
   }
 ]

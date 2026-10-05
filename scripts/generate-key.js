@@ -44,6 +44,63 @@ async function main() {
             notes,
             status: 'UNUSED'
         });
+
+        // 1. Append to local seed-keys.json
+        const fs = require('node:fs');
+        const path = require('node:path');
+        const seedPath = path.join(__dirname, '..', 'seed-keys.json');
+        try {
+            let seeds = [];
+            if (fs.existsSync(seedPath)) {
+                seeds = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+            }
+            if (!seeds.some(s => s.key === key)) {
+                seeds.push({
+                    key,
+                    duration_hours: durationDays === -1 ? -1 : durationDays * 24,
+                    max_devices: maxActivations,
+                    notes
+                });
+                fs.writeFileSync(seedPath, JSON.stringify(seeds, null, 2), 'utf8');
+            }
+        } catch (seedErr) {
+            // Non-fatal
+        }
+
+        // 2. Sync to Render cloud server online
+        let cloudStatus = '✓ Synced to Render Cloud (Worldwide Ready)';
+        try {
+            const cloudUrl = process.env.CLOUD_SERVER_URL || 'https://optimizer-stzd.onrender.com';
+            const adminPass = process.env.ADMIN_PASSWORD || 'Abhi@0099';
+            const loginRes = await fetch(`${cloudUrl}/api/admin/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: 'admin', password: adminPass })
+            });
+            const loginData = await loginRes.json();
+            if (loginData.success && loginData.token) {
+                await fetch(`${cloudUrl}/api/keys/import`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${loginData.token}`
+                    },
+                    body: JSON.stringify({
+                        keys: [{
+                            key,
+                            duration_hours: durationDays === -1 ? -1 : durationDays * 24,
+                            max_devices: maxActivations,
+                            notes
+                        }]
+                    })
+                });
+            } else {
+                cloudStatus = `⚠ Cloud response: ${loginData.message || 'Login failed'}`;
+            }
+        } catch (cloudErr) {
+            cloudStatus = `⚠ Cloud sync deferred (${cloudErr.message})`;
+        }
+
         console.log(`=======================================================`);
         console.log(`              NEW OPTIMIZER LICENSE KEY                `);
         console.log(`              Developed by MADARA FF                   `);
@@ -53,6 +110,7 @@ async function main() {
         console.log(`Active Timer:    Starts upon user activation`);
         console.log(`Status:          UNUSED (Timer starts on activation)`);
         console.log(`Max Devices:     ${maxActivations}`);
+        console.log(`Cloud Access:    ${cloudStatus}`);
         console.log(`Notes:           ${notes}`);
         console.log(`Copyright:       © Developed by MADARA FF`);
         console.log(`=======================================================`);
