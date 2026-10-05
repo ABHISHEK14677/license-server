@@ -289,6 +289,46 @@ async function initDatabase() {
             );
             console.log(`[INIT] Created default admin: "${defaultUser}" with password: "${defaultPass}"`);
         }
+
+        // Auto-migrate legacy licenses table into activation_keys if table exists
+        try {
+            const legacyRes = await query('SELECT * FROM licenses');
+            if (legacyRes && legacyRes.rows && legacyRes.rows.length > 0) {
+                const prodId = defaultProduct ? defaultProduct.id : 1;
+                for (const lic of legacyRes.rows) {
+                    if (!lic.license_key) continue;
+                    const keyClean = lic.license_key.trim().toUpperCase();
+                    const khash = hashKey(keyClean);
+                    const exists = await queryOne('SELECT id FROM activation_keys WHERE key_hash = ?', [khash]);
+                    if (!exists) {
+                        const last4 = getKeyLast4(keyClean);
+                        const durationH = (lic.duration_days && lic.duration_days > 0) ? (lic.duration_days * 24) : 720;
+                        await query(`
+                            INSERT INTO activation_keys (
+                                key_hash, key_last4, key_display, product_id, status, duration_hours,
+                                created_at, activated_at, expires_at, max_devices, customer_name, notes
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        `, [
+                            khash,
+                            last4,
+                            keyClean,
+                            prodId,
+                            lic.status || 'ACTIVE',
+                            durationH,
+                            lic.created_at || new Date().toISOString(),
+                            lic.activated_at || null,
+                            lic.expires_at || null,
+                            lic.max_activations || 1,
+                            'Legacy Licensee',
+                            lic.notes || 'Migrated from legacy licenses table'
+                        ]);
+                        console.log(`[INIT] Migrated legacy key: ${keyClean}`);
+                    }
+                }
+            }
+        } catch (e) {
+            // licenses table may not exist, ignore
+        }
     } catch (err) {
         console.error('[INIT] Database initialization error:', err.message);
     }
