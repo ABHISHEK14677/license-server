@@ -609,7 +609,7 @@ async function updateKeyDetails(id, { notes, customerName, maxDevices, status })
     }
     if (status) {
         const s = status.toUpperCase();
-        if (s === 'REVOKED' || s === 'SUSPENDED') {
+        if (s === 'REVOKED' || s === 'SUSPENDED' || s === 'PAUSED') {
             await query('UPDATE activations SET status = ? WHERE key_id = ?', [s, id]);
         } else if (s === 'ACTIVE') {
             await query("UPDATE activations SET status = 'ACTIVE' WHERE key_id = ?", [id]);
@@ -619,10 +619,11 @@ async function updateKeyDetails(id, { notes, customerName, maxDevices, status })
 }
 
 async function updateKeyStatus(id, newStatus) {
-    await query('UPDATE activation_keys SET status = ? WHERE id = ?', [newStatus, id]);
-    if (newStatus === 'REVOKED' || newStatus === 'SUSPENDED') {
-        await query('UPDATE activations SET status = ? WHERE key_id = ?', [newStatus, id]);
-    } else if (newStatus === 'ACTIVE') {
+    const s = (newStatus || '').toUpperCase();
+    await query('UPDATE activation_keys SET status = ? WHERE id = ?', [s, id]);
+    if (s === 'REVOKED' || s === 'SUSPENDED' || s === 'PAUSED') {
+        await query('UPDATE activations SET status = ? WHERE key_id = ?', [s, id]);
+    } else if (s === 'ACTIVE') {
         await query("UPDATE activations SET status = 'ACTIVE' WHERE key_id = ?", [id]);
     }
     return await getKeyById(id);

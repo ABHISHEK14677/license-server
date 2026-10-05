@@ -641,8 +641,9 @@
                                 <button class="btn btn-outline btn-sm" onclick="viewKey(${k.id})">View</button>
                                 <button class="btn btn-outline btn-sm" onclick="copyKeyText('${k.key_display}')">Copy</button>
                                 ${k.status !== 'REVOKED' ? `<button class="btn btn-danger btn-sm" onclick="revokeKey(${k.id})">Revoke</button>` : ''}
-                                ${k.status === 'ACTIVE' ? `<button class="btn btn-warning btn-sm" onclick="suspendKey(${k.id})">Suspend</button>` : ''}
-                                ${k.status === 'REVOKED' || k.status === 'SUSPENDED' ? `<button class="btn btn-success btn-sm" onclick="reactivateKey(${k.id})">Reactivate</button>` : ''}
+                                ${k.status === 'ACTIVE' || k.status === 'UNUSED' ? `<button class="btn btn-warning btn-sm" onclick="pauseKey(${k.id})">Pause</button>` : ''}
+                                ${k.status === 'SUSPENDED' || k.status === 'PAUSED' ? `<button class="btn btn-success btn-sm" onclick="resumeKey(${k.id})">Resume</button>` : ''}
+                                ${k.status === 'REVOKED' ? `<button class="btn btn-success btn-sm" onclick="reactivateKey(${k.id})">Reactivate</button>` : ''}
                                 <button class="btn btn-outline btn-sm" style="color: var(--accent-danger);" onclick="deleteKeyItem(${k.id})">Delete</button>
                             </div>
                         </td>
@@ -767,15 +768,18 @@
             if (data.success) { loadStats(); loadKeys(); } else alert(data.message);
         }
 
-        async function suspendKey(id) {
-            const data = await api(`/api/keys/${id}/suspend`, { method: 'POST' });
+        async function pauseKey(id) {
+            const data = await api(`/api/keys/${id}/pause`, { method: 'POST' });
             if (data.success) { loadStats(); loadKeys(); } else alert(data.message);
         }
 
-        async function reactivateKey(id) {
-            const data = await api(`/api/keys/${id}/reactivate`, { method: 'POST' });
+        async function resumeKey(id) {
+            const data = await api(`/api/keys/${id}/resume`, { method: 'POST' });
             if (data.success) { loadStats(); loadKeys(); } else alert(data.message);
         }
+
+        async function suspendKey(id) { return pauseKey(id); }
+        async function reactivateKey(id) { return resumeKey(id); }
 
         async function deleteKeyItem(id) {
             if (!confirm('Delete this key permanently?')) return;
