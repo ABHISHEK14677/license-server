@@ -144,13 +144,16 @@ async function initDatabase() {
                 CREATE TABLE IF NOT EXISTS activations (
                     id SERIAL PRIMARY KEY,
                     key_id INTEGER NOT NULL REFERENCES activation_keys(id) ON DELETE CASCADE,
+                    license_id INTEGER,
                     customer_id INTEGER REFERENCES customers(id) ON DELETE SET NULL,
                     device_id INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
                     activated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     expires_at TIMESTAMP,
                     status VARCHAR(50) DEFAULT 'ACTIVE',
                     last_verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    session_token VARCHAR(128)
+                    last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    session_token VARCHAR(128),
+                    is_active INTEGER DEFAULT 1
                 );
 
                 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -164,6 +167,17 @@ async function initDatabase() {
                 CREATE INDEX IF NOT EXISTS idx_keys_hash ON activation_keys(key_hash);
                 CREATE INDEX IF NOT EXISTS idx_keys_status ON activation_keys(status);
             `);
+
+            try {
+                await pgPool.query(`
+                    ALTER TABLE activations ADD COLUMN IF NOT EXISTS license_id INTEGER;
+                    ALTER TABLE activations ADD COLUMN IF NOT EXISTS is_active INTEGER DEFAULT 1;
+                    ALTER TABLE activations ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+                    ALTER TABLE activations ADD COLUMN IF NOT EXISTS session_token VARCHAR(128);
+                `);
+            } catch (e) {
+                // Columns may already exist
+            }
         } else {
             sqliteDb.exec(`
                 PRAGMA foreign_keys = ON;
@@ -231,13 +245,16 @@ async function initDatabase() {
                 CREATE TABLE IF NOT EXISTS activations (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     key_id INTEGER,
+                    license_id INTEGER,
                     customer_id INTEGER,
                     device_id INTEGER,
                     activated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     expires_at DATETIME,
                     status TEXT DEFAULT 'ACTIVE',
                     last_verified_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     session_token TEXT,
+                    is_active INTEGER DEFAULT 1,
                     FOREIGN KEY (key_id) REFERENCES activation_keys(id) ON DELETE CASCADE,
                     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL,
                     FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
@@ -258,10 +275,14 @@ async function initDatabase() {
             ensureSqliteColumn('admins', 'updated_at', 'DATETIME');
 
             ensureSqliteColumn('activations', 'key_id', 'INTEGER');
+            ensureSqliteColumn('activations', 'license_id', 'INTEGER');
             ensureSqliteColumn('activations', 'customer_id', 'INTEGER');
             ensureSqliteColumn('activations', 'expires_at', 'DATETIME');
             ensureSqliteColumn('activations', 'status', "TEXT DEFAULT 'ACTIVE'");
             ensureSqliteColumn('activations', 'last_verified_at', 'DATETIME');
+            ensureSqliteColumn('activations', 'last_seen_at', 'DATETIME');
+            ensureSqliteColumn('activations', 'session_token', 'TEXT');
+            ensureSqliteColumn('activations', 'is_active', "INTEGER DEFAULT 1");
         }
 
         // Seed default product
@@ -331,6 +352,44 @@ async function initDatabase() {
             }
         } catch (e) {
             // licenses table may not exist, ignore
+        }
+
+        // Auto-seed pre-configured keys from seed-keys.json if available
+        try {
+            const fs = require('node:fs');
+            const seedPath = path.join(__dirname, 'seed-keys.json');
+            if (fs.existsSync(seedPath)) {
+                const seedData = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
+                const prodId = defaultProduct ? defaultProduct.id : 1;
+                for (const item of seedData) {
+                    const rawKey = (item.key || item.license_key || '').trim().toUpperCase();
+                    if (!rawKey) continue;
+                    const khash = hashKey(rawKey);
+                    const existing = await queryOne('SELECT id FROM activation_keys WHERE key_hash = ?', [khash]);
+                    if (!existing) {
+                        const last4 = getKeyLast4(rawKey);
+                        await query(`
+                            INSERT INTO activation_keys (
+                                key_hash, key_last4, key_display, product_id, status, duration_hours,
+                                created_at, max_devices, customer_name, notes
+                            ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?)
+                        `, [
+                            khash,
+                            last4,
+                            rawKey,
+                            prodId,
+                            item.status || 'UNUSED',
+                            item.duration_hours !== undefined ? item.duration_hours : -1,
+                            item.max_devices || 1,
+                            item.customer_name || null,
+                            item.notes || 'Auto-seeded key'
+                        ]);
+                        console.log(`[SEED] Seeded key: ${rawKey}`);
+                    }
+                }
+            }
+        } catch (seedErr) {
+            console.error('[SEED] Error seeding keys:', seedErr.message);
         }
     } catch (err) {
         console.error('[INIT] Database initialization error:', err.message);

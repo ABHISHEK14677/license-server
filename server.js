@@ -292,6 +292,35 @@ async function handleKeyGeneration(req, res) {
 app.post('/api/keys/generate', requireAdmin, handleKeyGeneration);
 app.post('/api/admin/licenses/generate', requireAdmin, handleKeyGeneration);
 
+// Bulk import / Sync keys
+app.post('/api/keys/import', requireAdmin, async (req, res) => {
+    try {
+        const { keys = [] } = req.body;
+        const product = await db.getOrCreateProduct('Optimizer');
+        let imported = 0;
+        for (const item of keys) {
+            const rawKey = (item.key || item.key_display || item.license_key || '').trim().toUpperCase();
+            if (!rawKey) continue;
+            const khash = hashKey(rawKey);
+            const exists = await db.getKeyByHash(khash);
+            if (!exists) {
+                await db.createActivationKey({
+                    keyString: rawKey,
+                    productId: product.id,
+                    durationHours: item.duration_hours !== undefined ? item.duration_hours : -1,
+                    maxDevices: item.max_devices || 1,
+                    customerName: item.customer_name || null,
+                    notes: item.notes || 'Imported via sync'
+                });
+                imported++;
+            }
+        }
+        res.json({ success: true, message: `Successfully imported ${imported} keys`, count: imported });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 // List keys with search and filter
 async function handleListKeys(req, res) {
     try {
@@ -474,13 +503,14 @@ async function handleCustomerActivate(req, res) {
             });
         }
 
-        // 5. Check whether key is suspended
-        if (keyRecord.status === 'SUSPENDED') {
-            await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Key suspended', key: formattedKey, device_id: deviceId }, ip);
+        // 5. Check whether key is suspended / paused
+        if (keyRecord.status === 'SUSPENDED' || keyRecord.status === 'PAUSED') {
+            await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Key paused', key: formattedKey, device_id: deviceId }, ip);
             return res.status(403).json({
                 success: false,
-                error: 'KEY_SUSPENDED',
-                message: 'Activation key is suspended'
+                valid: false,
+                error: 'KEY_PAUSED',
+                message: 'Access has been paused by user, contact seller'
             });
         }
 
@@ -674,8 +704,8 @@ async function handleActivationStatus(req, res) {
             return res.status(403).json({ success: false, valid: false, error: 'KEY_REVOKED', message: 'Activation key has been revoked' });
         }
 
-        if (keyRecord.status === 'SUSPENDED') {
-            return res.status(403).json({ success: false, valid: false, error: 'KEY_SUSPENDED', message: 'Activation key is suspended' });
+        if (keyRecord.status === 'SUSPENDED' || keyRecord.status === 'PAUSED') {
+            return res.status(403).json({ success: false, valid: false, error: 'KEY_PAUSED', message: 'Access has been paused by user, contact seller' });
         }
 
         const isPermanent = keyRecord.duration_hours === -1;
@@ -691,6 +721,9 @@ async function handleActivationStatus(req, res) {
 
         const activation = await db.findActivation(keyRecord.id, device.id);
         if (!activation || activation.status !== 'ACTIVE') {
+            if (activation && (activation.status === 'SUSPENDED' || activation.status === 'PAUSED')) {
+                return res.status(403).json({ success: false, valid: false, error: 'KEY_PAUSED', message: 'Access has been paused by user, contact seller' });
+            }
             return res.status(403).json({ success: false, valid: false, error: 'DEVICE_NOT_ACTIVATED', message: 'Device is not active on this key' });
         }
 
