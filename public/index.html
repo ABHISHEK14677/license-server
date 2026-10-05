@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ADB Key Generator & License Activation System</title>
+    <title>Optimizer Key Generator &amp; License Server • MADARA FF</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -291,8 +291,8 @@
 <body>
     <header>
         <div class="logo-area">
-            <span class="logo-badge">ADB OPTIMIZER</span>
-            <span style="font-weight: 600; font-size: 15px;">License Control Server</span>
+            <span class="logo-badge">OPTIMIZER</span>
+            <span style="font-weight: 600; font-size: 15px;">License Server • Developed by MADARA FF</span>
         </div>
         <div id="userSection" style="display: none; align-items: center; gap: 16px;">
             <span id="adminUsername" style="color: var(--text-secondary); font-size: 14px;"></span>
@@ -313,14 +313,10 @@
                 </div>
                 <div class="form-group">
                     <label>Password</label>
-                    <input type="password" id="loginPass" class="form-control" placeholder="••••••••" value="admin123">
+                    <input type="password" id="loginPass" class="form-control" placeholder="Enter password" autofocus>
                 </div>
                 <button class="btn btn-primary" style="width: 100%; margin-top: 8px;" onclick="handleLogin()">Sign In</button>
-                <div style="margin-top: 16px; padding: 10px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 6px; text-align: center;">
-                    <p style="font-size: 12px; color: var(--text-primary); margin-bottom: 4px;">Default Credentials:</p>
-                    <p style="font-size: 13px; font-family: monospace; color: #60a5fa;"><b>admin</b> / <b>admin123</b></p>
-                </div>
-                <p style="margin-top: 12px; font-size: 12px; text-align: center;">
+                <p style="margin-top: 16px; font-size: 12px; text-align: center;">
                     <a href="javascript:void(0)" onclick="openSetupModal()" style="color: var(--text-secondary); text-decoration: underline;">Can't log in? Initialize / Reset Admin</a>
                 </p>
             </div>
@@ -413,7 +409,7 @@
                 <div class="form-group">
                     <label>Product / App</label>
                     <select id="genProduct" class="form-control">
-                        <option value="ADB Optimizer" selected>ADB Optimizer</option>
+                        <option value="Optimizer" selected>Optimizer</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -454,7 +450,7 @@
             <div id="genResult" style="display: none;">
                 <div class="generated-key-box">
                     <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase;">Generated Activation Key</div>
-                    <div class="generated-key-text" id="resultKeyDisplay">ADB-XXXX-XXXX-XXXX-XXXX</div>
+                    <div class="generated-key-text" id="resultKeyDisplay">MADARA-FF-XXXX-XXXX-XXXX-XXXX</div>
                     <div style="display: flex; justify-content: center; gap: 8px;">
                         <button class="btn btn-primary btn-sm" onclick="copyKeyText(document.getElementById('resultKeyDisplay').innerText)">📋 Copy Key</button>
                         <button class="btn btn-outline btn-sm" onclick="shareKeyText(document.getElementById('resultKeyDisplay').innerText)">🔗 Share Key</button>
@@ -798,8 +794,8 @@
         function shareKeyText(key) {
             if (navigator.share) {
                 navigator.share({
-                    title: 'ADB Optimizer Activation Key',
-                    text: `Your ADB Optimizer Activation Key is: ${key}`
+                    title: 'Optimizer Activation Key',
+                    text: `Your Optimizer Activation Key (Developed by MADARA FF) is: ${key}`
                 }).catch(() => {});
             } else {
                 copyKeyText(key);
@@ -846,5 +842,9 @@
             logout();
         };
     </script>
+    <footer style="text-align: center; padding: 24px; color: var(--text-secondary); font-size: 13px; border-top: 1px solid var(--border-color); margin-top: 40px;">
+        <div>Developed by <b>MADARA FF</b></div>
+        <div style="font-size: 11px; margin-top: 4px; opacity: 0.7;">© Developed by MADARA FF • All rights reserved</div>
+    </footer>
 </body>
 </html>

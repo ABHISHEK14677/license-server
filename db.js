@@ -265,14 +265,17 @@ async function initDatabase() {
         }
 
         // Seed default product
-        const defaultProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['ADB Optimizer']);
+        let defaultProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['Optimizer']);
+        if (!defaultProduct) {
+            defaultProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['ADB Optimizer']);
+        }
         if (!defaultProduct) {
             await query('INSERT INTO products (name, description, status) VALUES (?, ?, ?)', [
-                'ADB Optimizer',
-                'Advanced Android Optimizer and Background Runner License',
+                'Optimizer',
+                'Optimizer - Developed by MADARA FF',
                 'ACTIVE'
             ]);
-            console.log('[INIT] Created default product: ADB Optimizer');
+            console.log('[INIT] Created default product: Optimizer');
         }
 
         // Ensure default admin exists
@@ -504,6 +507,58 @@ async function getAllKeys({ search = '', status = '', limit = 100 } = {}) {
     return res.rows;
 }
 
+async function getKeyByIdOrString(idOrKey) {
+    if (!idOrKey) return null;
+    const str = String(idOrKey).trim();
+    if (/^\d+$/.test(str)) {
+        const byId = await getKeyById(parseInt(str, 10));
+        if (byId) return byId;
+    }
+    const khash = hashKey(str);
+    const byHash = await getKeyByHash(khash);
+    if (byHash) return byHash;
+    return await queryOne(`
+        SELECT k.*, p.name as product_name
+        FROM activation_keys k
+        LEFT JOIN products p ON k.product_id = p.id
+        WHERE UPPER(k.key_display) = ?
+    `, [str.toUpperCase()]);
+}
+
+async function updateKeyDetails(id, { notes, customerName, maxDevices, status }) {
+    const fields = [];
+    const params = [];
+    if (notes !== undefined) {
+        fields.push('notes = ?');
+        params.push(notes);
+    }
+    if (customerName !== undefined) {
+        fields.push('customer_name = ?');
+        params.push(customerName);
+    }
+    if (maxDevices !== undefined) {
+        fields.push('max_devices = ?');
+        params.push(parseInt(maxDevices, 10) || 1);
+    }
+    if (status !== undefined) {
+        fields.push('status = ?');
+        params.push(status.toUpperCase());
+    }
+    if (fields.length > 0) {
+        params.push(id);
+        await query(`UPDATE activation_keys SET ${fields.join(', ')} WHERE id = ?`, params);
+    }
+    if (status) {
+        const s = status.toUpperCase();
+        if (s === 'REVOKED' || s === 'SUSPENDED') {
+            await query('UPDATE activations SET status = ? WHERE key_id = ?', [s, id]);
+        } else if (s === 'ACTIVE') {
+            await query("UPDATE activations SET status = 'ACTIVE' WHERE key_id = ?", [id]);
+        }
+    }
+    return await getKeyById(id);
+}
+
 async function updateKeyStatus(id, newStatus) {
     await query('UPDATE activation_keys SET status = ? WHERE id = ?', [newStatus, id]);
     if (newStatus === 'REVOKED' || newStatus === 'SUSPENDED') {
@@ -666,6 +721,25 @@ async function getRecentLogs(limit = 50) {
     return res.rows;
 }
 
+async function createLicense({
+    licenseKey,
+    durationDays = 30,
+    maxActivations = 1,
+    notes = '',
+    status = 'ACTIVE'
+}) {
+    const product = await getOrCreateProduct('Optimizer');
+    const effectiveHours = durationDays === -1 ? 876000 : (durationDays * 24);
+    return await createActivationKey({
+        keyString: licenseKey,
+        productId: product.id,
+        durationHours: effectiveHours,
+        maxDevices: maxActivations,
+        customerName: 'MADARA FF User',
+        notes: notes
+    });
+}
+
 module.exports = {
     query,
     queryOne,
@@ -683,10 +757,13 @@ module.exports = {
     getOrCreateProduct,
     // Keys
     createActivationKey,
+    createLicense,
     getKeyByHash,
     getKeyById,
+    getKeyByIdOrString,
     getAllKeys,
     updateKeyStatus,
+    updateKeyDetails,
     deleteKey,
     // Customers & Devices
     getOrCreateCustomer,

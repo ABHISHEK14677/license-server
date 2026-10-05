@@ -57,7 +57,9 @@ async function requireAdmin(req, res, next) {
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'ok',
-        service: 'ADB Key Generator and License Activation System',
+        service: 'Optimizer License Activation System',
+        developedBy: 'MADARA FF',
+        copyright: '© Developed by MADARA FF',
         serverTime: new Date().toISOString()
     });
 });
@@ -216,19 +218,22 @@ app.get('/api/admin/stats', requireAdmin, handleDashboardStats);
 async function handleKeyGeneration(req, res) {
     const ip = getClientIp(req);
     const {
-        product_name = 'ADB Optimizer',
+        product_name = 'Optimizer',
         duration_hours = null,
         duration_days = null,
         max_devices = 1,
         customer_name = null,
         notes = '',
-        count = 1
+        count = 1,
+        prefix = 'MADARA-FF'
     } = req.body;
 
     try {
-        // Calculate duration in hours
+        // Calculate duration in hours (-1 means permanent / lifetime)
         let effectiveHours = 720; // default 30 days
-        if (duration_hours !== null && duration_hours !== undefined) {
+        if (req.body.permanent === true || duration_hours === -1 || duration_days === -1) {
+            effectiveHours = -1;
+        } else if (duration_hours !== null && duration_hours !== undefined) {
             effectiveHours = parseInt(duration_hours, 10);
         } else if (duration_days !== null && duration_days !== undefined) {
             effectiveHours = parseInt(duration_days, 10) * 24;
@@ -239,7 +244,7 @@ async function handleKeyGeneration(req, res) {
         const limitCount = Math.min(Math.max(parseInt(count, 10) || 1, 1), 50);
 
         for (let i = 0; i < limitCount; i++) {
-            const rawKey = generateLicenseKey('ADB');
+            const rawKey = generateLicenseKey(prefix || 'MADARA-FF');
             const keyRecord = await db.createActivationKey({
                 keyString: rawKey,
                 productId: product.id,
@@ -254,6 +259,7 @@ async function handleKeyGeneration(req, res) {
                 key: rawKey,
                 product: product.name,
                 duration_hours: effectiveHours,
+                is_permanent: effectiveHours === -1,
                 created_at: keyRecord.created_at,
                 expires_at: keyRecord.expires_at,
                 status: 'UNUSED',
@@ -305,7 +311,7 @@ app.get('/api/admin/licenses', requireAdmin, handleListKeys);
 // Get single key details & activations
 app.get('/api/keys/:id', requireAdmin, async (req, res) => {
     try {
-        const key = await db.getKeyById(req.params.id);
+        const key = await db.getKeyByIdOrString(req.params.id);
         if (!key) return res.status(404).json({ success: false, message: 'Key not found' });
         const activations = await db.getKeyActivations(key.id);
         res.json({ success: true, key, activations });
@@ -314,10 +320,31 @@ app.get('/api/keys/:id', requireAdmin, async (req, res) => {
     }
 });
 
+// Update / Edit key (notes, customer name, max devices, status)
+async function handleUpdateKey(req, res) {
+    try {
+        const key = await db.getKeyByIdOrString(req.params.id);
+        if (!key) return res.status(404).json({ success: false, message: 'Key not found' });
+        const { notes, customer_name, customerName, max_devices, maxDevices, status } = req.body;
+        const updated = await db.updateKeyDetails(key.id, {
+            notes,
+            customerName: customer_name || customerName,
+            maxDevices: max_devices || maxDevices,
+            status
+        });
+        await db.logAuditEvent('KEY_UPDATED', { key_id: key.id, key_display: key.key_display, changes: req.body }, getClientIp(req));
+        res.json({ success: true, message: 'Key updated successfully', key: updated });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+}
+app.patch('/api/keys/:id', requireAdmin, handleUpdateKey);
+app.put('/api/keys/:id', requireAdmin, handleUpdateKey);
+
 // Revoke key
 app.post('/api/keys/:id/revoke', requireAdmin, async (req, res) => {
     try {
-        const key = await db.getKeyById(req.params.id);
+        const key = await db.getKeyByIdOrString(req.params.id);
         if (!key) return res.status(404).json({ success: false, message: 'Key not found' });
         const updated = await db.updateKeyStatus(key.id, 'REVOKED');
         await db.logAuditEvent('KEY_REVOKED', { key_id: key.id, key_display: key.key_display }, getClientIp(req));
@@ -327,39 +354,43 @@ app.post('/api/keys/:id/revoke', requireAdmin, async (req, res) => {
     }
 });
 
-// Suspend key
-app.post('/api/keys/:id/suspend', requireAdmin, async (req, res) => {
+// Suspend / Pause key
+async function handleSuspendKey(req, res) {
     try {
-        const key = await db.getKeyById(req.params.id);
+        const key = await db.getKeyByIdOrString(req.params.id);
         if (!key) return res.status(404).json({ success: false, message: 'Key not found' });
         const updated = await db.updateKeyStatus(key.id, 'SUSPENDED');
         await db.logAuditEvent('KEY_SUSPENDED', { key_id: key.id, key_display: key.key_display }, getClientIp(req));
-        res.json({ success: true, message: 'Key suspended successfully', key: updated });
+        res.json({ success: true, message: 'Key paused/suspended successfully', key: updated });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
-});
+}
+app.post('/api/keys/:id/suspend', requireAdmin, handleSuspendKey);
+app.post('/api/keys/:id/pause', requireAdmin, handleSuspendKey);
 
-// Reactivate key
-app.post('/api/keys/:id/reactivate', requireAdmin, async (req, res) => {
+// Reactivate / Resume key
+async function handleReactivateKey(req, res) {
     try {
-        const key = await db.getKeyById(req.params.id);
+        const key = await db.getKeyByIdOrString(req.params.id);
         if (!key) return res.status(404).json({ success: false, message: 'Key not found' });
 
         // If it was unused, keep unused; otherwise activate
         const targetStatus = key.activated_at ? 'ACTIVE' : 'UNUSED';
         const updated = await db.updateKeyStatus(key.id, targetStatus);
         await db.logAuditEvent('KEY_REACTIVATED', { key_id: key.id, key_display: key.key_display }, getClientIp(req));
-        res.json({ success: true, message: 'Key reactivated successfully', key: updated });
+        res.json({ success: true, message: 'Key resumed/reactivated successfully', key: updated });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
-});
+}
+app.post('/api/keys/:id/reactivate', requireAdmin, handleReactivateKey);
+app.post('/api/keys/:id/resume', requireAdmin, handleReactivateKey);
 
 // Delete key
 app.delete('/api/keys/:id', requireAdmin, async (req, res) => {
     try {
-        const key = await db.getKeyById(req.params.id);
+        const key = await db.getKeyByIdOrString(req.params.id);
         if (!key) return res.status(404).json({ success: false, message: 'Key not found' });
         await db.deleteKey(key.id);
         await db.logAuditEvent('KEY_DELETED', { key_id: key.id, key_display: key.key_display }, getClientIp(req));
@@ -474,25 +505,37 @@ async function handleCustomerActivate(req, res) {
 
         // Check if device is already activated on this key
         const existingActivation = await db.findActivation(keyRecord.id, device.id);
+        const isPermanent = keyRecord.duration_hours === -1;
         if (existingActivation && existingActivation.status === 'ACTIVE') {
             const token = existingActivation.session_token || generateToken();
             await db.updateActivationLastSeen(existingActivation.id, token);
 
+            const remainingSeconds = isPermanent ? -1 : (keyRecord.expires_at ? Math.max(0, Math.floor((new Date(keyRecord.expires_at).getTime() - Date.now()) / 1000)) : null);
+
             return res.json({
                 success: true,
                 message: 'Activation Successful',
-                product: keyRecord.product_name || 'ADB Optimizer',
+                product: keyRecord.product_name || 'Optimizer',
+                developer: 'MADARA FF',
+                copyright: '© Developed by MADARA FF',
                 status: 'ACTIVE',
+                activated_at: keyRecord.activated_at || existingActivation.activated_at,
                 expires_at: keyRecord.expires_at,
+                remaining_seconds: remainingSeconds,
+                is_permanent: isPermanent,
                 duration_hours: keyRecord.duration_hours,
                 session_token: token,
                 device_registered: true,
                 license: {
                     key: keyRecord.key_display,
-                    product: keyRecord.product_name || 'ADB Optimizer',
+                    product: keyRecord.product_name || 'Optimizer',
+                    developer: 'MADARA FF',
                     status: 'ACTIVE',
+                    activated_at: keyRecord.activated_at || existingActivation.activated_at,
                     expires_at: keyRecord.expires_at,
-                    duration_days: Math.round((keyRecord.duration_hours || 720) / 24),
+                    remaining_seconds: remainingSeconds,
+                    is_permanent: isPermanent,
+                    duration_days: isPermanent ? -1 : Math.round((keyRecord.duration_hours || 720) / 24),
                     max_activations: keyRecord.max_devices
                 }
             });
@@ -509,12 +552,23 @@ async function handleCustomerActivate(req, res) {
             });
         }
 
-        // 9. Calculate expiration date on first activation
-        let finalExpiresAt = keyRecord.expires_at;
-        const durationHours = keyRecord.duration_hours || 720;
-        if (!finalExpiresAt && durationHours > 0) {
-            finalExpiresAt = new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString();
+        // 9. Calculate expiration date on activation:
+        // Timer activates ONLY AFTER activated by the user!
+        const durationHours = keyRecord.duration_hours;
+        let finalExpiresAt = null;
+        let remainingSeconds = -1;
+
+        if (!isPermanent) {
+            const hours = durationHours && durationHours > 0 ? durationHours : 720;
+            if (keyRecord.status === 'UNUSED' || !keyRecord.activated_at || !keyRecord.expires_at) {
+                finalExpiresAt = new Date(now + hours * 60 * 60 * 1000).toISOString();
+            } else {
+                finalExpiresAt = keyRecord.expires_at;
+            }
+            remainingSeconds = Math.max(0, Math.floor((new Date(finalExpiresAt).getTime() - now) / 1000));
         }
+
+        const activatedAtIso = keyRecord.activated_at || new Date(now).toISOString();
 
         // 10. Update key status to ACTIVE and save activation
         const sessionToken = generateToken();
@@ -541,18 +595,27 @@ async function handleCustomerActivate(req, res) {
         return res.json({
             success: true,
             message: 'Activation Successful',
-            product: keyRecord.product_name || 'ADB Optimizer',
+            product: keyRecord.product_name || 'Optimizer',
+            developer: 'MADARA FF',
+            copyright: '© Developed by MADARA FF',
             status: 'ACTIVE',
+            activated_at: activatedAtIso,
             expires_at: finalExpiresAt,
+            remaining_seconds: remainingSeconds,
+            is_permanent: isPermanent,
             duration_hours: durationHours,
             session_token: sessionToken,
             device_registered: true,
             license: {
                 key: keyRecord.key_display,
-                product: keyRecord.product_name || 'ADB Optimizer',
+                product: keyRecord.product_name || 'Optimizer',
+                developer: 'MADARA FF',
                 status: 'ACTIVE',
+                activated_at: activatedAtIso,
                 expires_at: finalExpiresAt,
-                duration_days: Math.round(durationHours / 24),
+                remaining_seconds: remainingSeconds,
+                is_permanent: isPermanent,
+                duration_days: isPermanent ? -1 : Math.round((durationHours || 720) / 24),
                 max_activations: keyRecord.max_devices
             }
         });
@@ -615,7 +678,8 @@ async function handleActivationStatus(req, res) {
             return res.status(403).json({ success: false, valid: false, error: 'KEY_SUSPENDED', message: 'Activation key is suspended' });
         }
 
-        if (keyRecord.expires_at && new Date(keyRecord.expires_at).getTime() < Date.now()) {
+        const isPermanent = keyRecord.duration_hours === -1;
+        if (!isPermanent && keyRecord.expires_at && new Date(keyRecord.expires_at).getTime() < Date.now()) {
             await db.updateKeyStatus(keyRecord.id, 'EXPIRED');
             return res.status(403).json({ success: false, valid: false, error: 'KEY_EXPIRED', message: 'Activation key has expired' });
         }
@@ -632,12 +696,20 @@ async function handleActivationStatus(req, res) {
 
         await db.updateActivationLastSeen(activation.id);
 
+        const remainingSeconds = isPermanent ? -1 : (keyRecord.expires_at ? Math.max(0, Math.floor((new Date(keyRecord.expires_at).getTime() - Date.now()) / 1000)) : null);
+
         res.json({
             success: true,
             valid: true,
             status: keyRecord.status,
-            product: keyRecord.product_name || 'ADB Optimizer',
-            expires_at: keyRecord.expires_at
+            product: keyRecord.product_name || 'Optimizer',
+            developer: 'MADARA FF',
+            copyright: '© Developed by MADARA FF',
+            activated_at: keyRecord.activated_at,
+            expires_at: keyRecord.expires_at,
+            remaining_seconds: remainingSeconds,
+            is_permanent: isPermanent,
+            duration_days: isPermanent ? -1 : Math.round((keyRecord.duration_hours || 720) / 24)
         });
     } catch (err) {
         res.status(500).json({ success: false, valid: false, message: err.message });

@@ -1,10 +1,10 @@
 const crypto = require('node:crypto');
 
 // Cryptographically secure license key generator
-// Format: ADB-XXXX-XXXX-XXXX-XXXX (16 chars, 4 blocks)
+// Format: MADARA-FF-XXXX-XXXX-XXXX-XXXX (16 random chars, 4 blocks)
 const KEY_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Excludes ambiguous chars: 0, O, 1, I
 
-function generateLicenseKey(prefix = 'ADB') {
+function generateLicenseKey(prefix = 'MADARA-FF') {
     const segments = 4;
     const segmentLength = 4;
     const parts = [prefix.toUpperCase()];
@@ -36,8 +36,10 @@ function getKeyLast4(key) {
 function isValidKeyFormat(key) {
     if (!key || typeof key !== 'string') return false;
     const trimmed = key.trim().toUpperCase();
-    // ADB-XXXX-XXXX-XXXX-XXXX or RO-XXXX-XXXX-XXXX-XXXX
-    return /^[A-Z0-9]{2,5}(-[A-Z0-9]{4}){4}$/.test(trimmed) || /^[A-Z0-9]{16,24}$/.test(trimmed);
+    // Support MADARA-FF-XXXX-XXXX-XXXX-XXXX, ADB-XXXX-XXXX-XXXX-XXXX, RO-XXXX-XXXX-XXXX-XXXX
+    return /^(MADARA-FF|[A-Z0-9]{2,10})(-[A-Z0-9]{4}){3,5}$/.test(trimmed) ||
+           /^[A-Z0-9]{2,5}(-[A-Z0-9]{4}){4}$/.test(trimmed) ||
+           /^[A-Z0-9_-]{16,36}$/.test(trimmed);
 }
 
 function hashPassword(password) {
