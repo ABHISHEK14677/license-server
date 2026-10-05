@@ -1,13 +1,13 @@
 const crypto = require('node:crypto');
 
 // Cryptographically secure license key generator
-// Format: RO-XXXX-XXXX-XXXX-XXXX
-const KEY_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Excludes 0, O, 1, I for readability
+// Format: ADB-XXXX-XXXX-XXXX-XXXX (16 chars, 4 blocks)
+const KEY_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Excludes ambiguous chars: 0, O, 1, I
 
-function generateLicenseKey(prefix = 'RO') {
+function generateLicenseKey(prefix = 'ADB') {
     const segments = 4;
     const segmentLength = 4;
-    const parts = [prefix];
+    const parts = [prefix.toUpperCase()];
 
     for (let s = 0; s < segments; s++) {
         let segment = '';
@@ -21,6 +21,25 @@ function generateLicenseKey(prefix = 'RO') {
     return parts.join('-');
 }
 
+function hashKey(key) {
+    if (!key) return '';
+    const normalized = key.trim().toUpperCase();
+    return crypto.createHash('sha256').update(normalized).digest('hex');
+}
+
+function getKeyLast4(key) {
+    if (!key) return '';
+    const clean = key.trim().replace(/-/g, '').toUpperCase();
+    return clean.slice(-4);
+}
+
+function isValidKeyFormat(key) {
+    if (!key || typeof key !== 'string') return false;
+    const trimmed = key.trim().toUpperCase();
+    // ADB-XXXX-XXXX-XXXX-XXXX or RO-XXXX-XXXX-XXXX-XXXX
+    return /^[A-Z0-9]{2,5}(-[A-Z0-9]{4}){4}$/.test(trimmed) || /^[A-Z0-9]{16,24}$/.test(trimmed);
+}
+
 function hashPassword(password) {
     const salt = crypto.randomBytes(16).toString('hex');
     const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
@@ -28,6 +47,7 @@ function hashPassword(password) {
 }
 
 function verifyPassword(password, salt, storedHash) {
+    if (!password || !salt || !storedHash) return false;
     const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
     const bufferA = Buffer.from(hash, 'hex');
     const bufferB = Buffer.from(storedHash, 'hex');
@@ -39,7 +59,7 @@ function generateToken() {
     return crypto.randomBytes(32).toString('hex');
 }
 
-// Simple sliding window rate limiter
+// Sliding window rate limiter
 class RateLimiter {
     constructor(maxRequests = 30, windowMs = 60 * 1000) {
         this.maxRequests = maxRequests;
@@ -80,6 +100,9 @@ class RateLimiter {
 
 module.exports = {
     generateLicenseKey,
+    hashKey,
+    getKeyLast4,
+    isValidKeyFormat,
     hashPassword,
     verifyPassword,
     generateToken,

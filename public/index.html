@@ -3,21 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Optimizer - License Control Center</title>
+    <title>ADB Key Generator & License Activation System</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-primary: #0f172a;
-            --bg-secondary: #1e293b;
-            --bg-card: #1e293b;
-            --border-color: #334155;
-            --text-primary: #f8fafc;
-            --text-secondary: #94a3b8;
+            --bg-primary: #0b0f19;
+            --bg-secondary: #111827;
+            --bg-card: #1f2937;
+            --border-color: #374151;
+            --text-primary: #f9fafb;
+            --text-secondary: #9ca3af;
             --accent-primary: #3b82f6;
             --accent-hover: #2563eb;
             --accent-success: #10b981;
             --accent-danger: #ef4444;
             --accent-warning: #f59e0b;
+            --accent-purple: #8b5cf6;
         }
 
         * {
@@ -34,12 +35,11 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1280px;
             margin: 0 auto;
             padding: 24px;
         }
 
-        /* Header */
         header {
             display: flex;
             justify-content: space-between;
@@ -61,9 +61,9 @@
             border-radius: 8px;
             font-weight: 700;
             font-size: 14px;
+            letter-spacing: 0.5px;
         }
 
-        /* Buttons */
         .btn {
             padding: 8px 16px;
             border-radius: 6px;
@@ -79,13 +79,15 @@
 
         .btn-primary { background: var(--accent-primary); color: white; }
         .btn-primary:hover { background: var(--accent-hover); }
+        .btn-success { background: var(--accent-success); color: white; }
+        .btn-success:hover { background: #059669; }
         .btn-danger { background: var(--accent-danger); color: white; }
         .btn-danger:hover { background: #dc2626; }
+        .btn-warning { background: var(--accent-warning); color: #111827; }
         .btn-outline { background: transparent; border: 1px solid var(--border-color); color: var(--text-primary); }
         .btn-outline:hover { background: rgba(255,255,255,0.05); }
-        .btn-sm { padding: 4px 8px; font-size: 12px; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 4px; }
 
-        /* Login Card */
         .login-wrap {
             display: flex;
             justify-content: center;
@@ -99,7 +101,7 @@
             border-radius: 12px;
             padding: 32px;
             width: 100%;
-            max-width: 400px;
+            max-width: 420px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.5);
         }
 
@@ -110,29 +112,30 @@
         .form-group label {
             display: block;
             margin-bottom: 6px;
-            color: var(--text-secondary);
             font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
         }
 
         .form-control {
             width: 100%;
             padding: 10px 14px;
-            background: #0f172a;
+            background: var(--bg-secondary);
             border: 1px solid var(--border-color);
             border-radius: 6px;
             color: var(--text-primary);
             font-size: 14px;
             outline: none;
+            transition: border-color 0.2s;
         }
 
         .form-control:focus {
             border-color: var(--accent-primary);
         }
 
-        /* Stats Grid */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             gap: 16px;
             margin-bottom: 24px;
         }
@@ -141,38 +144,41 @@
             background: var(--bg-card);
             border: 1px solid var(--border-color);
             border-radius: 10px;
-            padding: 16px 20px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .stat-val {
             font-size: 26px;
             font-weight: 700;
-            margin-top: 4px;
         }
 
-        .stat-label {
-            color: var(--text-secondary);
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        /* Tabs */
         .tabs {
             display: flex;
-            gap: 12px;
+            gap: 8px;
             border-bottom: 1px solid var(--border-color);
             margin-bottom: 20px;
+            overflow-x: auto;
         }
 
         .tab-btn {
-            padding: 10px 16px;
-            background: none;
+            background: transparent;
             border: none;
             color: var(--text-secondary);
+            padding: 10px 16px;
             font-weight: 600;
             cursor: pointer;
             border-bottom: 2px solid transparent;
+            font-size: 14px;
+            white-space: nowrap;
         }
 
         .tab-btn.active {
@@ -180,7 +186,6 @@
             border-bottom-color: var(--accent-primary);
         }
 
-        /* Table */
         .table-wrap {
             background: var(--bg-card);
             border: 1px solid var(--border-color);
@@ -192,60 +197,57 @@
             width: 100%;
             border-collapse: collapse;
             font-size: 13px;
-        }
-
-        th, td {
-            padding: 12px 16px;
             text-align: left;
-            border-bottom: 1px solid var(--border-color);
         }
 
         th {
-            background: #162032;
+            background: rgba(0,0,0,0.2);
+            padding: 12px 16px;
             color: var(--text-secondary);
             font-weight: 600;
+            border-bottom: 1px solid var(--border-color);
         }
 
-        tr:hover td {
-            background: rgba(255, 255, 255, 0.02);
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
         }
 
         .badge {
             padding: 3px 8px;
             border-radius: 4px;
             font-size: 11px;
-            font-weight: 600;
+            font-weight: 700;
+            display: inline-block;
+            text-transform: uppercase;
         }
 
-        .badge-active { background: rgba(16, 185, 129, 0.2); color: var(--accent-success); }
-        .badge-revoked { background: rgba(239, 68, 68, 0.2); color: var(--accent-danger); }
-        .badge-expired { background: rgba(245, 158, 11, 0.2); color: var(--accent-warning); }
+        .badge-unused { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+        .badge-active { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+        .badge-expired { background: rgba(156, 163, 175, 0.2); color: #9ca3af; }
+        .badge-revoked { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .badge-suspended { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
 
-        .key-text {
+        .key-mono {
             font-family: monospace;
-            font-size: 14px;
-            font-weight: 600;
+            font-weight: 700;
             color: #60a5fa;
             letter-spacing: 0.5px;
         }
 
-        /* Modal */
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.7);
-            display: flex;
+            background: rgba(0,0,0,0.7);
+            display: none;
             justify-content: center;
             align-items: center;
             z-index: 1000;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s;
-        }
-
-        .modal-overlay.active {
-            opacity: 1;
-            pointer-events: auto;
+            padding: 16px;
         }
 
         .modal-content {
@@ -257,6 +259,7 @@
             max-width: 520px;
             max-height: 90vh;
             overflow-y: auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
         }
 
         .modal-header {
@@ -266,36 +269,30 @@
             margin-bottom: 20px;
         }
 
-        /* Toast */
-        .toast {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            background: #1e293b;
-            color: white;
-            padding: 12px 20px;
+        .generated-key-box {
+            background: #0f172a;
+            border: 2px dashed #3b82f6;
             border-radius: 8px;
-            border: 1px solid var(--border-color);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-            transform: translateY(100px);
-            opacity: 0;
-            transition: all 0.3s;
-            z-index: 2000;
+            padding: 16px;
+            text-align: center;
+            margin: 16px 0;
         }
 
-        .toast.show {
-            transform: translateY(0);
-            opacity: 1;
+        .generated-key-text {
+            font-family: monospace;
+            font-size: 20px;
+            font-weight: 700;
+            color: #60a5fa;
+            word-break: break-all;
+            margin-bottom: 12px;
         }
     </style>
 </head>
 <body>
-
-    <!-- Header -->
     <header>
         <div class="logo-area">
-            <span class="logo-badge">ROOT-FREE OPTIMIZER</span>
-            <span style="font-weight: 600; font-size: 16px;">License Authority & Management</span>
+            <span class="logo-badge">ADB OPTIMIZER</span>
+            <span style="font-weight: 600; font-size: 15px;">License Control Server</span>
         </div>
         <div id="userSection" style="display: none; align-items: center; gap: 16px;">
             <span id="adminUsername" style="color: var(--text-secondary); font-size: 14px;"></span>
@@ -311,310 +308,346 @@
                 <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 20px;">Enter credentials to manage licenses and devices.</p>
                 <div id="loginError" style="color: var(--accent-danger); font-size: 13px; margin-bottom: 12px; display: none;"></div>
                 <div class="form-group">
-                    <label>Username</label>
-                    <input type="text" id="loginUser" class="form-control" placeholder="admin" autofocus>
+                    <label>Username or Email</label>
+                    <input type="text" id="loginUser" class="form-control" placeholder="admin" value="admin" autofocus>
                 </div>
                 <div class="form-group">
                     <label>Password</label>
-                    <input type="password" id="loginPass" class="form-control" placeholder="••••••••">
+                    <input type="password" id="loginPass" class="form-control" placeholder="••••••••" value="admin123">
                 </div>
                 <button class="btn btn-primary" style="width: 100%; margin-top: 8px;" onclick="handleLogin()">Sign In</button>
+                <div style="margin-top: 16px; padding: 10px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 6px; text-align: center;">
+                    <p style="font-size: 12px; color: var(--text-primary); margin-bottom: 4px;">Default Credentials:</p>
+                    <p style="font-size: 13px; font-family: monospace; color: #60a5fa;"><b>admin</b> / <b>admin123</b></p>
+                </div>
+                <p style="margin-top: 12px; font-size: 12px; text-align: center;">
+                    <a href="javascript:void(0)" onclick="openSetupModal()" style="color: var(--text-secondary); text-decoration: underline;">Can't log in? Initialize / Reset Admin</a>
+                </p>
             </div>
         </div>
 
         <!-- Dashboard View -->
         <div id="dashboardView" style="display: none;">
-            <!-- Stats -->
+            <!-- Stats Section (Section 2 Requirements) -->
             <div class="stats-grid">
                 <div class="stat-card">
-                    <div class="stat-label">Total Licenses</div>
+                    <div class="stat-label">Total Keys</div>
                     <div class="stat-val" id="statTotal">-</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">Active Licenses</div>
+                    <div class="stat-label">Active Keys</div>
                     <div class="stat-val" id="statActive" style="color: var(--accent-success);">-</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-label">Bound Devices</div>
-                    <div class="stat-val" id="statDevices" style="color: var(--accent-primary);">-</div>
+                    <div class="stat-label">Unused Keys</div>
+                    <div class="stat-val" id="statUnused" style="color: #60a5fa;">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Expired Keys</div>
+                    <div class="stat-val" id="statExpired" style="color: var(--text-secondary);">-</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Revoked Keys</div>
                     <div class="stat-val" id="statRevoked" style="color: var(--accent-danger);">-</div>
                 </div>
+                <div class="stat-card">
+                    <div class="stat-label">Active Customers</div>
+                    <div class="stat-val" id="statCustomers" style="color: var(--accent-purple);">-</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Activated Devices</div>
+                    <div class="stat-val" id="statDevices" style="color: var(--accent-warning);">-</div>
+                </div>
             </div>
 
-            <!-- Tabs -->
-            <div class="tabs">
-                <button class="tab-btn active" onclick="switchTab('licenses')">Licenses</button>
-                <button class="tab-btn" onclick="switchTab('logs')">Audit & History</button>
-            </div>
-
-            <!-- Tab: Licenses -->
-            <div id="tabLicenses">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; flex-wrap: wrap;">
-                    <div style="display: flex; gap: 8px; flex: 1; max-width: 400px;">
-                        <input type="text" id="searchInput" class="form-control" placeholder="Search by key or notes..." oninput="filterLicenses()">
-                    </div>
+            <!-- Header Action Controls -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; flex-wrap: wrap;">
+                <div class="tabs" style="margin-bottom: 0; border-bottom: none;">
+                    <button class="tab-btn active" onclick="setFilter('ALL', this)">All</button>
+                    <button class="tab-btn" onclick="setFilter('UNUSED', this)">Unused</button>
+                    <button class="tab-btn" onclick="setFilter('ACTIVE', this)">Active</button>
+                    <button class="tab-btn" onclick="setFilter('EXPIRED', this)">Expired</button>
+                    <button class="tab-btn" onclick="setFilter('REVOKED', this)">Revoked</button>
+                    <button class="tab-btn" onclick="setFilter('SUSPENDED', this)">Suspended</button>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="searchInput" class="form-control" style="width: 240px;" placeholder="Search key, client, notes..." oninput="handleSearch()">
                     <button class="btn btn-primary" onclick="openGenerateModal()">
-                        <span style="font-size: 16px;">+</span> Generate License
+                        <span style="font-size: 16px;">+</span> Generate Key
                     </button>
                 </div>
-
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>License Key</th>
-                                <th>Status</th>
-                                <th>Duration / Expiry</th>
-                                <th>Activations</th>
-                                <th>Notes / Client</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="licensesTableBody">
-                            <tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">Loading licenses...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
             </div>
 
-            <!-- Tab: Logs -->
-            <div id="tabLogs" style="display: none;">
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Timestamp</th>
-                                <th>Event</th>
-                                <th>Details</th>
-                                <th>IP Address</th>
-                            </tr>
-                        </thead>
-                        <tbody id="logsTableBody">
-                            <tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">Loading logs...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal: Generate License -->
-    <div id="generateModal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 style="font-size: 18px;">Generate Activation Key(s)</h3>
-                <button class="btn btn-outline btn-sm" onclick="closeModal('generateModal')">✕</button>
-            </div>
-            <div class="form-group">
-                <label>Key Prefix</label>
-                <input type="text" id="genPrefix" class="form-control" value="RO">
-            </div>
-            <div class="form-group">
-                <label>Validity Duration</label>
-                <select id="genDuration" class="form-control">
-                    <option value="7">7 Days</option>
-                    <option value="30" selected>30 Days (1 Month)</option>
-                    <option value="90">90 Days (3 Months)</option>
-                    <option value="180">180 Days (6 Months)</option>
-                    <option value="365">365 Days (1 Year)</option>
-                    <option value="-1">Lifetime / Permanent</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Max Device Activations</label>
-                <input type="number" id="genMaxDevices" class="form-control" value="1" min="1" max="100">
-            </div>
-            <div class="form-group">
-                <label>Number of Keys to Generate</label>
-                <input type="number" id="genCount" class="form-control" value="1" min="1" max="50">
-            </div>
-            <div class="form-group">
-                <label>Client Reference / Notes</label>
-                <input type="text" id="genNotes" class="form-control" placeholder="e.g. VIP Customer, Device replacement...">
-            </div>
-            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
-                <button class="btn btn-outline" onclick="closeModal('generateModal')">Cancel</button>
-                <button class="btn btn-primary" onclick="submitGenerate()">Generate Key(s)</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal: View & Manage Activations -->
-    <div id="activationsModal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 600px;">
-            <div class="modal-header">
-                <h3 style="font-size: 18px;">Device Activations</h3>
-                <button class="btn btn-outline btn-sm" onclick="closeModal('activationsModal')">✕</button>
-            </div>
-            <div style="margin-bottom: 16px;">
-                <span class="key-text" id="modalLicenseKey"></span>
-            </div>
+            <!-- Keys Table -->
             <div class="table-wrap">
                 <table>
                     <thead>
                         <tr>
-                            <th>Device Model</th>
-                            <th>Device ID</th>
+                            <th>Key</th>
+                            <th>Product</th>
+                            <th>Customer</th>
+                            <th>Created At</th>
                             <th>Activated At</th>
-                            <th>Action</th>
+                            <th>Expires At</th>
+                            <th>Devices</th>
+                            <th>Status</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="activationsTableBody">
+                    <tbody id="keysTableBody">
+                        <tr><td colspan="9" style="text-align: center; color: var(--text-secondary); padding: 32px;">Loading keys...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- Toast Notification -->
-    <div id="toast" class="toast">Action completed</div>
+    <!-- Modal: Generate Key -->
+    <div id="generateModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 style="font-size: 18px;">Generate Activation Key</h3>
+                <button class="btn btn-outline btn-sm" onclick="closeModal('generateModal')">✕</button>
+            </div>
+            <div id="genForm">
+                <div class="form-group">
+                    <label>Product / App</label>
+                    <select id="genProduct" class="form-control">
+                        <option value="ADB Optimizer" selected>ADB Optimizer</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Key Duration</label>
+                    <select id="genDuration" class="form-control" onchange="toggleCustomDuration()">
+                        <option value="1">1 Hour</option>
+                        <option value="6">6 Hours</option>
+                        <option value="12">12 Hours</option>
+                        <option value="24">1 Day</option>
+                        <option value="168">7 Days</option>
+                        <option value="720" selected>30 Days</option>
+                        <option value="custom">Custom Duration (Hours)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="customDurationGroup" style="display: none;">
+                    <label>Custom Duration in Hours</label>
+                    <input type="number" id="genCustomHours" class="form-control" placeholder="e.g. 48 for 2 days" value="48" min="1">
+                </div>
+                <div class="form-group">
+                    <label>Maximum Devices</label>
+                    <input type="number" id="genMaxDevices" class="form-control" value="1" min="1" max="100">
+                </div>
+                <div class="form-group">
+                    <label>Customer Name / ID (Optional)</label>
+                    <input type="text" id="genCustomerName" class="form-control" placeholder="e.g. John Doe, Cust#102">
+                </div>
+                <div class="form-group">
+                    <label>Notes (Optional)</label>
+                    <input type="text" id="genNotes" class="form-control" placeholder="e.g. Retail sale, Telegram user...">
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+                    <button class="btn btn-outline" onclick="closeModal('generateModal')">Cancel</button>
+                    <button class="btn btn-primary" onclick="submitGenerate()">GENERATE KEY</button>
+                </div>
+            </div>
+
+            <!-- Post Generation View (Section 2) -->
+            <div id="genResult" style="display: none;">
+                <div class="generated-key-box">
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase;">Generated Activation Key</div>
+                    <div class="generated-key-text" id="resultKeyDisplay">ADB-XXXX-XXXX-XXXX-XXXX</div>
+                    <div style="display: flex; justify-content: center; gap: 8px;">
+                        <button class="btn btn-primary btn-sm" onclick="copyKeyText(document.getElementById('resultKeyDisplay').innerText)">📋 Copy Key</button>
+                        <button class="btn btn-outline btn-sm" onclick="shareKeyText(document.getElementById('resultKeyDisplay').innerText)">🔗 Share Key</button>
+                    </div>
+                </div>
+
+                <div style="background: var(--bg-secondary); border-radius: 8px; padding: 12px; font-size: 13px; margin-bottom: 16px;">
+                    <p style="margin-bottom: 6px;"><b>Product:</b> <span id="resProduct">-</span></p>
+                    <p style="margin-bottom: 6px;"><b>Duration:</b> <span id="resDuration">-</span></p>
+                    <p style="margin-bottom: 6px;"><b>Creation Date:</b> <span id="resCreated">-</span></p>
+                    <p style="margin-bottom: 6px;"><b>Status:</b> <span class="badge badge-unused">UNUSED</span></p>
+                    <p><b>Device Limit:</b> <span id="resLimit">1</span></p>
+                </div>
+
+                <button class="btn btn-outline" style="width: 100%;" onclick="resetGenForm()">Generate Another</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: View Key Details & Devices -->
+    <div id="viewModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 style="font-size: 18px;">Key Details & Activations</h3>
+                <button class="btn btn-outline btn-sm" onclick="closeModal('viewModal')">✕</button>
+            </div>
+            <div id="viewModalContent">
+                Loading...
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Setup / Reset Admin -->
+    <div id="setupModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 style="font-size: 18px;">Admin Setup / Password Reset</h3>
+                <button class="btn btn-outline btn-sm" onclick="closeModal('setupModal')">✕</button>
+            </div>
+            <div class="form-group">
+                <label>Admin Username</label>
+                <input type="text" id="setupUsername" class="form-control" value="admin">
+            </div>
+            <div class="form-group">
+                <label>New Password</label>
+                <input type="password" id="setupPassword" class="form-control" value="admin123">
+            </div>
+            <div class="form-group">
+                <label>Reset Secret (Leave default for initial setup)</label>
+                <input type="password" id="setupSecret" class="form-control" value="rootoptimizer_secret_2026">
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
+                <button class="btn btn-outline" onclick="closeModal('setupModal')">Cancel</button>
+                <button class="btn btn-primary" onclick="submitSetup()">Save Admin Credentials</button>
+            </div>
+        </div>
+    </div>
 
     <script>
-        let adminToken = localStorage.getItem('admin_token') || null;
-        let cachedLicenses = [];
+        let currentFilter = 'ALL';
+        let currentSearch = '';
+        let allLoadedKeys = [];
 
-        function showToast(msg) {
-            const toast = document.getElementById('toast');
-            toast.textContent = msg;
-            toast.classList.add('show');
-            setTimeout(() => toast.classList.remove('show'), 3000);
+        function getToken() {
+            return localStorage.getItem('adb_admin_token');
+        }
+
+        function setToken(token) {
+            if (token) localStorage.setItem('adb_admin_token', token);
+            else localStorage.removeItem('adb_admin_token');
         }
 
         async function api(path, options = {}) {
-            options.headers = options.headers || {};
-            if (adminToken) {
-                options.headers['Authorization'] = `Bearer ${adminToken}`;
-            }
-            if (options.body && typeof options.body === 'object') {
-                options.headers['Content-Type'] = 'application/json';
-                options.body = JSON.stringify(options.body);
-            }
-            const res = await fetch(path, options);
-            const data = await res.json();
-            if (res.status === 401) {
+            const token = getToken();
+            const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+            const res = await fetch(path, { ...options, headers });
+            if (res.status === 401 && !path.includes('/login') && !path.includes('/setup')) {
                 logout();
                 throw new Error('Session expired');
             }
-            return data;
+            return res.json();
         }
 
-        // Auth
         async function handleLogin() {
             const username = document.getElementById('loginUser').value.trim();
-            const password = document.getElementById('loginPass').value;
+            const password = document.getElementById('loginPass').value.trim();
             const errEl = document.getElementById('loginError');
             errEl.style.display = 'none';
 
+            if (!username || !password) {
+                errEl.innerText = 'Please enter both username and password.';
+                errEl.style.display = 'block';
+                return;
+            }
+
             try {
-                const res = await fetch('/api/admin/login', {
+                const data = await api('/api/auth/admin/login', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
                 });
-                const data = await res.json();
-                if (data.success) {
-                    adminToken = data.token;
-                    localStorage.setItem('admin_token', adminToken);
-                    localStorage.setItem('admin_user', data.username);
-                    initDashboard();
+
+                if (data.success && data.token) {
+                    setToken(data.token);
+                    document.getElementById('adminUsername').innerText = data.admin?.username || username;
+                    showDashboard();
                 } else {
-                    errEl.textContent = data.message || 'Login failed';
+                    errEl.innerText = data.message || 'Login failed';
                     errEl.style.display = 'block';
                 }
-            } catch (e) {
-                errEl.textContent = e.message;
+            } catch (err) {
+                errEl.innerText = err.message || 'Connection error';
                 errEl.style.display = 'block';
             }
         }
 
         function logout() {
-            if (adminToken) {
-                api('/api/admin/logout', { method: 'POST' }).catch(() => {});
-            }
-            adminToken = null;
-            localStorage.removeItem('admin_token');
-            localStorage.removeItem('admin_user');
+            setToken(null);
             document.getElementById('loginView').style.display = 'flex';
             document.getElementById('dashboardView').style.display = 'none';
             document.getElementById('userSection').style.display = 'none';
         }
 
-        function initDashboard() {
+        function showDashboard() {
             document.getElementById('loginView').style.display = 'none';
             document.getElementById('dashboardView').style.display = 'block';
             document.getElementById('userSection').style.display = 'flex';
-            document.getElementById('adminUsername').textContent = 'Admin: ' + (localStorage.getItem('admin_user') || 'Admin');
             loadStats();
-            loadLicenses();
+            loadKeys();
         }
 
-        // Stats & Data
         async function loadStats() {
             try {
-                const data = await api('/api/admin/stats');
-                if (data.success) {
-                    document.getElementById('statTotal').textContent = data.stats.total_licenses;
-                    document.getElementById('statActive').textContent = data.stats.active_licenses;
-                    document.getElementById('statDevices').textContent = data.stats.active_devices;
-                    document.getElementById('statRevoked').textContent = data.stats.revoked_licenses;
+                const data = await api('/api/dashboard/stats');
+                if (data.success && data.stats) {
+                    const s = data.stats;
+                    document.getElementById('statTotal').innerText = s.total_keys ?? 0;
+                    document.getElementById('statActive').innerText = s.active_keys ?? 0;
+                    document.getElementById('statUnused').innerText = s.unused_keys ?? 0;
+                    document.getElementById('statExpired').innerText = s.expired_keys ?? 0;
+                    document.getElementById('statRevoked').innerText = s.revoked_keys ?? 0;
+                    document.getElementById('statCustomers').innerText = s.active_customers ?? 0;
+                    document.getElementById('statDevices').innerText = s.activated_devices ?? 0;
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.error('Failed to load stats:', e);
+            }
         }
 
-        async function loadLicenses() {
+        async function loadKeys() {
             try {
-                const data = await api('/api/admin/licenses');
-                if (data.success) {
-                    cachedLicenses = data.licenses;
-                    renderLicenses(cachedLicenses);
+                const data = await api(`/api/keys?status=${currentFilter}&search=${encodeURIComponent(currentSearch)}`);
+                if (data.success && data.keys) {
+                    allLoadedKeys = data.keys;
+                    renderKeysTable(allLoadedKeys);
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.error('Failed to load keys:', e);
+            }
         }
 
-        function filterLicenses() {
-            const query = document.getElementById('searchInput').value.toLowerCase().trim();
-            const filtered = cachedLicenses.filter(l => 
-                l.license_key.toLowerCase().includes(query) || 
-                (l.notes && l.notes.toLowerCase().includes(query))
-            );
-            renderLicenses(filtered);
-        }
-
-        function renderLicenses(licenses) {
-            const tbody = document.getElementById('licensesTableBody');
-            if (licenses.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">No licenses found.</td></tr>';
+        function renderKeysTable(keys) {
+            const tbody = document.getElementById('keysTableBody');
+            if (!keys || keys.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-secondary); padding: 32px;">No keys found. Click "+ Generate Key" to create one.</td></tr>';
                 return;
             }
 
-            tbody.innerHTML = licenses.map(l => {
-                const badgeClass = l.status === 'ACTIVE' ? 'badge-active' : (l.status === 'REVOKED' ? 'badge-revoked' : 'badge-expired');
-                const expiryText = l.duration_days === -1 ? 'Lifetime' : (l.expires_at ? new Date(l.expires_at).toLocaleDateString() : `${l.duration_days} Days`);
-                const actCount = `${l.active_activations || 0} / ${l.max_activations}`;
+            tbody.innerHTML = keys.map(k => {
+                const statusBadge = `<span class="badge badge-${(k.status || 'UNUSED').toLowerCase()}">${k.status || 'UNUSED'}</span>`;
+                const createdDate = k.created_at ? new Date(k.created_at).toLocaleDateString() : '-';
+                const activatedDate = k.activated_at ? new Date(k.activated_at).toLocaleDateString() : '-';
+                const expiresDate = k.expires_at ? new Date(k.expires_at).toLocaleDateString() : (k.duration_hours ? `${Math.round(k.duration_hours / 24)}d on activate` : '-');
+                const devCount = `${k.active_devices_count || 0} / ${k.max_devices || 1}`;
 
                 return `
                     <tr>
+                        <td><span class="key-mono">${k.key_display}</span></td>
+                        <td>${k.product_name || 'ADB Optimizer'}</td>
+                        <td>${k.customer_name || '<span style="color:var(--text-secondary)">-</span>'}</td>
+                        <td>${createdDate}</td>
+                        <td>${activatedDate}</td>
+                        <td>${expiresDate}</td>
+                        <td>${devCount}</td>
+                        <td>${statusBadge}</td>
                         <td>
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <span class="key-text">${l.license_key}</span>
-                                <button class="btn btn-outline btn-sm" onclick="copyKey('${l.license_key}')" title="Copy Key">📋</button>
-                            </div>
-                        </td>
-                        <td><span class="badge ${badgeClass}">${l.status}</span></td>
-                        <td>${expiryText}</td>
-                        <td>${actCount}</td>
-                        <td style="color: var(--text-secondary);">${l.notes || '-'}</td>
-                        <td>
-                            <div style="display: flex; gap: 6px;">
-                                <button class="btn btn-outline btn-sm" onclick="viewActivations(${l.id})">Devices</button>
-                                ${l.status === 'ACTIVE' 
-                                    ? `<button class="btn btn-danger btn-sm" onclick="revokeKey(${l.id})">Revoke</button>`
-                                    : `<button class="btn btn-primary btn-sm" onclick="activateKey(${l.id})">Activate</button>`
-                                }
-                                <button class="btn btn-outline btn-sm" onclick="deleteKey(${l.id})" style="color: var(--accent-danger);">Delete</button>
+                            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                                <button class="btn btn-outline btn-sm" onclick="viewKey(${k.id})">View</button>
+                                <button class="btn btn-outline btn-sm" onclick="copyKeyText('${k.key_display}')">Copy</button>
+                                ${k.status !== 'REVOKED' ? `<button class="btn btn-danger btn-sm" onclick="revokeKey(${k.id})">Revoke</button>` : ''}
+                                ${k.status === 'ACTIVE' ? `<button class="btn btn-warning btn-sm" onclick="suspendKey(${k.id})">Suspend</button>` : ''}
+                                ${k.status === 'REVOKED' || k.status === 'SUSPENDED' ? `<button class="btn btn-success btn-sm" onclick="reactivateKey(${k.id})">Reactivate</button>` : ''}
+                                <button class="btn btn-outline btn-sm" style="color: var(--accent-danger);" onclick="deleteKeyItem(${k.id})">Delete</button>
                             </div>
                         </td>
                     </tr>
@@ -622,144 +655,196 @@
             }).join('');
         }
 
-        function copyKey(key) {
-            navigator.clipboard.writeText(key).then(() => {
-                showToast(`Copied key ${key} to clipboard!`);
-            });
+        function setFilter(status, btn) {
+            currentFilter = status;
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            loadKeys();
         }
 
-        async function revokeKey(id) {
-            if (!confirm('Are you sure you want to revoke this license?')) return;
-            const res = await api(`/api/admin/licenses/${id}/revoke`, { method: 'POST' });
-            if (res.success) {
-                showToast('License revoked');
-                loadStats();
-                loadLicenses();
-            }
+        function handleSearch() {
+            currentSearch = document.getElementById('searchInput').value;
+            loadKeys();
         }
 
-        async function activateKey(id) {
-            const res = await api(`/api/admin/licenses/${id}/activate`, { method: 'POST' });
-            if (res.success) {
-                showToast('License reactivated');
-                loadStats();
-                loadLicenses();
-            }
+        function toggleCustomDuration() {
+            const val = document.getElementById('genDuration').value;
+            document.getElementById('customDurationGroup').style.display = val === 'custom' ? 'block' : 'none';
         }
 
-        async function deleteKey(id) {
-            if (!confirm('Permanently delete this license and all its activations?')) return;
-            const res = await api(`/api/admin/licenses/${id}`, { method: 'DELETE' });
-            if (res.success) {
-                showToast('License deleted');
-                loadStats();
-                loadLicenses();
-            }
-        }
-
-        async function viewActivations(licenseId) {
-            const res = await api(`/api/admin/licenses/${licenseId}/activations`);
-            if (res.success) {
-                document.getElementById('modalLicenseKey').textContent = `Key: ${res.license.license_key} (${res.activations.length} Active Devices)`;
-                const tbody = document.getElementById('activationsTableBody');
-                if (res.activations.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">No devices activated yet.</td></tr>';
-                } else {
-                    tbody.innerHTML = res.activations.map(a => `
-                        <tr>
-                            <td><strong>${a.device_model || 'Android Device'}</strong></td>
-                            <td style="font-family: monospace; font-size: 11px; color: var(--text-secondary);">${a.device_id.substring(0, 16)}...</td>
-                            <td style="font-size: 12px;">${new Date(a.activated_at).toLocaleString()}</td>
-                            <td>
-                                ${a.is_active ? `<button class="btn btn-danger btn-sm" onclick="unbindDevice(${a.id}, ${licenseId})">Unbind</button>` : '<span style="color: var(--text-secondary);">Unbound</span>'}
-                            </td>
-                        </tr>
-                    `).join('');
-                }
-                document.getElementById('activationsModal').classList.add('active');
-            }
-        }
-
-        async function unbindDevice(activationId, licenseId) {
-            if (!confirm('Unbind this device? The user will be able to activate a new device on this key.')) return;
-            const res = await api(`/api/admin/activations/${activationId}`, { method: 'DELETE' });
-            if (res.success) {
-                showToast('Device unbound successfully');
-                viewActivations(licenseId);
-                loadStats();
-                loadLicenses();
-            }
-        }
-
-        // Modals
         function openGenerateModal() {
-            document.getElementById('generateModal').classList.add('active');
+            resetGenForm();
+            document.getElementById('generateModal').style.display = 'flex';
         }
 
         function closeModal(id) {
-            document.getElementById(id).classList.remove('active');
+            document.getElementById(id).style.display = 'none';
+        }
+
+        function resetGenForm() {
+            document.getElementById('genForm').style.display = 'block';
+            document.getElementById('genResult').style.display = 'none';
         }
 
         async function submitGenerate() {
-            const prefix = document.getElementById('genPrefix').value.trim() || 'RO';
-            const duration_days = parseInt(document.getElementById('genDuration').value);
-            const max_activations = parseInt(document.getElementById('genMaxDevices').value) || 1;
-            const count = parseInt(document.getElementById('genCount').value) || 1;
-            const notes = document.getElementById('genNotes').value.trim();
+            let durationHours = document.getElementById('genDuration').value;
+            if (durationHours === 'custom') {
+                durationHours = document.getElementById('genCustomHours').value || 48;
+            }
+            durationHours = parseInt(durationHours, 10);
 
-            const res = await api('/api/admin/licenses/generate', {
+            const maxDevices = parseInt(document.getElementById('genMaxDevices').value, 10) || 1;
+            const customerName = document.getElementById('genCustomerName').value.trim();
+            const notes = document.getElementById('genNotes').value.trim();
+            const productName = document.getElementById('genProduct').value;
+
+            try {
+                const data = await api('/api/keys/generate', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        product_name: productName,
+                        duration_hours: durationHours,
+                        max_devices: maxDevices,
+                        customer_name: customerName,
+                        notes: notes
+                    })
+                });
+
+                if (data.success && data.key) {
+                    document.getElementById('genForm').style.display = 'none';
+                    document.getElementById('genResult').style.display = 'block';
+
+                    document.getElementById('resultKeyDisplay').innerText = data.key;
+                    document.getElementById('resProduct').innerText = data.product || productName;
+                    document.getElementById('resDuration').innerText = durationHours >= 24 ? `${Math.round(durationHours / 24)} Day(s)` : `${durationHours} Hour(s)`;
+                    document.getElementById('resCreated').innerText = new Date(data.created_at || Date.now()).toLocaleString();
+                    document.getElementById('resLimit').innerText = maxDevices;
+
+                    loadStats();
+                    loadKeys();
+                } else {
+                    alert(data.message || 'Failed to generate key');
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        async function viewKey(id) {
+            try {
+                const data = await api(`/api/keys/${id}`);
+                if (data.success && data.key) {
+                    const k = data.key;
+                    const acts = data.activations || [];
+                    const content = `
+                        <div style="margin-bottom: 16px;">
+                            <div style="font-size: 16px; font-weight: 700; color: #60a5fa; font-family: monospace;">${k.key_display}</div>
+                            <p style="margin-top: 6px;"><b>Status:</b> <span class="badge badge-${(k.status||'').toLowerCase()}">${k.status}</span></p>
+                            <p><b>Product:</b> ${k.product_name || 'ADB Optimizer'}</p>
+                            <p><b>Customer:</b> ${k.customer_name || 'None'}</p>
+                            <p><b>Duration:</b> ${k.duration_hours} Hours (${Math.round((k.duration_hours||0)/24)} Days)</p>
+                            <p><b>Device Limit:</b> ${k.max_devices}</p>
+                            <p><b>Expires:</b> ${k.expires_at ? new Date(k.expires_at).toLocaleString() : 'Not activated yet'}</p>
+                            <p><b>Notes:</b> ${k.notes || 'None'}</p>
+                        </div>
+                        <h4 style="margin-bottom: 8px;">Registered Devices (${acts.length})</h4>
+                        ${acts.length === 0 ? '<p style="color:var(--text-secondary); font-size: 13px;">No devices registered yet.</p>' : `
+                            <table style="font-size: 12px;">
+                                <thead><tr><th>Device Model</th><th>Identifier</th><th>Activated At</th><th>Status</th></tr></thead>
+                                <tbody>
+                                    ${acts.map(a => `<tr><td>${a.device_model || 'Unknown'}</td><td>${(a.device_identifier||'').slice(0, 10)}...</td><td>${new Date(a.activated_at).toLocaleDateString()}</td><td>${a.status}</td></tr>`).join('')}
+                                </tbody>
+                            </table>
+                        `}
+                    `;
+                    document.getElementById('viewModalContent').innerHTML = content;
+                    document.getElementById('viewModal').style.display = 'flex';
+                }
+            } catch (err) {
+                alert('Failed to load key details: ' + err.message);
+            }
+        }
+
+        async function revokeKey(id) {
+            if (!confirm('Are you sure you want to REVOKE this key? Connected devices will immediately lose access.')) return;
+            const data = await api(`/api/keys/${id}/revoke`, { method: 'POST' });
+            if (data.success) { loadStats(); loadKeys(); } else alert(data.message);
+        }
+
+        async function suspendKey(id) {
+            const data = await api(`/api/keys/${id}/suspend`, { method: 'POST' });
+            if (data.success) { loadStats(); loadKeys(); } else alert(data.message);
+        }
+
+        async function reactivateKey(id) {
+            const data = await api(`/api/keys/${id}/reactivate`, { method: 'POST' });
+            if (data.success) { loadStats(); loadKeys(); } else alert(data.message);
+        }
+
+        async function deleteKeyItem(id) {
+            if (!confirm('Delete this key permanently?')) return;
+            const data = await api(`/api/keys/${id}`, { method: 'DELETE' });
+            if (data.success) { loadStats(); loadKeys(); } else alert(data.message);
+        }
+
+        function copyKeyText(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Copied to clipboard: ' + text);
+            }).catch(() => {
+                alert('Copied: ' + text);
+            });
+        }
+
+        function shareKeyText(key) {
+            if (navigator.share) {
+                navigator.share({
+                    title: 'ADB Optimizer Activation Key',
+                    text: `Your ADB Optimizer Activation Key is: ${key}`
+                }).catch(() => {});
+            } else {
+                copyKeyText(key);
+            }
+        }
+
+        function openSetupModal() {
+            document.getElementById('setupModal').style.display = 'flex';
+        }
+
+        async function submitSetup() {
+            const username = document.getElementById('setupUsername').value.trim();
+            const password = document.getElementById('setupPassword').value.trim();
+            const secret = document.getElementById('setupSecret').value.trim();
+
+            const data = await api('/api/auth/admin/setup', {
                 method: 'POST',
-                body: { prefix, duration_days, max_activations, count, notes }
+                body: JSON.stringify({ username, password, secret })
             });
 
-            if (res.success) {
-                closeModal('generateModal');
-                showToast(`Generated ${count} key(s)!`);
-                loadStats();
-                loadLicenses();
-            }
-        }
-
-        // Tabs
-        async function switchTab(tab) {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            event.target.classList.add('active');
-
-            if (tab === 'licenses') {
-                document.getElementById('tabLicenses').style.display = 'block';
-                document.getElementById('tabLogs').style.display = 'none';
+            if (data.success) {
+                alert(data.message);
+                closeModal('setupModal');
+                document.getElementById('loginUser').value = username;
+                document.getElementById('loginPass').value = password;
             } else {
-                document.getElementById('tabLicenses').style.display = 'none';
-                document.getElementById('tabLogs').style.display = 'block';
-                loadLogs();
+                alert(data.message || 'Setup failed');
             }
         }
 
-        async function loadLogs() {
-            try {
-                const res = await api('/api/admin/logs');
-                if (res.success) {
-                    const tbody = document.getElementById('logsTableBody');
-                    if (res.logs.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">No logs yet.</td></tr>';
+        // Auto-check existing session on load
+        window.onload = async () => {
+            const token = getToken();
+            if (token) {
+                try {
+                    const me = await api('/api/auth/admin/me');
+                    if (me.success && me.admin) {
+                        document.getElementById('adminUsername').innerText = me.admin.username;
+                        showDashboard();
                         return;
                     }
-                    tbody.innerHTML = res.logs.map(log => `
-                        <tr>
-                            <td style="font-size: 12px; color: var(--text-secondary);">${new Date(log.timestamp).toLocaleString()}</td>
-                            <td><span class="badge badge-active">${log.event_type}</span></td>
-                            <td style="font-size: 12px;">${log.details}</td>
-                            <td style="font-family: monospace; font-size: 12px;">${log.ip_address || '-'}</td>
-                        </tr>
-                    `).join('');
-                }
-            } catch (e) {}
-        }
-
-        // Init
-        if (adminToken) {
-            initDashboard();
-        }
+                } catch (e) {}
+            }
+            logout();
+        };
     </script>
 </body>
 </html>

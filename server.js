@@ -3,6 +3,9 @@ const cors = require('cors');
 const path = require('node:path');
 const {
     generateLicenseKey,
+    hashKey,
+    getKeyLast4,
+    isValidKeyFormat,
     verifyPassword,
     generateToken,
     RateLimiter
@@ -18,17 +21,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Rate limiters
 const activateLimiter = new RateLimiter(30, 60 * 1000); // 30 req/min
-const adminLoginLimiter = new RateLimiter(10, 60 * 1000); // 10 req/min
+const adminLoginLimiter = new RateLimiter(15, 60 * 1000); // 15 req/min
 
-// Helper to get client IP
 function getClientIp(req) {
     return req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
 }
 
-// -------------------------------------------------------------
 // Admin Auth Middleware
-// -------------------------------------------------------------
-function requireAdmin(req, res, next) {
+async function requireAdmin(req, res, next) {
     const authHeader = req.headers.authorization;
     let token = null;
 
@@ -42,7 +42,7 @@ function requireAdmin(req, res, next) {
         return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: 'Missing authentication token.' });
     }
 
-    const session = db.getAdminSession(token);
+    const session = await db.getAdminSession(token);
     if (!session) {
         return res.status(401).json({ success: false, error: 'SESSION_EXPIRED', message: 'Session expired or invalid.' });
     }
@@ -52,151 +52,59 @@ function requireAdmin(req, res, next) {
 }
 
 // -------------------------------------------------------------
-// Public / Client APK Endpoints
+// System & Health Endpoints
 // -------------------------------------------------------------
-
-// Health check
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', serverTime: new Date().toISOString() });
-});
-
-// Activate license from APK
-app.post('/api/license/activate', (req, res) => {
-    const ip = getClientIp(req);
-    if (activateLimiter.isRateLimited(ip)) {
-        return res.status(429).json({ success: false, error: 'RATE_LIMITED', message: 'Too many activation attempts. Please try again later.' });
-    }
-
-    const { license_key, device_id, device_model } = req.body;
-
-    if (!license_key || !device_id) {
-        return res.status(400).json({ success: false, error: 'MISSING_FIELDS', message: 'License key and Device ID are required.' });
-    }
-
-    const formattedKey = license_key.trim().toUpperCase();
-    const license = db.getLicenseByKey(formattedKey);
-
-    if (!license) {
-        db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Invalid license key', key: formattedKey, device_id }, ip);
-        return res.status(404).json({ success: false, error: 'KEY_NOT_FOUND', message: 'Invalid license key. Please check and try again.' });
-    }
-
-    if (license.status === 'REVOKED') {
-        db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Revoked license key', key: formattedKey, device_id }, ip);
-        return res.status(403).json({ success: false, error: 'KEY_REVOKED', message: 'This license key has been revoked by the administrator.' });
-    }
-
-    // Check expiration
-    if (license.expires_at) {
-        const expiryDate = new Date(license.expires_at);
-        if (expiryDate.getTime() < Date.now()) {
-            db.updateLicenseStatus(license.id, 'EXPIRED');
-            db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Expired license key', key: formattedKey, device_id }, ip);
-            return res.status(403).json({ success: false, error: 'KEY_EXPIRED', message: 'This license key has expired.' });
-        }
-    }
-
-    // Check if device is already registered for this license
-    const existingActivation = db.findDeviceActivation(license.id, device_id);
-    if (existingActivation) {
-        db.updateActivationLastSeen(existingActivation.id);
-        const sessionToken = existingActivation.session_token || generateToken();
-
-        db.logAuditEvent('DEVICE_REACTIVATED', { key: formattedKey, device_id, device_model }, ip);
-        return res.json({
-            success: true,
-            message: 'Device verified successfully.',
-            license: {
-                key: license.license_key,
-                status: license.status,
-                expires_at: license.expires_at,
-                duration_days: license.duration_days,
-                max_activations: license.max_activations
-            },
-            session_token: sessionToken
-        });
-    }
-
-    // Check activation limit
-    const activeCount = db.getActiveActivationsCount(license.id);
-    if (activeCount >= license.max_activations) {
-        db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Activation limit reached', key: formattedKey, device_id, activeCount, max: license.max_activations }, ip);
-        return res.status(403).json({
-            success: false,
-            error: 'ACTIVATION_LIMIT_REACHED',
-            message: `Activation limit reached for this license (max ${license.max_activations} devices). Contact admin to manage or reset activations.`
-        });
-    }
-
-    // If first activation and duration_days > 0 without explicit expires_at, compute expires_at now
-    let calculatedExpiry = license.expires_at;
-    if (!calculatedExpiry && license.duration_days > 0) {
-        const exp = new Date(Date.now() + license.duration_days * 24 * 60 * 60 * 1000);
-        calculatedExpiry = exp.toISOString();
-        db.updateLicenseExpiry(license.id, calculatedExpiry);
-    }
-
-    const sessionToken = generateToken();
-    db.recordActivation(license.id, device_id, device_model, sessionToken);
-    db.logAuditEvent('DEVICE_ACTIVATED', { key: formattedKey, device_id, device_model }, ip);
-
-    return res.json({
-        success: true,
-        message: 'License activated successfully!',
-        license: {
-            key: license.license_key,
-            status: license.status,
-            expires_at: calculatedExpiry,
-            duration_days: license.duration_days,
-            max_activations: license.max_activations
-        },
-        session_token: sessionToken
-    });
-});
-
-// Periodic validation from APK
-app.post('/api/license/validate', (req, res) => {
-    const { license_key, device_id, session_token } = req.body;
-
-    if (!license_key || !device_id) {
-        return res.status(400).json({ success: false, error: 'MISSING_FIELDS' });
-    }
-
-    const license = db.getLicenseByKey(license_key);
-    if (!license) {
-        return res.status(404).json({ success: false, valid: false, error: 'KEY_NOT_FOUND' });
-    }
-
-    if (license.status === 'REVOKED') {
-        return res.status(403).json({ success: false, valid: false, error: 'KEY_REVOKED' });
-    }
-
-    if (license.expires_at && new Date(license.expires_at).getTime() < Date.now()) {
-        db.updateLicenseStatus(license.id, 'EXPIRED');
-        return res.status(403).json({ success: false, valid: false, error: 'KEY_EXPIRED' });
-    }
-
-    const activation = db.findDeviceActivation(license.id, device_id);
-    if (!activation || !activation.is_active) {
-        return res.status(403).json({ success: false, valid: false, error: 'DEVICE_NOT_ACTIVATED' });
-    }
-
-    db.updateActivationLastSeen(activation.id);
-
     res.json({
-        success: true,
-        valid: true,
-        status: license.status,
-        expires_at: license.expires_at
+        status: 'ok',
+        service: 'ADB Key Generator and License Activation System',
+        serverTime: new Date().toISOString()
     });
 });
 
 // -------------------------------------------------------------
-// Admin Endpoints
+// Admin Authentication Endpoints
 // -------------------------------------------------------------
 
-// Admin login
-app.post('/api/admin/login', (req, res) => {
+// Admin Initial Setup or Reset
+// Allows setting up initial admin credentials if no admins exist or with setup key
+async function handleAdminSetup(req, res) {
+    try {
+        const { username = 'admin', password = 'admin123', email = 'admin@rootoptimizer.com', secret } = req.body;
+        const existingAdmin = await db.getAdminByUsername(username);
+
+        // Allow setup if no admin exists, or if valid ADMIN_SECRET_KEY is provided
+        const requiredSecret = process.env.ADMIN_SECRET_KEY || 'rootoptimizer_secret_2026';
+        if (existingAdmin && secret !== requiredSecret) {
+            return res.status(403).json({
+                success: false,
+                message: 'Admin account already exists. Please log in with your credentials.'
+            });
+        }
+
+        if (existingAdmin) {
+            await db.updateAdminPassword(existingAdmin.id, password);
+            return res.json({
+                success: true,
+                message: `Admin account "${username}" password updated successfully!`
+            });
+        } else {
+            await db.createAdmin(username, password, email, 'superadmin');
+            return res.json({
+                success: true,
+                message: `Admin account "${username}" initialized successfully! Password: "${password}"`
+            });
+        }
+    } catch (err) {
+        console.error('Admin setup error:', err);
+        res.status(500).json({ success: false, message: 'Failed to complete admin setup: ' + err.message });
+    }
+}
+app.post('/api/auth/admin/setup', handleAdminSetup);
+app.post('/api/admin/setup', handleAdminSetup);
+
+// Admin Login
+async function handleAdminLogin(req, res) {
     const ip = getClientIp(req);
     if (adminLoginLimiter.isRateLimited(ip)) {
         return res.status(429).json({ success: false, error: 'RATE_LIMITED', message: 'Too many login attempts. Please wait.' });
@@ -207,181 +115,550 @@ app.post('/api/admin/login', (req, res) => {
         return res.status(400).json({ success: false, message: 'Username and password required.' });
     }
 
-    const admin = db.getAdminByUsername(username);
-    if (!admin || !verifyPassword(password, admin.salt, admin.password_hash)) {
-        db.logAuditEvent('ADMIN_LOGIN_FAILED', { username }, ip);
-        return res.status(401).json({ success: false, message: 'Invalid admin credentials.' });
+    try {
+        const admin = await db.getAdminByUsername(username);
+        if (!admin || !verifyPassword(password, admin.salt, admin.password_hash)) {
+            await db.logAuditEvent('ADMIN_LOGIN_FAILED', { username }, ip);
+            return res.status(401).json({ success: false, message: 'Invalid admin credentials.' });
+        }
+
+        const token = generateToken();
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days session
+        await db.createAdminSession(admin.id, token, expiresAt);
+        await db.logAuditEvent('ADMIN_LOGIN_SUCCESS', { username }, ip);
+
+        res.json({
+            success: true,
+            token,
+            admin: {
+                id: admin.id,
+                username: admin.username,
+                email: admin.email,
+                role: admin.role
+            },
+            expires_at: expiresAt.toISOString()
+        });
+    } catch (err) {
+        console.error('Admin login error:', err);
+        res.status(500).json({ success: false, message: 'Server error during login: ' + err.message });
     }
+}
+app.post('/api/auth/admin/login', handleAdminLogin);
+app.post('/api/admin/login', handleAdminLogin);
 
-    const token = generateToken();
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-    db.createAdminSession(admin.id, token, expiresAt);
-    db.logAuditEvent('ADMIN_LOGIN_SUCCESS', { username }, ip);
-
+// Current Admin Info
+app.get('/api/auth/admin/me', requireAdmin, (req, res) => {
     res.json({
         success: true,
-        token,
-        username: admin.username,
-        expires_at: expiresAt.toISOString()
+        admin: {
+            id: req.admin.admin_id,
+            username: req.admin.username,
+            email: req.admin.email,
+            role: req.admin.role
+        }
     });
 });
 
-// Admin logout
-app.post('/api/admin/logout', requireAdmin, (req, res) => {
+// Admin Logout
+async function handleAdminLogout(req, res) {
     const authHeader = req.headers.authorization;
     const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : req.headers['x-admin-token'];
-    if (token) db.deleteAdminSession(token);
+    if (token) {
+        await db.deleteAdminSession(token);
+    }
     res.json({ success: true, message: 'Logged out successfully.' });
+}
+app.post('/api/auth/admin/logout', requireAdmin, handleAdminLogout);
+app.post('/api/admin/logout', requireAdmin, handleAdminLogout);
+
+// -------------------------------------------------------------
+// Products
+// -------------------------------------------------------------
+app.get('/api/products', requireAdmin, async (req, res) => {
+    try {
+        const products = await db.getAllProducts();
+        res.json({ success: true, products });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
 });
 
-// Admin Dashboard stats
-app.get('/api/admin/stats', requireAdmin, (req, res) => {
-    const all = db.getAllLicenses();
-    const active = all.filter(l => l.status === 'ACTIVE');
-    const revoked = all.filter(l => l.status === 'REVOKED');
-    const expired = all.filter(l => l.status === 'EXPIRED');
-    const totalActivations = all.reduce((sum, l) => sum + (l.active_activations || 0), 0);
-
-    res.json({
-        success: true,
-        stats: {
-            total_licenses: all.length,
-            active_licenses: active.length,
-            revoked_licenses: revoked.length,
-            expired_licenses: expired.length,
-            active_devices: totalActivations
-        }
-    });
+app.post('/api/products', requireAdmin, async (req, res) => {
+    try {
+        const { name, description } = req.body;
+        if (!name) return res.status(400).json({ success: false, message: 'Product name required' });
+        const product = await db.getOrCreateProduct(name, description);
+        res.json({ success: true, product });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
 });
 
-// List licenses
-app.get('/api/admin/licenses', requireAdmin, (req, res) => {
-    const search = req.query.search || '';
-    const licenses = db.getAllLicenses(search);
-    res.json({ success: true, licenses });
-});
+// -------------------------------------------------------------
+// Dashboard Statistics
+// -------------------------------------------------------------
+async function handleDashboardStats(req, res) {
+    try {
+        const stats = await db.getDashboardStats();
+        res.json({ success: true, stats });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+}
+app.get('/api/dashboard/stats', requireAdmin, handleDashboardStats);
+app.get('/api/admin/stats', requireAdmin, handleDashboardStats);
 
-// Generate new license(s)
-app.post('/api/admin/licenses/generate', requireAdmin, (req, res) => {
+// -------------------------------------------------------------
+// Key Management Endpoints
+// -------------------------------------------------------------
+
+// Generate new activation key(s)
+async function handleKeyGeneration(req, res) {
+    const ip = getClientIp(req);
     const {
-        count = 1,
-        duration_days = 30,
-        max_activations = 1,
-        is_reusable = 1,
+        product_name = 'ADB Optimizer',
+        duration_hours = null,
+        duration_days = null,
+        max_devices = 1,
+        customer_name = null,
         notes = '',
-        custom_expires_at = null,
-        prefix = 'RO'
+        count = 1
     } = req.body;
 
-    const keyCount = Math.min(Math.max(1, parseInt(count) || 1), 100);
-    const durationDaysInt = parseInt(duration_days) || 30;
-    const maxActivationsInt = Math.max(1, parseInt(max_activations) || 1);
-    const generated = [];
-
-    for (let i = 0; i < keyCount; i++) {
-        let key = generateLicenseKey(prefix);
-        let expiresAt = null;
-
-        if (custom_expires_at) {
-            expiresAt = new Date(custom_expires_at).toISOString();
+    try {
+        // Calculate duration in hours
+        let effectiveHours = 720; // default 30 days
+        if (duration_hours !== null && duration_hours !== undefined) {
+            effectiveHours = parseInt(duration_hours, 10);
+        } else if (duration_days !== null && duration_days !== undefined) {
+            effectiveHours = parseInt(duration_days, 10) * 24;
         }
 
-        db.createLicense({
-            licenseKey: key,
-            durationDays: durationDaysInt,
-            expiresAt,
-            maxActivations: maxActivationsInt,
-            isReusable: is_reusable ? 1 : 0,
-            notes: notes || '',
-            status: 'ACTIVE'
-        });
+        const product = await db.getOrCreateProduct(product_name);
+        const generatedKeys = [];
+        const limitCount = Math.min(Math.max(parseInt(count, 10) || 1, 1), 50);
 
-        const created = db.getLicenseByKey(key);
-        generated.push(created);
+        for (let i = 0; i < limitCount; i++) {
+            const rawKey = generateLicenseKey('ADB');
+            const keyRecord = await db.createActivationKey({
+                keyString: rawKey,
+                productId: product.id,
+                durationHours: effectiveHours,
+                maxDevices: parseInt(max_devices, 10) || 1,
+                customerName: customer_name,
+                notes: notes
+            });
+
+            generatedKeys.push({
+                id: keyRecord.id,
+                key: rawKey,
+                product: product.name,
+                duration_hours: effectiveHours,
+                created_at: keyRecord.created_at,
+                expires_at: keyRecord.expires_at,
+                status: 'UNUSED',
+                max_devices: keyRecord.max_devices,
+                customer_name: keyRecord.customer_name,
+                notes: keyRecord.notes
+            });
+        }
+
+        await db.logAuditEvent('KEYS_GENERATED', { count: limitCount, product: product.name, duration_hours: effectiveHours }, ip);
+
+        if (limitCount === 1) {
+            res.json({
+                success: true,
+                message: 'Key generated successfully',
+                ...generatedKeys[0]
+            });
+        } else {
+            res.json({
+                success: true,
+                message: `${limitCount} keys generated successfully`,
+                keys: generatedKeys
+            });
+        }
+    } catch (err) {
+        console.error('Key generation error:', err);
+        res.status(500).json({ success: false, message: 'Failed to generate key: ' + err.message });
+    }
+}
+app.post('/api/keys/generate', requireAdmin, handleKeyGeneration);
+app.post('/api/admin/licenses/generate', requireAdmin, handleKeyGeneration);
+
+// List keys with search and filter
+async function handleListKeys(req, res) {
+    try {
+        const search = req.query.search || '';
+        const status = req.query.status || 'ALL';
+        const limit = parseInt(req.query.limit, 10) || 150;
+
+        const keys = await db.getAllKeys({ search, status, limit });
+        res.json({ success: true, keys });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+}
+app.get('/api/keys', requireAdmin, handleListKeys);
+app.get('/api/admin/licenses', requireAdmin, handleListKeys);
+
+// Get single key details & activations
+app.get('/api/keys/:id', requireAdmin, async (req, res) => {
+    try {
+        const key = await db.getKeyById(req.params.id);
+        if (!key) return res.status(404).json({ success: false, message: 'Key not found' });
+        const activations = await db.getKeyActivations(key.id);
+        res.json({ success: true, key, activations });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Revoke key
+app.post('/api/keys/:id/revoke', requireAdmin, async (req, res) => {
+    try {
+        const key = await db.getKeyById(req.params.id);
+        if (!key) return res.status(404).json({ success: false, message: 'Key not found' });
+        const updated = await db.updateKeyStatus(key.id, 'REVOKED');
+        await db.logAuditEvent('KEY_REVOKED', { key_id: key.id, key_display: key.key_display }, getClientIp(req));
+        res.json({ success: true, message: 'Key revoked successfully', key: updated });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Suspend key
+app.post('/api/keys/:id/suspend', requireAdmin, async (req, res) => {
+    try {
+        const key = await db.getKeyById(req.params.id);
+        if (!key) return res.status(404).json({ success: false, message: 'Key not found' });
+        const updated = await db.updateKeyStatus(key.id, 'SUSPENDED');
+        await db.logAuditEvent('KEY_SUSPENDED', { key_id: key.id, key_display: key.key_display }, getClientIp(req));
+        res.json({ success: true, message: 'Key suspended successfully', key: updated });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Reactivate key
+app.post('/api/keys/:id/reactivate', requireAdmin, async (req, res) => {
+    try {
+        const key = await db.getKeyById(req.params.id);
+        if (!key) return res.status(404).json({ success: false, message: 'Key not found' });
+
+        // If it was unused, keep unused; otherwise activate
+        const targetStatus = key.activated_at ? 'ACTIVE' : 'UNUSED';
+        const updated = await db.updateKeyStatus(key.id, targetStatus);
+        await db.logAuditEvent('KEY_REACTIVATED', { key_id: key.id, key_display: key.key_display }, getClientIp(req));
+        res.json({ success: true, message: 'Key reactivated successfully', key: updated });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Delete key
+app.delete('/api/keys/:id', requireAdmin, async (req, res) => {
+    try {
+        const key = await db.getKeyById(req.params.id);
+        if (!key) return res.status(404).json({ success: false, message: 'Key not found' });
+        await db.deleteKey(key.id);
+        await db.logAuditEvent('KEY_DELETED', { key_id: key.id, key_display: key.key_display }, getClientIp(req));
+        res.json({ success: true, message: 'Key deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// -------------------------------------------------------------
+// Customer Activation Flow Endpoints
+// -------------------------------------------------------------
+
+// Customer Activate Endpoint
+async function handleCustomerActivate(req, res) {
+    const ip = getClientIp(req);
+    if (activateLimiter.isRateLimited(ip)) {
+        return res.status(429).json({
+            success: false,
+            error: 'RATE_LIMITED',
+            message: 'Too many activation attempts. Please wait a moment and try again.'
+        });
     }
 
-    db.logAuditEvent('KEYS_GENERATED', {
-        count: keyCount,
-        duration_days: durationDaysInt,
-        max_activations: maxActivationsInt,
-        admin: req.admin.username
-    });
+    const rawKey = req.body.key || req.body.license_key;
+    const deviceId = req.body.device_id || req.body.deviceId;
+    const deviceModel = req.body.device_model || req.body.deviceModel || 'Android Device';
+    const appIdentifier = req.body.app_identifier || 'com.example.rootoptimizer';
+    const customerName = req.body.customer_name || null;
+    const platform = req.body.platform || 'Android';
 
-    res.json({
-        success: true,
-        message: `Successfully generated ${keyCount} license key(s).`,
-        licenses: generated
-    });
+    // 1. Validate inputs
+    if (!rawKey || !deviceId) {
+        return res.status(400).json({
+            success: false,
+            error: 'MISSING_FIELDS',
+            message: 'Activation key and Device ID are required.'
+        });
+    }
+
+    // 2. Validate key format locally
+    const formattedKey = rawKey.trim().toUpperCase();
+    if (!isValidKeyFormat(formattedKey)) {
+        await db.logAuditEvent('ACTIVATION_REJECTED', { reason: 'Malformed key format', key: formattedKey, device_id: deviceId }, ip);
+        return res.status(400).json({
+            success: false,
+            error: 'INVALID_FORMAT',
+            message: 'Invalid activation key'
+        });
+    }
+
+    try {
+        // 3. Server checks whether key exists via SHA-256 hash
+        const keyHash = hashKey(formattedKey);
+        let keyRecord = await db.getKeyByHash(keyHash);
+
+        // Fallback: check by key_display if legacy key
+        if (!keyRecord) {
+            const allMatch = await db.getAllKeys({ search: formattedKey, limit: 1 });
+            if (allMatch && allMatch.length > 0 && allMatch[0].key_display === formattedKey) {
+                keyRecord = allMatch[0];
+            }
+        }
+
+        if (!keyRecord) {
+            await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Key not found', key: formattedKey, device_id: deviceId }, ip);
+            return res.status(404).json({
+                success: false,
+                error: 'INVALID_KEY',
+                message: 'Invalid activation key'
+            });
+        }
+
+        // 4. Check whether key is revoked
+        if (keyRecord.status === 'REVOKED') {
+            await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Key revoked', key: formattedKey, device_id: deviceId }, ip);
+            return res.status(403).json({
+                success: false,
+                error: 'KEY_REVOKED',
+                message: 'Activation key has been revoked'
+            });
+        }
+
+        // 5. Check whether key is suspended
+        if (keyRecord.status === 'SUSPENDED') {
+            await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Key suspended', key: formattedKey, device_id: deviceId }, ip);
+            return res.status(403).json({
+                success: false,
+                error: 'KEY_SUSPENDED',
+                message: 'Activation key is suspended'
+            });
+        }
+
+        // 6. Check whether key is expired
+        const now = Date.now();
+        if (keyRecord.expires_at) {
+            const expiryTime = new Date(keyRecord.expires_at).getTime();
+            if (now > expiryTime) {
+                await db.updateKeyStatus(keyRecord.id, 'EXPIRED');
+                await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Key expired', key: formattedKey, device_id: deviceId }, ip);
+                return res.status(403).json({
+                    success: false,
+                    error: 'KEY_EXPIRED',
+                    message: 'Activation key has expired'
+                });
+            }
+        }
+
+        // 7. Customer & Device record registration
+        const customer = await db.getOrCreateCustomer(keyRecord.customer_name || customerName || `user_${deviceId.slice(0, 8)}`, customerName);
+        const device = await db.getOrCreateDevice(customer.id, deviceId, deviceModel, appIdentifier, platform);
+
+        // Check if device is already activated on this key
+        const existingActivation = await db.findActivation(keyRecord.id, device.id);
+        if (existingActivation && existingActivation.status === 'ACTIVE') {
+            const token = existingActivation.session_token || generateToken();
+            await db.updateActivationLastSeen(existingActivation.id, token);
+
+            return res.json({
+                success: true,
+                message: 'Activation Successful',
+                product: keyRecord.product_name || 'ADB Optimizer',
+                status: 'ACTIVE',
+                expires_at: keyRecord.expires_at,
+                duration_hours: keyRecord.duration_hours,
+                session_token: token,
+                device_registered: true,
+                license: {
+                    key: keyRecord.key_display,
+                    product: keyRecord.product_name || 'ADB Optimizer',
+                    status: 'ACTIVE',
+                    expires_at: keyRecord.expires_at,
+                    duration_days: Math.round((keyRecord.duration_hours || 720) / 24),
+                    max_activations: keyRecord.max_devices
+                }
+            });
+        }
+
+        // 8. Check device activation limits
+        const activeCount = await db.getActiveActivationsCount(keyRecord.id);
+        if (activeCount >= keyRecord.max_devices) {
+            await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Device limit reached', key: formattedKey, activeCount, max: keyRecord.max_devices }, ip);
+            return res.status(403).json({
+                success: false,
+                error: 'DEVICE_LIMIT_REACHED',
+                message: 'Device activation limit reached'
+            });
+        }
+
+        // 9. Calculate expiration date on first activation
+        let finalExpiresAt = keyRecord.expires_at;
+        const durationHours = keyRecord.duration_hours || 720;
+        if (!finalExpiresAt && durationHours > 0) {
+            finalExpiresAt = new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString();
+        }
+
+        // 10. Update key status to ACTIVE and save activation
+        const sessionToken = generateToken();
+        await db.recordActivation({
+            keyId: keyRecord.id,
+            customerId: customer.id,
+            deviceId: device.id,
+            expiresAt: finalExpiresAt,
+            sessionToken
+        });
+
+        // Set key to ACTIVE and record activated_at and expires_at
+        if (keyRecord.status === 'UNUSED' || !keyRecord.activated_at) {
+            await db.query(`
+                UPDATE activation_keys 
+                SET status = 'ACTIVE', activated_at = CURRENT_TIMESTAMP, expires_at = ?
+                WHERE id = ?
+            `, [finalExpiresAt, keyRecord.id]);
+        }
+
+        await db.logAuditEvent('DEVICE_ACTIVATED', { key: formattedKey, device_id: deviceId, model: deviceModel }, ip);
+
+        // 11. Return activation success
+        return res.json({
+            success: true,
+            message: 'Activation Successful',
+            product: keyRecord.product_name || 'ADB Optimizer',
+            status: 'ACTIVE',
+            expires_at: finalExpiresAt,
+            duration_hours: durationHours,
+            session_token: sessionToken,
+            device_registered: true,
+            license: {
+                key: keyRecord.key_display,
+                product: keyRecord.product_name || 'ADB Optimizer',
+                status: 'ACTIVE',
+                expires_at: finalExpiresAt,
+                duration_days: Math.round(durationHours / 24),
+                max_activations: keyRecord.max_devices
+            }
+        });
+    } catch (err) {
+        console.error('Activation execution error:', err);
+        res.status(500).json({ success: false, message: 'Server activation error: ' + err.message });
+    }
+}
+app.post('/api/activate', handleCustomerActivate);
+app.post('/api/license/activate', handleCustomerActivate);
+
+// Customer Deactivate Endpoint
+app.post('/api/deactivate', async (req, res) => {
+    const rawKey = req.body.key || req.body.license_key;
+    const deviceId = req.body.device_id || req.body.deviceId;
+
+    if (!rawKey || !deviceId) {
+        return res.status(400).json({ success: false, message: 'Key and device_id required' });
+    }
+
+    try {
+        const keyHash = hashKey(rawKey.trim().toUpperCase());
+        const keyRecord = await db.getKeyByHash(keyHash);
+        if (!keyRecord) return res.status(404).json({ success: false, message: 'Key not found' });
+
+        const device = await db.queryOne('SELECT id FROM devices WHERE device_identifier = ?', [deviceId]);
+        if (device) {
+            await db.deactivateDevice(keyRecord.id, device.id);
+        }
+
+        res.json({ success: true, message: 'Device deactivated successfully' });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
 });
 
-// Revoke license
-app.post('/api/admin/licenses/:id/revoke', requireAdmin, (req, res) => {
-    const id = parseInt(req.params.id);
-    const license = db.getLicenseById(id);
-    if (!license) return res.status(404).json({ success: false, message: 'License not found.' });
+// Periodic Validation / Activation Status Endpoint
+async function handleActivationStatus(req, res) {
+    const rawKey = req.body.key || req.body.license_key || req.query.key;
+    const deviceId = req.body.device_id || req.body.deviceId || req.query.device_id;
+    const sessionToken = req.body.session_token || req.query.session_token;
 
-    db.updateLicenseStatus(id, 'REVOKED');
-    db.logAuditEvent('KEY_REVOKED', { license_id: id, key: license.license_key, admin: req.admin.username });
-    res.json({ success: true, message: `License ${license.license_key} revoked.` });
-});
+    if (!rawKey || !deviceId) {
+        return res.status(400).json({ success: false, error: 'MISSING_FIELDS', message: 'Key and Device ID required' });
+    }
 
-// Reactivate license
-app.post('/api/admin/licenses/:id/activate', requireAdmin, (req, res) => {
-    const id = parseInt(req.params.id);
-    const license = db.getLicenseById(id);
-    if (!license) return res.status(404).json({ success: false, message: 'License not found.' });
+    try {
+        const keyHash = hashKey(rawKey.trim().toUpperCase());
+        const keyRecord = await db.getKeyByHash(keyHash);
 
-    db.updateLicenseStatus(id, 'ACTIVE');
-    db.logAuditEvent('KEY_REACTIVATED', { license_id: id, key: license.license_key, admin: req.admin.username });
-    res.json({ success: true, message: `License ${license.license_key} activated.` });
-});
+        if (!keyRecord) {
+            return res.status(404).json({ success: false, valid: false, error: 'INVALID_KEY', message: 'Invalid activation key' });
+        }
 
-// Delete license
-app.delete('/api/admin/licenses/:id', requireAdmin, (req, res) => {
-    const id = parseInt(req.params.id);
-    const license = db.getLicenseById(id);
-    if (!license) return res.status(404).json({ success: false, message: 'License not found.' });
+        if (keyRecord.status === 'REVOKED') {
+            return res.status(403).json({ success: false, valid: false, error: 'KEY_REVOKED', message: 'Activation key has been revoked' });
+        }
 
-    db.deleteLicense(id);
-    db.logAuditEvent('KEY_DELETED', { license_id: id, key: license.license_key, admin: req.admin.username });
-    res.json({ success: true, message: `License ${license.license_key} deleted.` });
-});
+        if (keyRecord.status === 'SUSPENDED') {
+            return res.status(403).json({ success: false, valid: false, error: 'KEY_SUSPENDED', message: 'Activation key is suspended' });
+        }
 
-// View activations for a license
-app.get('/api/admin/licenses/:id/activations', requireAdmin, (req, res) => {
-    const id = parseInt(req.params.id);
-    const license = db.getLicenseById(id);
-    if (!license) return res.status(404).json({ success: false, message: 'License not found.' });
+        if (keyRecord.expires_at && new Date(keyRecord.expires_at).getTime() < Date.now()) {
+            await db.updateKeyStatus(keyRecord.id, 'EXPIRED');
+            return res.status(403).json({ success: false, valid: false, error: 'KEY_EXPIRED', message: 'Activation key has expired' });
+        }
 
-    const activations = db.getActivationsByLicenseId(id);
-    res.json({ success: true, license, activations });
-});
+        const device = await db.queryOne('SELECT id FROM devices WHERE device_identifier = ?', [deviceId]);
+        if (!device) {
+            return res.status(403).json({ success: false, valid: false, error: 'DEVICE_NOT_ACTIVATED', message: 'Device not registered' });
+        }
 
-// Unbind / deactivate device
-app.delete('/api/admin/activations/:id', requireAdmin, (req, res) => {
-    const id = parseInt(req.params.id);
-    db.deactivateDevice(id);
-    db.logAuditEvent('DEVICE_UNBOUND', { activation_id: id, admin: req.admin.username });
-    res.json({ success: true, message: 'Device unbound successfully. Activation slot freed.' });
-});
+        const activation = await db.findActivation(keyRecord.id, device.id);
+        if (!activation || activation.status !== 'ACTIVE') {
+            return res.status(403).json({ success: false, valid: false, error: 'DEVICE_NOT_ACTIVATED', message: 'Device is not active on this key' });
+        }
 
-// View audit logs
-app.get('/api/admin/logs', requireAdmin, (req, res) => {
-    const logs = db.getAuditLogs(100);
-    res.json({ success: true, logs });
-});
+        await db.updateActivationLastSeen(activation.id);
 
-// Admin UI routes
-app.get('/', (req, res) => {
-    res.redirect('/admin');
-});
+        res.json({
+            success: true,
+            valid: true,
+            status: keyRecord.status,
+            product: keyRecord.product_name || 'ADB Optimizer',
+            expires_at: keyRecord.expires_at
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, valid: false, message: err.message });
+    }
+}
+app.all('/api/activation/status', handleActivationStatus);
+app.post('/api/license/validate', handleActivationStatus);
 
-app.get('/admin', (req, res) => {
+// -------------------------------------------------------------
+// Web Dashboard Serving
+// -------------------------------------------------------------
+app.get(['/', '/admin', '/login'], (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Start Server
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[LICENSE SERVER] Running at http://0.0.0.0:${PORT}`);
-    console.log(`[ADMIN DASHBOARD] Available at http://localhost:${PORT}/admin`);
+// Initialize database schema and start server
+db.initDatabase().then(() => {
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`[SERVER] ADB License Server running on port ${PORT}`);
+        console.log(`[SERVER] Default Admin: admin / admin123`);
+    });
+}).catch(err => {
+    console.error('[SERVER] Failed to start:', err);
 });
