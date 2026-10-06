@@ -823,7 +823,7 @@
 
                 <div id="loginErrorAlert" class="login-error-alert"></div>
 
-                <form onsubmit="event.preventDefault(); submitLogin();" style="text-align: left;">
+                <form id="adminLoginForm" action="javascript:void(0);" onsubmit="handleAdminLoginSubmit(event); return false;" style="text-align: left;">
                     <div class="form-group">
                         <label class="form-label">Username</label>
                         <input type="text" id="loginUsername" class="form-input" placeholder="MADARA-FF" autocomplete="username" required autofocus>
@@ -1200,20 +1200,69 @@
         let searchQuery = '';
         let liveTickerInterval = null;
 
+        let activeAdminToken = null;
+        let activeAdminUsername = null;
+        let isHandlingUnauthorized = false;
+
         const TOKEN_STORAGE_KEY = 'madara_admin_token';
         const USERNAME_STORAGE_KEY = 'madara_admin_username';
 
         function getToken() {
-            return localStorage.getItem(TOKEN_STORAGE_KEY);
+            if (activeAdminToken) return activeAdminToken;
+            try {
+                const ls = localStorage.getItem(TOKEN_STORAGE_KEY);
+                if (ls) {
+                    activeAdminToken = ls;
+                    return ls;
+                }
+            } catch (e) {}
+            try {
+                const ss = sessionStorage.getItem(TOKEN_STORAGE_KEY);
+                if (ss) {
+                    activeAdminToken = ss;
+                    return ss;
+                }
+            } catch (e) {}
+            return null;
+        }
+
+        function getUsername() {
+            if (activeAdminUsername) return activeAdminUsername;
+            try {
+                const ls = localStorage.getItem(USERNAME_STORAGE_KEY);
+                if (ls) {
+                    activeAdminUsername = ls;
+                    return ls;
+                }
+            } catch (e) {}
+            try {
+                const ss = sessionStorage.getItem(USERNAME_STORAGE_KEY);
+                if (ss) {
+                    activeAdminUsername = ss;
+                    return ss;
+                }
+            } catch (e) {}
+            return 'MADARA-FF';
         }
 
         function setToken(token, username) {
-            if (token) {
-                localStorage.setItem(TOKEN_STORAGE_KEY, token);
-                if (username) localStorage.setItem(USERNAME_STORAGE_KEY, username);
+            activeAdminToken = token ? String(token).trim() : null;
+            if (username) activeAdminUsername = String(username).trim();
+
+            if (activeAdminToken) {
+                try { localStorage.setItem(TOKEN_STORAGE_KEY, activeAdminToken); } catch (e) {}
+                try { sessionStorage.setItem(TOKEN_STORAGE_KEY, activeAdminToken); } catch (e) {}
+                if (activeAdminUsername) {
+                    try { localStorage.setItem(USERNAME_STORAGE_KEY, activeAdminUsername); } catch (e) {}
+                    try { sessionStorage.setItem(USERNAME_STORAGE_KEY, activeAdminUsername); } catch (e) {}
+                }
             } else {
-                localStorage.removeItem(TOKEN_STORAGE_KEY);
-                localStorage.removeItem(USERNAME_STORAGE_KEY);
+                activeAdminToken = null;
+                activeAdminUsername = null;
+                try { localStorage.removeItem(TOKEN_STORAGE_KEY); } catch (e) {}
+                try { localStorage.removeItem(USERNAME_STORAGE_KEY); } catch (e) {}
+                try { sessionStorage.removeItem(TOKEN_STORAGE_KEY); } catch (e) {}
+                try { sessionStorage.removeItem(USERNAME_STORAGE_KEY); } catch (e) {}
             }
         }
 
@@ -1223,9 +1272,15 @@
             if (token) headers['Authorization'] = 'Bearer ' + token;
 
             const res = await fetch(path, { ...options, headers });
-            if (res.status === 401 && !path.includes('/login')) {
-                handleLogout();
-                throw new Error('Session expired. Please sign in again.');
+            if (res.status === 401) {
+                const isAuthPath = path.includes('/login') || path.includes('/logout');
+                if (!isAuthPath && !isHandlingUnauthorized) {
+                    isHandlingUnauthorized = true;
+                    console.warn('Unauthorized session on path:', path);
+                    handleLogout(false);
+                    setTimeout(() => { isHandlingUnauthorized = false; }, 1500);
+                    throw new Error('Session expired. Please sign in again.');
+                }
             }
             return res.json();
         }
@@ -1265,6 +1320,15 @@
         }
 
         // --- AUTHENTICATION ---
+        function handleAdminLoginSubmit(e) {
+            if (e) {
+                if (typeof e.preventDefault === 'function') e.preventDefault();
+                if (typeof e.stopPropagation === 'function') e.stopPropagation();
+            }
+            submitLogin();
+            return false;
+        }
+
         async function submitLogin() {
             const usernameInput = document.getElementById('loginUsername');
             const passwordInput = document.getElementById('loginPassword');
@@ -1286,15 +1350,17 @@
             btn.innerText = 'Authenticating...';
 
             try {
-                const res = await api('/api/auth/admin/login', {
+                const res = await fetch('/api/auth/admin/login', {
                     method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
-                });
+                }).then(r => r.json());
 
                 if (res.success && res.token) {
-                    setToken(res.token, res.admin?.username || username);
+                    const adminName = res.admin?.username || username;
+                    setToken(res.token, adminName);
                     passwordInput.value = '';
-                    showDashboard();
+                    showDashboard(res.token, adminName);
                 } else {
                     errAlert.innerText = res.message || 'Invalid credentials.';
                     errAlert.style.display = 'block';
@@ -1308,25 +1374,41 @@
             }
         }
 
-        async function handleLogout() {
-            try {
-                await api('/api/auth/admin/logout', { method: 'POST' });
-            } catch (e) {}
+        async function handleLogout(notifyServer = true) {
+            const token = getToken();
             setToken(null);
+
+            if (notifyServer && token) {
+                try {
+                    await fetch('/api/auth/admin/logout', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + token
+                        }
+                    });
+                } catch (e) {}
+            }
+
             document.getElementById('viewLogin').style.display = 'flex';
             document.getElementById('viewDashboard').style.display = 'none';
             document.getElementById('authNavArea').style.display = 'none';
             document.getElementById('navTabsBar').style.display = 'none';
-            if (liveTickerInterval) clearInterval(liveTickerInterval);
+            if (liveTickerInterval) {
+                clearInterval(liveTickerInterval);
+                liveTickerInterval = null;
+            }
         }
 
-        function showDashboard() {
+        function showDashboard(token = null, username = null) {
+            if (token) setToken(token, username);
+
             document.getElementById('viewLogin').style.display = 'none';
             document.getElementById('viewDashboard').style.display = 'block';
             document.getElementById('authNavArea').style.display = 'flex';
             document.getElementById('navTabsBar').style.display = 'block';
 
-            const user = localStorage.getItem(USERNAME_STORAGE_KEY) || 'MADARA-FF';
+            const user = username || getUsername() || 'MADARA-FF';
             document.getElementById('navUserBadge').innerText = user;
 
             loadStatsData();
@@ -2014,18 +2096,30 @@
 
         // --- AUTO-INITIALIZE ON PAGE LOAD ---
         window.addEventListener('DOMContentLoaded', async () => {
+            const form = document.getElementById('adminLoginForm');
+            if (form) {
+                form.addEventListener('submit', handleAdminLoginSubmit);
+            }
+
             const token = getToken();
             if (token) {
                 try {
-                    const res = await api('/api/auth/admin/me');
-                    if (res.success && res.admin) {
-                        setToken(token, res.admin.username);
-                        showDashboard();
+                    const res = await fetch('/api/auth/admin/me', {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + token
+                        }
+                    }).then(r => r.json());
+
+                    if (res && res.success && res.admin) {
+                        const adminName = res.admin.username || 'MADARA-FF';
+                        setToken(token, adminName);
+                        showDashboard(token, adminName);
                         return;
                     }
                 } catch (e) {}
             }
-            handleLogout();
+            handleLogout(false);
         });
     </script>
 </body>

@@ -33,9 +33,9 @@ async function requireAdmin(req, res, next) {
     let token = null;
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
-        token = authHeader.substring(7);
+        token = authHeader.substring(7).trim();
     } else if (req.headers['x-admin-token']) {
-        token = req.headers['x-admin-token'];
+        token = String(req.headers['x-admin-token']).trim();
     }
 
     if (!token) {
@@ -170,8 +170,8 @@ async function handleAdminLogout(req, res) {
     }
     res.json({ success: true, message: 'Logged out successfully.' });
 }
-app.post('/api/auth/admin/logout', requireAdmin, handleAdminLogout);
-app.post('/api/admin/logout', requireAdmin, handleAdminLogout);
+app.post('/api/auth/admin/logout', handleAdminLogout);
+app.post('/api/admin/logout', handleAdminLogout);
 
 // -------------------------------------------------------------
 // Products

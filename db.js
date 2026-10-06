@@ -457,17 +457,21 @@ async function createAdminSession(adminId, token, expiresAt) {
 }
 
 async function getAdminSession(token) {
+    if (!token || typeof token !== 'string') return null;
+    const cleanToken = token.trim();
+    if (!cleanToken) return null;
+
     const res = await queryOne(`
         SELECT s.*, a.username, a.email, a.role 
         FROM admin_sessions s 
         JOIN admins a ON s.admin_id = a.id 
         WHERE s.token = ?
-    `, [token]);
+    `, [cleanToken]);
 
     if (!res) return null;
     const expires = new Date(res.expires_at).getTime();
-    if (Date.now() > expires) {
-        await deleteAdminSession(token);
+    if (!isNaN(expires) && Date.now() > expires) {
+        await deleteAdminSession(cleanToken);
         return null;
     }
     return res;
