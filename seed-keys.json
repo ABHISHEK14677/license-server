@@ -41,7 +41,7 @@
   {
     "key": "MADARA-FF-CKQ8-SMW6-XTKV-GAY2",
     "product": "Optimizer",
-    "status": "ACTIVE",
+    "status": "UNUSED",
     "duration_hours": -1,
     "created_at": "2026-10-06 13:44:41",
     "activated_at": "2026-10-06 13:44:48",
@@ -65,7 +65,7 @@
   {
     "key": "MADARA-FF-H5YU-Z7N6-GDC4-GCLG",
     "product": "Optimizer",
-    "status": "ACTIVE",
+    "status": "UNUSED",
     "duration_hours": -1,
     "created_at": "2026-10-06 15:53:46",
     "activated_at": "2026-10-06 15:53:50",
@@ -83,6 +83,30 @@
         "status": "ACTIVE",
         "session_token": "d4c2a89dbeac9d50bdd7ddebde0d886ce37af6ab4c3c7bcde77981b4d713aa95",
         "last_seen_at": "2026-10-06 17:27:50"
+      }
+    ]
+  },
+  {
+    "key": "MADARA-FF-C37C-9K4H-RALK-FK79",
+    "product": "Optimizer",
+    "status": "ACTIVE",
+    "duration_hours": 1,
+    "created_at": "2026-10-06 17:57:35",
+    "activated_at": "2026-10-06 17:58:00",
+    "expires_at": "2026-10-06T18:58:00.123Z",
+    "max_devices": 1,
+    "customer_name": "MADARA-FF",
+    "notes": "MADARA-FF",
+    "activations": [
+      {
+        "device_identifier": "0f3968c60e13236424e6dcbd2e911e737dd935e232c6e08754771136b16dce5a",
+        "device_model": "Xiaomi 2412DPC0AI",
+        "platform": "Android",
+        "activated_at": "2026-10-06 18:23:33",
+        "expires_at": "2026-10-06T18:58:00.123Z",
+        "status": "ACTIVE",
+        "session_token": "0e1c8ab1dc27f37d7aef6cf6e6ad20eced58eeaa16c65ddcd636e44196ba5bde",
+        "last_seen_at": "2026-10-06 18:23:33"
       }
     ]
   }
