@@ -378,42 +378,33 @@ async function initDatabase() {
             // licenses table may not exist, ignore
         }
 
-        // Auto-seed pre-configured keys from seed-keys.json if available
+        // One-time cleanup: remove any leftover legacy auto-seeded keys so deleted keys stay deleted
         try {
-            const fs = require('node:fs');
-            const seedPath = path.join(__dirname, 'seed-keys.json');
-            if (fs.existsSync(seedPath)) {
-                const seedData = JSON.parse(fs.readFileSync(seedPath, 'utf8'));
-                const prodId = defaultProduct ? defaultProduct.id : 1;
-                for (const item of seedData) {
-                    const rawKey = (item.key || item.license_key || '').trim().toUpperCase();
-                    if (!rawKey) continue;
-                    const khash = hashKey(rawKey);
-                    const existing = await queryOne('SELECT id FROM activation_keys WHERE key_hash = ?', [khash]);
-                    if (!existing) {
-                        const last4 = getKeyLast4(rawKey);
-                        await query(`
-                            INSERT INTO activation_keys (
-                                key_hash, key_last4, key_display, product_id, status, duration_hours,
-                                created_at, max_devices, customer_name, notes
-                            ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?)
-                        `, [
-                            khash,
-                            last4,
-                            rawKey,
-                            prodId,
-                            item.status || 'UNUSED',
-                            item.duration_hours !== undefined ? item.duration_hours : -1,
-                            item.max_devices || 1,
-                            item.customer_name || null,
-                            item.notes || 'Auto-seeded key'
-                        ]);
-                        console.log(`[SEED] Seeded key: ${rawKey}`);
-                    }
+            const seedKeysToRemove = [
+                'MADARA-FF-GZX5-4E8Z-LW2Q-U5Y8',
+                'MADARA-FF-LVLL-YL43-N7LE-6XGK',
+                'MADARA-FF-ZXSK-AEB2-UERL-A39G',
+                'MADARA-FF-9R79-Q35V-RCRC-4DQW',
+                'MADARA-FF-K9X2-7B4M-RP8W-N3VL',
+                'MADARA-FF-W84P-J2MQ-TC7X-5RV9',
+                'MADARA-FF-4TGM-H72B-K9XJ-N1PQ',
+                'MADARA-FF-E38R-V64K-D99P-Z7XM',
+                'MADARA-FF-Q28N-L74V-M52B-P9KT',
+                'MADARA-FF-Y83V-T14M-C69K-R5WP',
+                'MADARA-FF-WK9D-7P4M-JCH9-NDZE',
+                'MADARA-FF-AG6S-N3B9-LR9H-DL8G'
+            ];
+            for (const k of seedKeysToRemove) {
+                const khash = hashKey(k);
+                const found = await queryOne('SELECT id FROM activation_keys WHERE key_hash = ? OR key_display = ?', [khash, k]);
+                if (found) {
+                    await query('DELETE FROM activations WHERE key_id = ?', [found.id]);
+                    await query('DELETE FROM activation_keys WHERE id = ?', [found.id]);
+                    console.log(`[CLEANUP] Removed legacy seeded key: ${k}`);
                 }
             }
-        } catch (seedErr) {
-            console.error('[SEED] Error seeding keys:', seedErr.message);
+        } catch (cleanErr) {
+            // Ignore cleanup error
         }
     } catch (err) {
         console.error('[INIT] Database initialization error:', err.message);
