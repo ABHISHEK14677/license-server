@@ -1,5 +1,23 @@
 const path = require('node:path');
+const fs = require('node:fs');
 const { hashPassword, hashKey, getKeyLast4 } = require('./auth');
+
+// Load environment variables from .env if present
+const envPath = path.join(__dirname, '.env');
+if (fs.existsSync(envPath)) {
+    const lines = fs.readFileSync(envPath, 'utf8').split('\n');
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith('#')) {
+            const idx = trimmed.indexOf('=');
+            if (idx !== -1) {
+                const k = trimmed.substring(0, idx).trim();
+                const v = trimmed.substring(idx + 1).trim();
+                if (process.env[k] === undefined) process.env[k] = v;
+            }
+        }
+    }
+}
 
 const DATABASE_URL = process.env.DATABASE_URL;
 let isPostgres = false;
@@ -299,19 +317,25 @@ async function initDatabase() {
             console.log('[INIT] Created default product: Optimizer');
         }
 
-        // Ensure default admin exists
-        const adminCheck = await queryOne('SELECT COUNT(*) as count FROM admins');
-        const count = adminCheck ? Number(adminCheck.count) : 0;
-        if (count === 0) {
-            const defaultUser = process.env.ADMIN_USERNAME || 'admin';
-            const defaultPass = process.env.ADMIN_PASSWORD || 'admin123';
-            const defaultEmail = process.env.ADMIN_EMAIL || 'admin@rootoptimizer.com';
-            const { salt, hash } = hashPassword(defaultPass);
+        // Ensure admin MADARA-FF exists with configured credentials
+        const adminUser = process.env.ADMIN_USERNAME || 'MADARA-FF';
+        const adminPass = process.env.ADMIN_PASSWORD || 'ABHISHEK!';
+        const adminEmail = process.env.ADMIN_EMAIL || 'madara-ff@rootoptimizer.com';
+        const existingAdmin = await queryOne('SELECT id, salt, password_hash FROM admins WHERE username = ?', [adminUser]);
+
+        const { salt, hash } = hashPassword(adminPass);
+        if (!existingAdmin) {
             await query(
                 'INSERT INTO admins (email, username, password_hash, salt, role) VALUES (?, ?, ?, ?, ?)',
-                [defaultEmail, defaultUser, hash, salt, 'superadmin']
+                [adminEmail, adminUser, hash, salt, 'superadmin']
             );
-            console.log(`[INIT] Created default admin: "${defaultUser}" with password: "${defaultPass}"`);
+            console.log(`[INIT] Created secure admin account: "${adminUser}"`);
+        } else {
+            await query(
+                'UPDATE admins SET password_hash = ?, salt = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                [hash, salt, existingAdmin.id]
+            );
+            console.log(`[INIT] Verified/Updated admin account credentials for: "${adminUser}"`);
         }
 
         // Auto-migrate legacy licenses table into activation_keys if table exists
@@ -634,6 +658,17 @@ async function deleteKey(id) {
     return await query('DELETE FROM activation_keys WHERE id = ?', [id]);
 }
 
+async function clearExpiredKeys() {
+    const expiredKeys = await query("SELECT id FROM activation_keys WHERE status = 'EXPIRED' OR (duration_hours != -1 AND expires_at IS NOT NULL AND expires_at < CURRENT_TIMESTAMP)");
+    if (expiredKeys.rows && expiredKeys.rows.length > 0) {
+        for (const k of expiredKeys.rows) {
+            await deleteKey(k.id);
+        }
+        return expiredKeys.rows.length;
+    }
+    return 0;
+}
+
 // -------------------------------------------------------------
 // Customers & Devices
 // -------------------------------------------------------------
@@ -825,6 +860,7 @@ module.exports = {
     updateKeyStatus,
     updateKeyDetails,
     deleteKey,
+    clearExpiredKeys,
     // Customers & Devices
     getOrCreateCustomer,
     getOrCreateDevice,

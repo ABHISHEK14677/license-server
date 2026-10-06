@@ -64,5 +64,11 @@
     "duration_hours": -1,
     "max_devices": 1,
     "notes": "Test Worldwide CLI Key"
+  },
+  {
+    "key": "MADARA-FF-AG6S-N3B9-LR9H-DL8G",
+    "duration_hours": 720,
+    "max_devices": 1,
+    "notes": "Key generated on 2026-10-05T17:33:54.293Z"
   }
 ]

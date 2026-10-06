@@ -429,6 +429,17 @@ app.delete('/api/keys/:id', requireAdmin, async (req, res) => {
     }
 });
 
+// Clear all expired keys
+app.post('/api/keys/clear-expired', requireAdmin, async (req, res) => {
+    try {
+        const count = await db.clearExpiredKeys();
+        await db.logAuditEvent('EXPIRED_KEYS_CLEARED', { count }, getClientIp(req));
+        res.json({ success: true, message: `Successfully cleared ${count} expired keys`, count });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
 // -------------------------------------------------------------
 // Customer Activation Flow Endpoints
 // -------------------------------------------------------------
@@ -761,8 +772,7 @@ app.get(['/', '/admin', '/login'], (req, res) => {
 // Initialize database schema and start server
 db.initDatabase().then(() => {
     app.listen(PORT, '0.0.0.0', () => {
-        console.log(`[SERVER] ADB License Server running on port ${PORT}`);
-        console.log(`[SERVER] Default Admin: admin / admin123`);
+        console.log(`[SERVER] Optimizer License Server & Key Generator running on port ${PORT}`);
     });
 }).catch(err => {
     console.error('[SERVER] Failed to start:', err);
