@@ -410,10 +410,17 @@ async function exportSeedKeys() {
                 WHERE a.key_id = ?
             `, [k.id]);
 
+            const acts = activationsRes.rows || [];
+            let effectiveStatus = k.status;
+            if (effectiveStatus === 'UNUSED' && (k.activated_at || acts.some(a => a.status === 'ACTIVE'))) {
+                effectiveStatus = 'ACTIVE';
+                await query("UPDATE activation_keys SET status = 'ACTIVE' WHERE id = ?", [k.id]);
+            }
+
             output.push({
                 key: k.key_display,
                 product: k.product_name || 'Optimizer',
-                status: k.status,
+                status: effectiveStatus,
                 duration_hours: k.duration_hours,
                 created_at: k.created_at,
                 activated_at: k.activated_at,
@@ -421,7 +428,7 @@ async function exportSeedKeys() {
                 max_devices: k.max_devices,
                 customer_name: k.customer_name,
                 notes: k.notes || '',
-                activations: (activationsRes.rows || []).map(a => ({
+                activations: acts.map(a => ({
                     device_identifier: a.device_identifier,
                     device_model: a.device_model,
                     platform: a.platform || 'Android',
@@ -707,7 +714,7 @@ async function getAllKeys({ search = '', status = '', limit = 100 } = {}) {
 
     const res = await query(sql, params);
 
-    // Auto-update expired keys if applicable
+    // Auto-update expired keys or active status if activated
     const now = Date.now();
     for (const key of res.rows) {
         if (key.status === 'ACTIVE' && key.expires_at) {
@@ -716,6 +723,9 @@ async function getAllKeys({ search = '', status = '', limit = 100 } = {}) {
                 key.status = 'EXPIRED';
                 await query('UPDATE activation_keys SET status = ? WHERE id = ?', ['EXPIRED', key.id]);
             }
+        } else if (key.status === 'UNUSED' && (key.activated_at || key.active_devices_count > 0)) {
+            key.status = 'ACTIVE';
+            await query("UPDATE activation_keys SET status = 'ACTIVE' WHERE id = ?", [key.id]);
         }
     }
 
