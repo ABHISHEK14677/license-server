@@ -39,6 +39,8 @@ if (DATABASE_URL && DATABASE_URL.startsWith('postgres')) {
     console.log('[DB] Using local SQLite database:', DB_PATH);
 }
 
+const SEED_FILE_PATH = path.join(__dirname, 'seed-keys.json');
+
 // Helper query function that abstracts Postgres ($1, $2) vs SQLite (?, ?)
 async function query(sql, params = []) {
     if (isPostgres) {
@@ -378,36 +380,169 @@ async function initDatabase() {
             // licenses table may not exist, ignore
         }
 
-        // One-time cleanup: remove any leftover legacy auto-seeded keys so deleted keys stay deleted
-        try {
-            const seedKeysToRemove = [
-                'MADARA-FF-GZX5-4E8Z-LW2Q-U5Y8',
-                'MADARA-FF-LVLL-YL43-N7LE-6XGK',
-                'MADARA-FF-ZXSK-AEB2-UERL-A39G',
-                'MADARA-FF-9R79-Q35V-RCRC-4DQW',
-                'MADARA-FF-K9X2-7B4M-RP8W-N3VL',
-                'MADARA-FF-W84P-J2MQ-TC7X-5RV9',
-                'MADARA-FF-4TGM-H72B-K9XJ-N1PQ',
-                'MADARA-FF-E38R-V64K-D99P-Z7XM',
-                'MADARA-FF-Q28N-L74V-M52B-P9KT',
-                'MADARA-FF-Y83V-T14M-C69K-R5WP',
-                'MADARA-FF-WK9D-7P4M-JCH9-NDZE',
-                'MADARA-FF-AG6S-N3B9-LR9H-DL8G'
-            ];
-            for (const k of seedKeysToRemove) {
-                const khash = hashKey(k);
-                const found = await queryOne('SELECT id FROM activation_keys WHERE key_hash = ? OR key_display = ?', [khash, k]);
-                if (found) {
-                    await query('DELETE FROM activations WHERE key_id = ?', [found.id]);
-                    await query('DELETE FROM activation_keys WHERE id = ?', [found.id]);
-                    console.log(`[CLEANUP] Removed legacy seeded key: ${k}`);
-                }
-            }
-        } catch (cleanErr) {
-            // Ignore cleanup error
-        }
+        // Restore persistent keys and active devices from seed-keys.json
+        await importSeedKeys();
     } catch (err) {
         console.error('[INIT] Database initialization error:', err.message);
+    }
+}
+
+// -------------------------------------------------------------
+// Persistent Seed Storage (seed-keys.json)
+// -------------------------------------------------------------
+async function exportSeedKeys() {
+    try {
+        const keysRes = await query(`
+            SELECT k.*, p.name as product_name
+            FROM activation_keys k
+            LEFT JOIN products p ON k.product_id = p.id
+            ORDER BY k.created_at ASC
+        `);
+
+        if (!keysRes || !keysRes.rows) return [];
+
+        const output = [];
+        for (const k of keysRes.rows) {
+            const activationsRes = await query(`
+                SELECT a.*, d.device_identifier, d.device_model, d.platform
+                FROM activations a
+                JOIN devices d ON a.device_id = d.id
+                WHERE a.key_id = ?
+            `, [k.id]);
+
+            output.push({
+                key: k.key_display,
+                product: k.product_name || 'Optimizer',
+                status: k.status,
+                duration_hours: k.duration_hours,
+                created_at: k.created_at,
+                activated_at: k.activated_at,
+                expires_at: k.expires_at,
+                max_devices: k.max_devices,
+                customer_name: k.customer_name,
+                notes: k.notes || '',
+                activations: (activationsRes.rows || []).map(a => ({
+                    device_identifier: a.device_identifier,
+                    device_model: a.device_model,
+                    platform: a.platform || 'Android',
+                    activated_at: a.activated_at,
+                    expires_at: a.expires_at,
+                    status: a.status || 'ACTIVE',
+                    session_token: a.session_token,
+                    last_seen_at: a.last_seen_at
+                }))
+            });
+        }
+
+        fs.writeFileSync(SEED_FILE_PATH, JSON.stringify(output, null, 2), 'utf8');
+        return output;
+    } catch (err) {
+        console.error('[SEED] Failed to export seed-keys.json:', err.message);
+        return [];
+    }
+}
+
+async function importSeedKeys(customList = null) {
+    try {
+        let seedList = customList;
+        if (!seedList) {
+            if (!fs.existsSync(SEED_FILE_PATH)) return 0;
+            const raw = fs.readFileSync(SEED_FILE_PATH, 'utf8').trim();
+            if (!raw) return 0;
+            seedList = JSON.parse(raw);
+        }
+        if (!Array.isArray(seedList) || seedList.length === 0) return 0;
+
+        let defaultProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['Optimizer']);
+        const prodId = defaultProduct ? defaultProduct.id : 1;
+        let count = 0;
+
+        for (const item of seedList) {
+            const keyString = (item.key || item.key_display || item.license_key || '').trim().toUpperCase();
+            if (!keyString) continue;
+
+            const khash = hashKey(keyString);
+            const last4 = getKeyLast4(keyString);
+
+            let existing = await queryOne('SELECT * FROM activation_keys WHERE key_hash = ?', [khash]);
+            let keyId = null;
+
+            if (!existing) {
+                const insertRes = await query(`
+                    INSERT INTO activation_keys (
+                        key_hash, key_last4, key_display, product_id, status, duration_hours,
+                        created_at, activated_at, expires_at, max_devices, customer_name, notes
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `, [
+                    khash,
+                    last4,
+                    keyString,
+                    prodId,
+                    item.status || 'UNUSED',
+                    item.duration_hours !== undefined ? item.duration_hours : -1,
+                    item.created_at || new Date().toISOString(),
+                    item.activated_at || null,
+                    item.expires_at || null,
+                    item.max_devices || 1,
+                    item.customer_name || null,
+                    item.notes || ''
+                ]);
+                const created = await queryOne('SELECT id FROM activation_keys WHERE key_hash = ?', [khash]);
+                keyId = created ? created.id : insertRes.lastID;
+                count++;
+                console.log(`[SEED] Restored persistent key: ${keyString} (${item.status || 'UNUSED'})`);
+            } else {
+                keyId = existing.id;
+                // If seed has newer status or timestamps, update DB
+                if (item.status && (item.status !== existing.status || item.activated_at !== existing.activated_at || item.expires_at !== existing.expires_at)) {
+                    await query(`
+                        UPDATE activation_keys 
+                        SET status = ?, 
+                            activated_at = COALESCE(?, activated_at), 
+                            expires_at = COALESCE(?, expires_at),
+                            customer_name = COALESCE(customer_name, ?),
+                            notes = COALESCE(notes, ?)
+                        WHERE id = ?
+                    `, [item.status, item.activated_at || null, item.expires_at || null, item.customer_name || null, item.notes || null, keyId]);
+                    count++;
+                }
+            }
+
+            // Restore activations if present in seed file
+            if (item.activations && Array.isArray(item.activations) && keyId) {
+                for (const act of item.activations) {
+                    if (!act.device_identifier) continue;
+                    const custName = item.customer_name || `user_${act.device_identifier.slice(0, 8)}`;
+                    const customer = await getOrCreateCustomer(custName, item.customer_name);
+                    const device = await getOrCreateDevice(customer.id, act.device_identifier, act.device_model || 'Android Device', 'com.example.rootoptimizer', act.platform || 'Android');
+
+                    const existingAct = await findActivation(keyId, device.id);
+                    if (!existingAct) {
+                        await query(`
+                            INSERT INTO activations (
+                                key_id, license_id, customer_id, device_id, activated_at, expires_at, status, session_token, last_seen_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        `, [
+                            keyId, keyId, customer.id, device.id,
+                            act.activated_at || new Date().toISOString(),
+                            act.expires_at || null,
+                            act.status || 'ACTIVE',
+                            act.session_token || null,
+                            act.last_seen_at || act.activated_at || new Date().toISOString()
+                        ]);
+                        console.log(`[SEED] Restored device activation for key ${keyString} on ${act.device_identifier}`);
+                    } else if (act.session_token && !existingAct.session_token) {
+                        await query(`UPDATE activations SET session_token = ?, status = ? WHERE id = ?`, [act.session_token, act.status || 'ACTIVE', existingAct.id]);
+                    }
+                }
+            }
+        }
+
+        await exportSeedKeys();
+        return count;
+    } catch (err) {
+        console.error('[SEED] Failed to import seed keys:', err.message);
+        return 0;
     }
 }
 
@@ -522,7 +657,9 @@ async function createActivationKey({
         notes || ''
     ]);
 
-    return await getKeyByHash(keyHash);
+    const created = await getKeyByHash(keyHash);
+    await exportSeedKeys();
+    return created;
 }
 
 async function getKeyByHash(keyHash) {
@@ -634,7 +771,9 @@ async function updateKeyDetails(id, { notes, customerName, maxDevices, status })
             await query("UPDATE activations SET status = 'ACTIVE' WHERE key_id = ?", [id]);
         }
     }
-    return await getKeyById(id);
+    const updated = await getKeyById(id);
+    await exportSeedKeys();
+    return updated;
 }
 
 async function updateKeyStatus(id, newStatus) {
@@ -645,20 +784,26 @@ async function updateKeyStatus(id, newStatus) {
     } else if (s === 'ACTIVE') {
         await query("UPDATE activations SET status = 'ACTIVE' WHERE key_id = ?", [id]);
     }
-    return await getKeyById(id);
+    const updated = await getKeyById(id);
+    await exportSeedKeys();
+    return updated;
 }
 
 async function deleteKey(id) {
     await query('DELETE FROM activations WHERE key_id = ?', [id]);
-    return await query('DELETE FROM activation_keys WHERE id = ?', [id]);
+    const res = await query('DELETE FROM activation_keys WHERE id = ?', [id]);
+    await exportSeedKeys();
+    return res;
 }
 
 async function clearExpiredKeys() {
     const expiredKeys = await query("SELECT id FROM activation_keys WHERE status = 'EXPIRED' OR (duration_hours != -1 AND expires_at IS NOT NULL AND expires_at < CURRENT_TIMESTAMP)");
     if (expiredKeys.rows && expiredKeys.rows.length > 0) {
         for (const k of expiredKeys.rows) {
-            await deleteKey(k.id);
+            await query('DELETE FROM activations WHERE key_id = ?', [k.id]);
+            await query('DELETE FROM activation_keys WHERE id = ?', [k.id]);
         }
+        await exportSeedKeys();
         return expiredKeys.rows.length;
     }
     return 0;
@@ -735,34 +880,41 @@ async function getKeyActivations(keyId) {
 
 async function recordActivation({ keyId, customerId, deviceId, expiresAt, sessionToken }) {
     const expiresStr = expiresAt instanceof Date ? expiresAt.toISOString() : expiresAt;
-    return await query(`
+    const res = await query(`
         INSERT INTO activations (key_id, license_id, customer_id, device_id, expires_at, status, session_token)
         VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?)
     `, [keyId, keyId, customerId, deviceId, expiresStr, sessionToken]);
+    await exportSeedKeys();
+    return res;
 }
 
 async function updateActivationLastSeen(activationId, sessionToken = null) {
+    let res;
     if (sessionToken) {
-        return await query(`
+        res = await query(`
             UPDATE activations 
             SET last_verified_at = CURRENT_TIMESTAMP, last_seen_at = CURRENT_TIMESTAMP, session_token = ?
             WHERE id = ?
         `, [sessionToken, activationId]);
+        await exportSeedKeys();
     } else {
-        return await query(`
+        res = await query(`
             UPDATE activations 
             SET last_verified_at = CURRENT_TIMESTAMP, last_seen_at = CURRENT_TIMESTAMP 
             WHERE id = ?
         `, [activationId]);
     }
+    return res;
 }
 
 async function deactivateDevice(keyId, deviceId) {
-    return await query(`
+    const res = await query(`
         UPDATE activations 
         SET status = 'INACTIVE', is_active = 0 
         WHERE (key_id = ? OR license_id = ?) AND device_id = ?
     `, [keyId, keyId, deviceId]);
+    await exportSeedKeys();
+    return res;
 }
 
 // -------------------------------------------------------------
@@ -869,5 +1021,8 @@ module.exports = {
     // Stats & Logs
     getDashboardStats,
     logAuditEvent,
-    getRecentLogs
+    getRecentLogs,
+    // Persistence
+    exportSeedKeys,
+    importSeedKeys
 };

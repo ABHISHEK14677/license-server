@@ -296,28 +296,74 @@ app.post('/api/admin/licenses/generate', requireAdmin, handleKeyGeneration);
 app.post('/api/keys/import', requireAdmin, async (req, res) => {
     try {
         const { keys = [] } = req.body;
-        const product = await db.getOrCreateProduct('Optimizer');
-        let imported = 0;
-        for (const item of keys) {
-            const rawKey = (item.key || item.key_display || item.license_key || '').trim().toUpperCase();
-            if (!rawKey) continue;
-            const khash = hashKey(rawKey);
-            const exists = await db.getKeyByHash(khash);
-            if (!exists) {
-                await db.createActivationKey({
-                    keyString: rawKey,
-                    productId: product.id,
-                    durationHours: item.duration_hours !== undefined ? item.duration_hours : -1,
-                    maxDevices: item.max_devices || 1,
-                    customerName: item.customer_name || null,
-                    notes: item.notes || 'Imported via sync'
-                });
-                imported++;
-            }
+        if (!Array.isArray(keys) || keys.length === 0) {
+            return res.json({ success: true, message: 'No keys to import', count: 0 });
         }
-        res.json({ success: true, message: `Successfully imported ${imported} keys`, count: imported });
+        const imported = await db.importSeedKeys(keys);
+        res.json({ success: true, message: `Successfully imported / synchronized ${imported} keys`, count: imported });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// Cloud Synchronization
+async function syncWithCloudServer() {
+    const cloudUrl = process.env.CLOUD_SERVER_URL || 'https://optimizer-stzd.onrender.com';
+    const adminUser = process.env.ADMIN_USERNAME || 'MADARA-FF';
+    const adminPass = process.env.ADMIN_PASSWORD || 'ABHISHEK!';
+
+    // Step 1: Login to Cloud Server
+    const loginRes = await fetch(`${cloudUrl}/api/auth/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: adminUser, password: adminPass })
+    });
+    const loginData = await loginRes.json();
+    if (!loginData.success || !loginData.token) {
+        throw new Error(loginData.message || 'Cloud authentication failed');
+    }
+
+    const cloudToken = loginData.token;
+
+    // Step 2: Fetch remote keys from Cloud Server
+    const cloudKeysRes = await fetch(`${cloudUrl}/api/keys?limit=250`, {
+        headers: { 'Authorization': `Bearer ${cloudToken}` }
+    });
+    const cloudKeysData = await cloudKeysRes.json();
+    let importedLocally = 0;
+    if (cloudKeysData.success && Array.isArray(cloudKeysData.keys)) {
+        importedLocally = await db.importSeedKeys(cloudKeysData.keys);
+    }
+
+    // Step 3: Export local keys and sync to Cloud Server
+    const localSeedKeys = await db.exportSeedKeys();
+    const pushRes = await fetch(`${cloudUrl}/api/keys/import`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${cloudToken}`
+        },
+        body: JSON.stringify({ keys: localSeedKeys })
+    });
+    const pushData = await pushRes.json();
+
+    return {
+        success: true,
+        message: 'Bidirectional Cloud Synchronization Successful',
+        cloudUrl,
+        importedLocally,
+        pushedToCloud: pushData.count || localSeedKeys.length
+    };
+}
+
+app.post('/api/admin/sync-cloud', requireAdmin, async (req, res) => {
+    try {
+        const result = await syncWithCloudServer();
+        await db.logAuditEvent('CLOUD_SYNC_TRIGGERED', result, getClientIp(req));
+        res.json(result);
+    } catch (err) {
+        console.error('Cloud sync error:', err.message);
+        res.status(500).json({ success: false, message: 'Cloud sync failed: ' + err.message });
     }
 });
 
@@ -725,20 +771,57 @@ async function handleActivationStatus(req, res) {
             return res.status(403).json({ success: false, valid: false, error: 'KEY_EXPIRED', message: 'Activation key has expired' });
         }
 
-        const device = await db.queryOne('SELECT id FROM devices WHERE device_identifier = ?', [deviceId]);
+        let device = await db.queryOne('SELECT id, customer_id FROM devices WHERE device_identifier = ?', [deviceId]);
+        const activeCount = await db.getActiveActivationsCount(keyRecord.id);
+
         if (!device) {
-            return res.status(403).json({ success: false, valid: false, error: 'DEVICE_NOT_ACTIVATED', message: 'Device not registered' });
+            // Self-healing: if key is active or within limit, auto-register device
+            if (activeCount < keyRecord.max_devices) {
+                const custName = keyRecord.customer_name || `user_${deviceId.slice(0, 8)}`;
+                const customer = await db.getOrCreateCustomer(custName);
+                device = await db.getOrCreateDevice(customer.id, deviceId, req.body.device_model || 'Android Device', 'com.example.rootoptimizer', req.body.platform || 'Android');
+                const sessionTok = sessionToken || generateToken();
+                await db.recordActivation({
+                    keyId: keyRecord.id,
+                    customerId: customer.id,
+                    deviceId: device.id,
+                    expiresAt: keyRecord.expires_at,
+                    sessionToken: sessionTok
+                });
+                if (keyRecord.status === 'UNUSED') {
+                    await db.updateKeyStatus(keyRecord.id, 'ACTIVE');
+                    keyRecord.status = 'ACTIVE';
+                }
+            } else {
+                return res.status(403).json({ success: false, valid: false, error: 'DEVICE_NOT_ACTIVATED', message: 'Device not registered' });
+            }
         }
 
-        const activation = await db.findActivation(keyRecord.id, device.id);
+        let activation = await db.findActivation(keyRecord.id, device.id);
         if (!activation || activation.status !== 'ACTIVE') {
             if (activation && (activation.status === 'SUSPENDED' || activation.status === 'PAUSED')) {
                 return res.status(403).json({ success: false, valid: false, error: 'KEY_PAUSED', message: 'Access has been paused by user, contact seller' });
             }
-            return res.status(403).json({ success: false, valid: false, error: 'DEVICE_NOT_ACTIVATED', message: 'Device is not active on this key' });
+            if (activation && activation.status === 'REVOKED') {
+                return res.status(403).json({ success: false, valid: false, error: 'KEY_REVOKED', message: 'Activation key has been revoked' });
+            }
+            // Self-healing: restore active activation if key allows
+            if (activeCount < keyRecord.max_devices) {
+                const sessionTok = sessionToken || (activation ? activation.session_token : null) || generateToken();
+                await db.recordActivation({
+                    keyId: keyRecord.id,
+                    customerId: device.customer_id,
+                    deviceId: device.id,
+                    expiresAt: keyRecord.expires_at,
+                    sessionToken: sessionTok
+                });
+                activation = await db.findActivation(keyRecord.id, device.id);
+            } else {
+                return res.status(403).json({ success: false, valid: false, error: 'DEVICE_NOT_ACTIVATED', message: 'Device is not active on this key' });
+            }
         }
 
-        await db.updateActivationLastSeen(activation.id);
+        await db.updateActivationLastSeen(activation.id, sessionToken || activation.session_token);
 
         const remainingSeconds = isPermanent ? -1 : (keyRecord.expires_at ? Math.max(0, Math.floor((new Date(keyRecord.expires_at).getTime() - Date.now()) / 1000)) : null);
 
@@ -773,6 +856,18 @@ app.get(['/', '/admin', '/login'], (req, res) => {
 db.initDatabase().then(() => {
     app.listen(PORT, '0.0.0.0', () => {
         console.log(`[SERVER] Optimizer License Server & Key Generator running on port ${PORT}`);
+        // Attempt non-blocking background sync with Render Cloud if running locally
+        if (!process.env.RENDER && process.env.AUTO_SYNC_CLOUD !== 'false') {
+            setTimeout(async () => {
+                try {
+                    console.log('[SYNC] Starting background sync with Render cloud...');
+                    const syncRes = await syncWithCloudServer();
+                    console.log('[SYNC] Background sync finished:', syncRes.message);
+                } catch (e) {
+                    console.log('[SYNC] Background cloud sync deferred:', e.message);
+                }
+            }, 3000);
+        }
     });
 }).catch(err => {
     console.error('[SERVER] Failed to start:', err);

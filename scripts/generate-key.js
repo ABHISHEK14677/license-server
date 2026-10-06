@@ -51,11 +51,12 @@ async function main() {
         let cloudStatus = '✓ Synced to Render Cloud (Worldwide Ready)';
         try {
             const cloudUrl = process.env.CLOUD_SERVER_URL || 'https://optimizer-stzd.onrender.com';
-            const adminPass = process.env.ADMIN_PASSWORD || 'Abhi@0099';
-            const loginRes = await fetch(`${cloudUrl}/api/admin/login`, {
+            const adminUser = process.env.ADMIN_USERNAME || 'MADARA-FF';
+            const adminPass = process.env.ADMIN_PASSWORD || 'ABHISHEK!';
+            const loginRes = await fetch(`${cloudUrl}/api/auth/admin/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: 'admin', password: adminPass })
+                body: JSON.stringify({ username: adminUser, password: adminPass })
             });
             const loginData = await loginRes.json();
             if (loginData.success && loginData.token) {

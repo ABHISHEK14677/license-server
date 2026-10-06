@@ -774,6 +774,12 @@
             </div>
 
             <div id="authNavArea" class="user-nav-actions" style="display: none;">
+                <button class="btn btn-outline btn-sm" id="btnSyncCloud" onclick="triggerCloudSync()" style="border-color: var(--cyan-accent); color: var(--cyan-accent); font-weight: 700;" title="Synchronize keys with Render Cloud">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 4px;">
+                        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                    </svg>
+                    Sync Cloud
+                </button>
                 <span class="user-badge" id="navUserBadge">MADARA-FF</span>
                 <button class="btn btn-outline btn-sm" onclick="handleLogout()">Sign Out</button>
             </div>
@@ -1206,6 +1212,63 @@
 
         const TOKEN_STORAGE_KEY = 'madara_admin_token';
         const USERNAME_STORAGE_KEY = 'madara_admin_username';
+        const LATEST_KEY_STORAGE_KEY = 'optimizer_admin_latest_key_v1';
+        const ALL_KEYS_STORAGE_KEY = 'optimizer_admin_all_keys_v1';
+
+        // Initialize state from local cache so keys never disappear on logout/refresh
+        try {
+            const cachedLatest = localStorage.getItem(LATEST_KEY_STORAGE_KEY);
+            if (cachedLatest) latestKeyData = JSON.parse(cachedLatest);
+        } catch (e) {}
+
+        try {
+            const cachedAll = localStorage.getItem(ALL_KEYS_STORAGE_KEY);
+            if (cachedAll) {
+                const parsed = JSON.parse(cachedAll);
+                if (Array.isArray(parsed)) allKeys = parsed;
+            }
+        } catch (e) {}
+
+        function saveLatestKey(k) {
+            latestKeyData = k;
+            try {
+                if (k) localStorage.setItem(LATEST_KEY_STORAGE_KEY, JSON.stringify(k));
+                else localStorage.removeItem(LATEST_KEY_STORAGE_KEY);
+            } catch (e) {}
+        }
+
+        function saveAllKeys(keys) {
+            allKeys = Array.isArray(keys) ? keys : [];
+            try {
+                localStorage.setItem(ALL_KEYS_STORAGE_KEY, JSON.stringify(allKeys));
+            } catch (e) {}
+        }
+
+        async function triggerCloudSync() {
+            const btn = document.getElementById('btnSyncCloud');
+            const oldText = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerText = 'Syncing...';
+            }
+            try {
+                const res = await api('/api/admin/sync-cloud', { method: 'POST' });
+                if (res.success) {
+                    showToast('✓ Cloud Sync Successful!');
+                    loadStatsData();
+                    loadKeysData();
+                } else {
+                    showToast('Sync warning: ' + (res.message || 'Check connection'));
+                }
+            } catch (e) {
+                showToast('Sync notice: ' + (e.message || 'Connecting to cloud...'));
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = oldText;
+                }
+            }
+        }
 
         function getToken() {
             if (activeAdminToken) return activeAdminToken;
@@ -1411,6 +1474,13 @@
             const user = username || getUsername() || 'MADARA-FF';
             document.getElementById('navUserBadge').innerText = user;
 
+            // Render cached data immediately so keys are never missing even after session logout/reload
+            if (latestKeyData) renderLatestKey(latestKeyData);
+            if (allKeys && allKeys.length > 0) {
+                renderKeysList();
+                renderHistoryList();
+            }
+
             loadStatsData();
             loadKeysData();
 
@@ -1536,6 +1606,7 @@
                         notes: generated.notes || notes
                     };
 
+                    saveLatestKey(latestKeyData);
                     renderLatestKey(latestKeyData);
                     showToast('Key generated successfully!');
                     loadStatsData();
@@ -1607,6 +1678,7 @@
             const res = await api(endpoint, { method: 'POST' });
             if (res.success && res.key) {
                 latestKeyData = res.key;
+                saveLatestKey(latestKeyData);
                 renderLatestKey(latestKeyData);
                 loadStatsData();
                 loadKeysData();
@@ -1734,12 +1806,20 @@
         async function loadKeysData() {
             try {
                 const res = await api('/api/keys?limit=250');
-                if (res.success && res.keys) {
+                if (res.success && Array.isArray(res.keys)) {
                     allKeys = res.keys;
+                    saveAllKeys(allKeys);
 
-                    // If latestKeyData was null, set it to the most recently created key
-                    if (!latestKeyData && allKeys.length > 0) {
-                        latestKeyData = allKeys[0];
+                    // If latestKeyData was null or in list, sync with latest state
+                    if (allKeys.length > 0) {
+                        if (!latestKeyData) {
+                            latestKeyData = allKeys[0];
+                        } else {
+                            const found = allKeys.find(k => k.id === latestKeyData.id || k.key_display === latestKeyData.key_display);
+                            if (found) latestKeyData = found;
+                            else latestKeyData = allKeys[0];
+                        }
+                        saveLatestKey(latestKeyData);
                         renderLatestKey(latestKeyData);
                     }
 

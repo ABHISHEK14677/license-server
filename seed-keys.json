@@ -1,1 +1,89 @@
-[]
+[
+  {
+    "key": "MADARA-FF-CY5R-F74H-5V98-XMGT",
+    "product": "Optimizer",
+    "status": "UNUSED",
+    "duration_hours": -1,
+    "created_at": "2026-10-06 13:32:27",
+    "activated_at": null,
+    "expires_at": null,
+    "max_devices": 1,
+    "customer_name": null,
+    "notes": "Test Permanent Key",
+    "activations": []
+  },
+  {
+    "key": "MADARA-FF-NTQP-KECB-VM6L-GD7E",
+    "product": "Optimizer",
+    "status": "UNUSED",
+    "duration_hours": 720,
+    "created_at": "2026-10-06 13:44:18",
+    "activated_at": null,
+    "expires_at": null,
+    "max_devices": 1,
+    "customer_name": null,
+    "notes": "",
+    "activations": []
+  },
+  {
+    "key": "MADARA-FF-7FVC-3FMT-WMZP-DWTG",
+    "product": "Optimizer",
+    "status": "UNUSED",
+    "duration_hours": 720,
+    "created_at": "2026-10-06 13:44:25",
+    "activated_at": null,
+    "expires_at": null,
+    "max_devices": 1,
+    "customer_name": null,
+    "notes": "",
+    "activations": []
+  },
+  {
+    "key": "MADARA-FF-CKQ8-SMW6-XTKV-GAY2",
+    "product": "Optimizer",
+    "status": "ACTIVE",
+    "duration_hours": -1,
+    "created_at": "2026-10-06 13:44:41",
+    "activated_at": "2026-10-06 13:44:48",
+    "expires_at": null,
+    "max_devices": 1,
+    "customer_name": null,
+    "notes": "",
+    "activations": [
+      {
+        "device_identifier": "TEST-DEVICE-01",
+        "device_model": "Android Device",
+        "platform": "Android",
+        "activated_at": "2026-10-06 13:44:48",
+        "expires_at": null,
+        "status": "ACTIVE",
+        "session_token": "5219dd5feef79cae93e21cff8d196f25350c0db709ec47d605a2144c858190c0",
+        "last_seen_at": "2026-10-06 13:44:48"
+      }
+    ]
+  },
+  {
+    "key": "MADARA-FF-H5YU-Z7N6-GDC4-GCLG",
+    "product": "Optimizer",
+    "status": "ACTIVE",
+    "duration_hours": -1,
+    "created_at": "2026-10-06 15:53:46",
+    "activated_at": "2026-10-06 15:53:50",
+    "expires_at": null,
+    "max_devices": 1,
+    "customer_name": "Xiaomi User",
+    "notes": "Primary Phone Key",
+    "activations": [
+      {
+        "device_identifier": "0f3968c60e13236424e6dcbd2e911e737dd935e232c6e08754771136b16dce5a",
+        "device_model": "Xiaomi 2412DPC0AI",
+        "platform": "Android",
+        "activated_at": "2026-10-06 15:53:50",
+        "expires_at": null,
+        "status": "ACTIVE",
+        "session_token": "d4c2a89dbeac9d50bdd7ddebde0d886ce37af6ab4c3c7bcde77981b4d713aa95",
+        "last_seen_at": "2026-10-06 17:27:50"
+      }
+    ]
+  }
+]
