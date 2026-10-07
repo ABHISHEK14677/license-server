@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.0.3",
-  "version_code": 4,
+  "latest_version": "1.0.4",
+  "version_code": 5,
   "min_version": "1.0.0",
   "title": "Optimizer Update Available",
-  "release_notes": "\u2022 New FPS Optimization panel with real-time app sync\n\u2022 Clean hardware telemetry and per-app refresh rate controls\n\u2022 Seamless in-app one-click update installer",
+  "release_notes": "• Added Performance Optimization left-side panel\\n• Per-app CPU/GPU priority and background activity management\\n• Safe reversible optimization with automatic baseline backups and rollback",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 6923949,
-  "updated_at": "2026-10-07T18:12:28Z"
+  "file_size_bytes": 6971817,
+  "updated_at": "2026-10-07T18:37:02Z"
 }

@@ -7,3 +7,4 @@ yarn-error.log*
 licenses.db
 *.apk
 !public/downloads/*.apk
+*.log
