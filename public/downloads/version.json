@@ -1,0 +1,11 @@
+{
+  "latest_version": "1.0.1",
+  "version_code": 2,
+  "min_version": "1.0.0",
+  "title": "Optimizer Update Available",
+  "release_notes": "• Clean RAM top panel with real-time badges\n• Managed RAM and Locked stats badges\n• In-app seamless one-click APK updater\n• Persistent licenses with cloud self-healing",
+  "apk_filename": "RootOptimizer.apk",
+  "download_url": "/api/app/download",
+  "file_size_bytes": 7965874,
+  "updated_at": "2026-10-07T21:55:00Z"
+}

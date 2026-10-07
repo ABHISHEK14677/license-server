@@ -904,21 +904,43 @@ app.post('/api/license/validate', handleActivationStatus);
 // -------------------------------------------------------------
 // In-App APK Update Endpoints
 // -------------------------------------------------------------
-const APP_UPDATE_CONFIG = {
-    latest_version: process.env.APP_LATEST_VERSION || '1.0.1',
-    version_code: parseInt(process.env.APP_VERSION_CODE || '2', 10),
-    min_version: '1.0.0',
-    title: 'Optimizer Update Available',
-    release_notes: '• Fixed key persistence across Render server restarts\n• Real-time cloud synchronization & self-healing\n• In-app seamless APK updating\n• Performance and memory retention improvements',
-    apk_filename: 'RootOptimizer.apk',
-    download_url: process.env.APP_DOWNLOAD_URL || '/api/app/download'
-};
+function getAppUpdateConfig() {
+    const versionFile = path.join(__dirname, 'public', 'downloads', 'version.json');
+    let dynamicConfig = {};
+    if (fs.existsSync(versionFile)) {
+        try {
+            dynamicConfig = JSON.parse(fs.readFileSync(versionFile, 'utf8'));
+        } catch (e) {
+            console.error('Error reading version.json:', e);
+        }
+    }
+
+    const localApkPath = path.join(__dirname, 'public', 'downloads', 'RootOptimizer.apk');
+    let fileSize = dynamicConfig.file_size_bytes || 8388608;
+    if (fs.existsSync(localApkPath)) {
+        try {
+            fileSize = fs.statSync(localApkPath).size;
+        } catch (e) {}
+    }
+
+    return {
+        latest_version: dynamicConfig.latest_version || process.env.APP_LATEST_VERSION || '1.0.1',
+        version_code: parseInt(dynamicConfig.version_code || process.env.APP_VERSION_CODE || '2', 10),
+        min_version: dynamicConfig.min_version || '1.0.0',
+        title: dynamicConfig.title || 'Optimizer Update Available',
+        release_notes: dynamicConfig.release_notes || '• UI and performance improvements\n• Clean panel headers and badge stats\n• In-app one-click update installer',
+        apk_filename: dynamicConfig.apk_filename || 'RootOptimizer.apk',
+        download_url: dynamicConfig.download_url || process.env.APP_DOWNLOAD_URL || '/api/app/download',
+        file_size_bytes: fileSize
+    };
+}
 
 app.get(['/api/app/update', '/api/app/version'], (req, res) => {
+    const config = getAppUpdateConfig();
     const currentCode = parseInt(req.query.version_code || req.query.code || '1', 10);
-    const updateAvailable = currentCode < APP_UPDATE_CONFIG.version_code;
+    const updateAvailable = currentCode < config.version_code;
 
-    let directUrl = APP_UPDATE_CONFIG.download_url;
+    let directUrl = config.download_url;
     if (directUrl.startsWith('/')) {
         const host = req.get('host');
         const proto = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
@@ -928,13 +950,43 @@ app.get(['/api/app/update', '/api/app/version'], (req, res) => {
     res.json({
         success: true,
         update_available: updateAvailable,
-        latest_version: APP_UPDATE_CONFIG.latest_version,
-        version_code: APP_UPDATE_CONFIG.version_code,
-        min_version: APP_UPDATE_CONFIG.min_version,
-        release_notes: APP_UPDATE_CONFIG.release_notes,
+        latest_version: config.latest_version,
+        version_code: config.version_code,
+        min_version: config.min_version,
+        release_notes: config.release_notes,
         download_url: directUrl,
-        file_size_bytes: 8388608
+        file_size_bytes: config.file_size_bytes
     });
+});
+
+app.post(['/api/app/publish', '/api/admin/app/publish'], express.json(), (req, res) => {
+    const secret = req.headers['x-admin-key'] || req.query.admin_key || req.body.admin_key;
+    const expectedSecret = process.env.ADMIN_SECRET || 'optimizer-admin-secret-2026';
+    if (secret !== expectedSecret && req.headers['authorization'] !== `Bearer ${expectedSecret}`) {
+        return res.status(401).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const { latest_version, version_code, release_notes, min_version, download_url } = req.body;
+    const versionFile = path.join(__dirname, 'public', 'downloads', 'version.json');
+    let currentConfig = {};
+    if (fs.existsSync(versionFile)) {
+        try { currentConfig = JSON.parse(fs.readFileSync(versionFile, 'utf8')); } catch (e) {}
+    }
+
+    const updatedConfig = {
+        ...currentConfig,
+        latest_version: latest_version || currentConfig.latest_version || '1.0.1',
+        version_code: parseInt(version_code || currentConfig.version_code || '2', 10),
+        min_version: min_version || currentConfig.min_version || '1.0.0',
+        release_notes: release_notes || currentConfig.release_notes || '',
+        download_url: download_url || currentConfig.download_url || '/api/app/download',
+        updated_at: new Date().toISOString()
+    };
+
+    fs.mkdirSync(path.dirname(versionFile), { recursive: true });
+    fs.writeFileSync(versionFile, JSON.stringify(updatedConfig, null, 2));
+
+    res.json({ success: true, message: 'Update configuration published successfully', config: updatedConfig });
 });
 
 app.get(['/api/app/download', '/download/app-release.apk', '/download/RootOptimizer.apk'], (req, res) => {
