@@ -3,9 +3,9 @@
   "version_code": 3,
   "min_version": "1.0.0",
   "title": "Optimizer Update Available",
-  "release_notes": "• Refined FPS Optimization panel\n• App-sync based maximum supported FPS capture\n• Clean hardware telemetry header\n• Simplified filters and per-app refresh rate controls",
+  "release_notes": "• Refined FPS Optimization panel\n• App-sync based maximum supported FPS capture\n• Clean hardware telemetry and per-app refresh rate controls",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
   "file_size_bytes": 8061453,
-  "updated_at": "2026-10-07T17:54:52Z"
+  "updated_at": "2026-10-07T17:59:53Z"
 }
