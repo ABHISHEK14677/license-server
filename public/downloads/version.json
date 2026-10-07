@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.0.1",
-  "version_code": 2,
+  "latest_version": "1.0.2",
+  "version_code": 3,
   "min_version": "1.0.0",
   "title": "Optimizer Update Available",
-  "release_notes": "• Clean RAM top panel with badges&#10;• Managed RAM and Locked badges&#10;• In-app seamless one-click APK updater&#10;• Persistent licenses with cloud self-healing",
+  "release_notes": "• New FPS Optimization Panel\n• Per-app 120Hz FPS booster with safe baseline restore\n• Smart display & GPU hardware detection (Mali & Snapdragon)\n• Filter chips: All Apps, Games, Boosted, and System apps toggle",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 6890073,
-  "updated_at": "2026-10-07T16:58:19Z"
+  "file_size_bytes": 6923653,
+  "updated_at": "2026-10-07T17:41:48Z"
 }
