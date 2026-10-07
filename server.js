@@ -541,6 +541,26 @@ async function handleCustomerActivate(req, res) {
             }
         }
 
+        // Self-healing: if server restarted with fresh container and mobile sends valid key
+        if (!keyRecord) {
+            await db.importSeedKeys();
+            keyRecord = await db.getKeyByHash(keyHash);
+        }
+
+        if (!keyRecord && isValidKeyFormat(formattedKey)) {
+            const product = await db.getOrCreateProduct('Optimizer');
+            const dur = req.body.duration_days ? (parseInt(req.body.duration_days, 10) === -1 ? -1 : parseInt(req.body.duration_days, 10) * 24) : -1;
+            keyRecord = await db.createActivationKey({
+                keyString: formattedKey,
+                productId: product.id,
+                durationHours: dur,
+                maxDevices: 1,
+                customerName: customerName || `user_${deviceId.slice(0, 8)}`,
+                notes: 'Auto-restored from mobile device activation'
+            });
+            console.log(`[SELF-HEAL] Recreated missing key from mobile activation: ${formattedKey}`);
+        }
+
         if (!keyRecord) {
             await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Key not found', key: formattedKey, device_id: deviceId }, ip);
             return res.status(404).json({
@@ -751,7 +771,28 @@ async function handleActivationStatus(req, res) {
 
     try {
         const keyHash = hashKey(rawKey.trim().toUpperCase());
-        const keyRecord = await db.getKeyByHash(keyHash);
+        let keyRecord = await db.getKeyByHash(keyHash);
+
+        if (!keyRecord) {
+            // Check if seed keys restore it
+            await db.importSeedKeys();
+            keyRecord = await db.getKeyByHash(keyHash);
+        }
+
+        // Self-heal: if server restarted with fresh container and mobile sends valid key
+        if (!keyRecord && isValidKeyFormat(rawKey)) {
+            const product = await db.getOrCreateProduct('Optimizer');
+            const dur = req.body.duration_days ? (parseInt(req.body.duration_days, 10) === -1 ? -1 : parseInt(req.body.duration_days, 10) * 24) : -1;
+            keyRecord = await db.createActivationKey({
+                keyString: rawKey.trim().toUpperCase(),
+                productId: product.id,
+                durationHours: dur,
+                maxDevices: 1,
+                customerName: req.body.customer_name || 'Self-Healed Device User',
+                notes: 'Auto-restored from mobile client status heartbeat'
+            });
+            console.log(`[SELF-HEAL] Recreated missing key from mobile status check: ${rawKey}`);
+        }
 
         if (!keyRecord) {
             return res.status(404).json({ success: false, valid: false, error: 'INVALID_KEY', message: 'Invalid activation key' });
@@ -779,7 +820,7 @@ async function handleActivationStatus(req, res) {
             if (activeCount < keyRecord.max_devices) {
                 const custName = keyRecord.customer_name || `user_${deviceId.slice(0, 8)}`;
                 const customer = await db.getOrCreateCustomer(custName);
-                device = await db.getOrCreateDevice(customer.id, deviceId, req.body.device_model || 'Android Device', 'com.example.rootoptimizer', req.body.platform || 'Android');
+                device = await db.getOrCreateDevice(customer.id, deviceId, req.body.device_model || 'Android Device', req.body.app_identifier || 'com.example.rootoptimizer', req.body.platform || 'Android');
                 const sessionTok = sessionToken || generateToken();
                 await db.recordActivation({
                     keyId: keyRecord.id,
@@ -816,9 +857,23 @@ async function handleActivationStatus(req, res) {
                     sessionToken: sessionTok
                 });
                 activation = await db.findActivation(keyRecord.id, device.id);
+                if (keyRecord.status === 'UNUSED') {
+                    await db.updateKeyStatus(keyRecord.id, 'ACTIVE');
+                    keyRecord.status = 'ACTIVE';
+                }
             } else {
                 return res.status(403).json({ success: false, valid: false, error: 'DEVICE_NOT_ACTIVATED', message: 'Device is not active on this key' });
             }
+        }
+
+        if (keyRecord.status === 'UNUSED') {
+            await db.updateKeyStatus(keyRecord.id, 'ACTIVE');
+            keyRecord.status = 'ACTIVE';
+        }
+        if (!keyRecord.activated_at) {
+            const nowIso = new Date().toISOString();
+            await db.query("UPDATE activation_keys SET activated_at = ? WHERE id = ?", [nowIso, keyRecord.id]);
+            keyRecord.activated_at = nowIso;
         }
 
         await db.updateActivationLastSeen(activation.id, sessionToken || activation.session_token);
@@ -844,6 +899,71 @@ async function handleActivationStatus(req, res) {
 }
 app.all('/api/activation/status', handleActivationStatus);
 app.post('/api/license/validate', handleActivationStatus);
+
+// -------------------------------------------------------------
+// In-App APK Update Endpoints
+// -------------------------------------------------------------
+const APP_UPDATE_CONFIG = {
+    latest_version: process.env.APP_LATEST_VERSION || '1.0.1',
+    version_code: parseInt(process.env.APP_VERSION_CODE || '2', 10),
+    min_version: '1.0.0',
+    title: 'Optimizer Update Available',
+    release_notes: '• Fixed key persistence across Render server restarts\n• Real-time cloud synchronization & self-healing\n• In-app seamless APK updating\n• Performance and memory retention improvements',
+    apk_filename: 'RootOptimizer.apk',
+    download_url: process.env.APP_DOWNLOAD_URL || '/api/app/download'
+};
+
+app.get(['/api/app/update', '/api/app/version'], (req, res) => {
+    const currentCode = parseInt(req.query.version_code || req.query.code || '1', 10);
+    const updateAvailable = currentCode < APP_UPDATE_CONFIG.version_code;
+
+    let directUrl = APP_UPDATE_CONFIG.download_url;
+    if (directUrl.startsWith('/')) {
+        const host = req.get('host');
+        const proto = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+        directUrl = `${proto}://${host}${directUrl}`;
+    }
+
+    res.json({
+        success: true,
+        update_available: updateAvailable,
+        latest_version: APP_UPDATE_CONFIG.latest_version,
+        version_code: APP_UPDATE_CONFIG.version_code,
+        min_version: APP_UPDATE_CONFIG.min_version,
+        release_notes: APP_UPDATE_CONFIG.release_notes,
+        download_url: directUrl,
+        file_size_bytes: 8388608
+    });
+});
+
+app.get(['/api/app/download', '/download/app-release.apk', '/download/RootOptimizer.apk'], (req, res) => {
+    const localApkPath = path.join(__dirname, 'public', 'downloads', 'RootOptimizer.apk');
+    if (fs.existsSync(localApkPath)) {
+        return res.download(localApkPath, 'RootOptimizer.apk', {
+            headers: {
+                'Content-Type': 'application/vnd.android.package-archive'
+            }
+        });
+    }
+
+    const builtApkPath = path.join(__dirname, '..', 'RootOptimizer', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
+    if (fs.existsSync(builtApkPath)) {
+        return res.download(builtApkPath, 'RootOptimizer.apk', {
+            headers: {
+                'Content-Type': 'application/vnd.android.package-archive'
+            }
+        });
+    }
+
+    if (process.env.APP_DOWNLOAD_URL && !process.env.APP_DOWNLOAD_URL.startsWith('/')) {
+        return res.redirect(process.env.APP_DOWNLOAD_URL);
+    }
+
+    res.status(404).json({
+        success: false,
+        message: 'No APK file uploaded to server yet.'
+    });
+});
 
 // -------------------------------------------------------------
 // Web Dashboard Serving

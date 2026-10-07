@@ -688,9 +688,23 @@ async function getKeyById(id) {
 }
 
 async function getAllKeys({ search = '', status = '', limit = 100 } = {}) {
+    // Self-heal: ensure keys with active devices or activated_at are marked ACTIVE
+    try {
+        await query(`
+            UPDATE activation_keys 
+            SET status = 'ACTIVE' 
+            WHERE status = 'UNUSED' AND (
+                activated_at IS NOT NULL 
+                OR id IN (SELECT key_id FROM activations WHERE status = 'ACTIVE' OR is_active = 1)
+            )
+        `);
+    } catch (e) {
+        // Non-fatal
+    }
+
     let sql = `
         SELECT k.*, p.name as product_name,
-               (SELECT COUNT(*) FROM activations a WHERE a.key_id = k.id AND a.status = 'ACTIVE') as active_devices_count,
+               (SELECT COUNT(*) FROM activations a WHERE a.key_id = k.id AND (a.status = 'ACTIVE' OR a.is_active = 1)) as active_devices_count,
                (SELECT d.device_model FROM activations a JOIN devices d ON a.device_id = d.id WHERE a.key_id = k.id ORDER BY a.activated_at DESC LIMIT 1) as last_device_model
         FROM activation_keys k
         LEFT JOIN products p ON k.product_id = p.id
@@ -699,8 +713,15 @@ async function getAllKeys({ search = '', status = '', limit = 100 } = {}) {
     const params = [];
 
     if (status && status !== 'ALL') {
-        sql += ` AND k.status = ?`;
-        params.push(status.toUpperCase());
+        const s = status.toUpperCase();
+        if (s === 'ACTIVE') {
+            sql += ` AND (k.status = 'ACTIVE' OR (SELECT COUNT(*) FROM activations a WHERE a.key_id = k.id AND (a.status = 'ACTIVE' OR a.is_active = 1)) > 0)`;
+        } else if (s === 'UNUSED' || s === 'INACTIVE') {
+            sql += ` AND (k.status = 'UNUSED' AND (SELECT COUNT(*) FROM activations a WHERE a.key_id = k.id AND (a.status = 'ACTIVE' OR a.is_active = 1)) = 0)`;
+        } else {
+            sql += ` AND k.status = ?`;
+            params.push(s);
+        }
     }
 
     if (search && search.trim()) {
@@ -931,14 +952,28 @@ async function deactivateDevice(keyId, deviceId) {
 // Dashboard Statistics
 // -------------------------------------------------------------
 async function getDashboardStats() {
+    // Auto-heal status for any activated keys
+    try {
+        await query(`
+            UPDATE activation_keys 
+            SET status = 'ACTIVE' 
+            WHERE status = 'UNUSED' AND (
+                activated_at IS NOT NULL 
+                OR id IN (SELECT key_id FROM activations WHERE status = 'ACTIVE' OR is_active = 1)
+            )
+        `);
+    } catch (e) {
+        // Non-fatal
+    }
+
     const totalKeysRes = await queryOne('SELECT COUNT(*) as count FROM activation_keys');
-    const activeKeysRes = await queryOne("SELECT COUNT(*) as count FROM activation_keys WHERE status = 'ACTIVE'");
-    const unusedKeysRes = await queryOne("SELECT COUNT(*) as count FROM activation_keys WHERE status = 'UNUSED'");
+    const activeKeysRes = await queryOne("SELECT COUNT(DISTINCT id) as count FROM activation_keys WHERE status = 'ACTIVE' OR id IN (SELECT key_id FROM activations WHERE status = 'ACTIVE' OR is_active = 1)");
+    const unusedKeysRes = await queryOne("SELECT COUNT(*) as count FROM activation_keys WHERE status = 'UNUSED' AND id NOT IN (SELECT key_id FROM activations WHERE status = 'ACTIVE' OR is_active = 1)");
     const expiredKeysRes = await queryOne("SELECT COUNT(*) as count FROM activation_keys WHERE status = 'EXPIRED'");
     const revokedKeysRes = await queryOne("SELECT COUNT(*) as count FROM activation_keys WHERE status = 'REVOKED'");
     const suspendedKeysRes = await queryOne("SELECT COUNT(*) as count FROM activation_keys WHERE status = 'SUSPENDED'");
     const customersRes = await queryOne('SELECT COUNT(*) as count FROM customers');
-    const devicesRes = await queryOne("SELECT COUNT(*) as count FROM activations WHERE status = 'ACTIVE'");
+    const devicesRes = await queryOne("SELECT COUNT(*) as count FROM activations WHERE status = 'ACTIVE' OR is_active = 1");
 
     return {
         total_keys: Number(totalKeysRes?.count || 0),
