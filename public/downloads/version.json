@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.0.4",
-  "version_code": 5,
+  "latest_version": "1.0.5",
+  "version_code": 6,
   "min_version": "1.0.0",
-  "title": "Optimizer Update Available",
-  "release_notes": "• Added Performance Optimization left-side panel\\n• Per-app CPU/GPU priority and background activity management\\n• Safe reversible optimization with automatic baseline backups and rollback",
+  "title": "Update Warning: Patch Required",
+  "release_notes": "• Mandatory patch update required.\n• Added refresh button to selective page titles (aligned right corner).\n• Streamlined Performance Optimization panel.\n• Server and client stability fixes.",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 6971817,
-  "updated_at": "2026-10-07T18:37:02Z"
+  "file_size_bytes": 6991371,
+  "updated_at": "2026-10-08T15:00:00Z"
 }

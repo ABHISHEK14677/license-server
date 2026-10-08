@@ -950,6 +950,8 @@ app.get(['/api/app/update', '/api/app/version'], (req, res) => {
     res.json({
         success: true,
         update_available: updateAvailable,
+        force_update: updateAvailable,
+        mandatory: updateAvailable,
         latest_version: config.latest_version,
         version_code: config.version_code,
         min_version: config.min_version,

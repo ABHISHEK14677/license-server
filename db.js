@@ -303,6 +303,12 @@ async function initDatabase() {
             ensureSqliteColumn('activations', 'last_seen_at', 'DATETIME');
             ensureSqliteColumn('activations', 'session_token', 'TEXT');
             ensureSqliteColumn('activations', 'is_active', "INTEGER DEFAULT 1");
+
+            // Clean up legacy activations with null key_id
+            try {
+                await query('UPDATE activations SET key_id = license_id WHERE key_id IS NULL AND license_id IS NOT NULL');
+                await query('DELETE FROM activations WHERE key_id IS NULL');
+            } catch (e) {}
         }
 
         // Seed default product
@@ -695,7 +701,7 @@ async function getAllKeys({ search = '', status = '', limit = 100 } = {}) {
             SET status = 'ACTIVE' 
             WHERE status = 'UNUSED' AND (
                 activated_at IS NOT NULL 
-                OR id IN (SELECT key_id FROM activations WHERE status = 'ACTIVE' OR is_active = 1)
+                OR id IN (SELECT key_id FROM activations WHERE key_id IS NOT NULL AND (status = 'ACTIVE' OR is_active = 1))
             )
         `);
     } catch (e) {
@@ -959,7 +965,7 @@ async function getDashboardStats() {
             SET status = 'ACTIVE' 
             WHERE status = 'UNUSED' AND (
                 activated_at IS NOT NULL 
-                OR id IN (SELECT key_id FROM activations WHERE status = 'ACTIVE' OR is_active = 1)
+                OR id IN (SELECT key_id FROM activations WHERE key_id IS NOT NULL AND (status = 'ACTIVE' OR is_active = 1))
             )
         `);
     } catch (e) {
@@ -967,8 +973,8 @@ async function getDashboardStats() {
     }
 
     const totalKeysRes = await queryOne('SELECT COUNT(*) as count FROM activation_keys');
-    const activeKeysRes = await queryOne("SELECT COUNT(DISTINCT id) as count FROM activation_keys WHERE status = 'ACTIVE' OR id IN (SELECT key_id FROM activations WHERE status = 'ACTIVE' OR is_active = 1)");
-    const unusedKeysRes = await queryOne("SELECT COUNT(*) as count FROM activation_keys WHERE status = 'UNUSED' AND id NOT IN (SELECT key_id FROM activations WHERE status = 'ACTIVE' OR is_active = 1)");
+    const activeKeysRes = await queryOne("SELECT COUNT(DISTINCT id) as count FROM activation_keys WHERE status = 'ACTIVE' OR id IN (SELECT key_id FROM activations WHERE key_id IS NOT NULL AND (status = 'ACTIVE' OR is_active = 1))");
+    const unusedKeysRes = await queryOne("SELECT COUNT(*) as count FROM activation_keys WHERE status = 'UNUSED' AND NOT EXISTS (SELECT 1 FROM activations WHERE activations.key_id = activation_keys.id AND (activations.status = 'ACTIVE' OR activations.is_active = 1))");
     const expiredKeysRes = await queryOne("SELECT COUNT(*) as count FROM activation_keys WHERE status = 'EXPIRED'");
     const revokedKeysRes = await queryOne("SELECT COUNT(*) as count FROM activation_keys WHERE status = 'REVOKED'");
     const suspendedKeysRes = await queryOne("SELECT COUNT(*) as count FROM activation_keys WHERE status = 'SUSPENDED'");
