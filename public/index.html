@@ -880,20 +880,20 @@
                 <div class="card">
                     <div class="section-header-row">
                         <h2 class="section-title">Key Validity Duration</h2>
-                        <span class="section-subtitle-value" id="selectedDurationLabel">Permanent (Lifetime)</span>
+                        <span class="section-subtitle-value" id="selectedDurationLabel">30 Days</span>
                     </div>
 
                     <!-- Preset chips row -->
                     <div class="duration-chips-scroll">
-                        <button class="chip selected" data-hours="-1" onclick="selectDuration(-1, this)">
-                            <span>∞</span> Permanent
-                        </button>
+                        <button class="chip selected" data-hours="720" onclick="selectDuration(720, this)">30d</button>
                         <button class="chip" data-hours="1" onclick="selectDuration(1, this)">1h</button>
                         <button class="chip" data-hours="6" onclick="selectDuration(6, this)">6h</button>
                         <button class="chip" data-hours="12" onclick="selectDuration(12, this)">12h</button>
                         <button class="chip" data-hours="24" onclick="selectDuration(24, this)">1d</button>
                         <button class="chip" data-hours="168" onclick="selectDuration(168, this)">7d</button>
-                        <button class="chip" data-hours="720" onclick="selectDuration(720, this)">30d</button>
+                        <button class="chip" data-hours="-1" onclick="selectDuration(-1, this)">
+                            <span>∞</span> Permanent
+                        </button>
                         <button class="chip chip-custom" id="chipCustom" onclick="openCustomHoursModal()">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                                 <circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
@@ -919,7 +919,7 @@
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                             <circle cx="7.5" cy="15.5" r="5.5"></circle><path d="m21 2-9.6 9.6"></path><path d="m15.5 7.5 3 3"></path>
                         </svg>
-                        <span id="btnGenerateKeyText">Generate Key • Permanent (Lifetime)</span>
+                        <span id="btnGenerateKeyText">Generate Key • 30 Days</span>
                     </button>
                 </div>
 
@@ -1058,6 +1058,13 @@
                             </svg>
                             Refresh
                         </button>
+
+                        <button class="btn btn-danger btn-sm" onclick="purgeAllKeys()" title="Remove All Keys From Server">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                            Purge All
+                        </button>
                     </div>
                 </div>
 
@@ -1088,11 +1095,17 @@
                     </div>
 
                     <div style="display: flex; gap: 8px;">
-                        <button class="btn btn-danger btn-sm" onclick="clearExpiredKeys()" title="Purge Expired Keys">
+                        <button class="btn btn-outline btn-sm" onclick="clearExpiredKeys()" title="Purge Expired Keys">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                             </svg>
                             Clear Expired
+                        </button>
+                        <button class="btn btn-danger btn-sm" onclick="purgeAllKeys()" title="Remove All Keys From Server">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                            Purge All
                         </button>
                     </div>
                 </div>
@@ -1147,10 +1160,33 @@
                 <h3 class="modal-title">Edit Key Details</h3>
                 <button class="btn btn-outline btn-sm" onclick="closeModal('modalEditKey')">✕</button>
             </div>
-            <div style="font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 700; color: #93c5fd; margin-bottom: 16px;" id="editModalKeyDisplay">
-                MADARA-FF-XXXX
-            </div>
             <input type="hidden" id="editKeyId">
+            <div class="form-group">
+                <label class="form-label">License Key Code</label>
+                <input type="text" id="editKeyString" class="form-input" style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #93c5fd;" placeholder="MADARA-FF-XXXX-XXXX-XXXX-XXXX">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Status</label>
+                <select id="editStatus" class="form-input">
+                    <option value="ACTIVE">ACTIVE</option>
+                    <option value="UNUSED">UNUSED</option>
+                    <option value="SUSPENDED">SUSPENDED / PAUSED</option>
+                    <option value="EXPIRED">EXPIRED</option>
+                    <option value="REVOKED">REVOKED</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Validity / Duration</label>
+                <select id="editDurationHours" class="form-input">
+                    <option value="-1">Lifetime / Permanent</option>
+                    <option value="1">1 Hour</option>
+                    <option value="24">24 Hours (1 Day)</option>
+                    <option value="168">7 Days (1 Week)</option>
+                    <option value="720">30 Days (1 Month)</option>
+                    <option value="2160">90 Days (3 Months)</option>
+                    <option value="8760">365 Days (1 Year)</option>
+                </select>
+            </div>
             <div class="form-group">
                 <label class="form-label">Customer Name</label>
                 <input type="text" id="editCustomerName" class="form-input" placeholder="Customer identifier or name">
@@ -1199,7 +1235,7 @@
     <!-- ========================================== -->
     <script>
         // State variables
-        let selectedHours = -1; // Default to Permanent (Lifetime)
+        let selectedHours = 720; // Default to 30 Days (720h)
         let latestKeyData = null;
         let allKeys = [];
         let currentStatusFilter = 'ALL';
@@ -1690,11 +1726,13 @@
 
         // --- KEY STATUS COMPUTATION & FORMATTING ---
         function computeKeyStatus(k) {
+            if (!k) return 'INACTIVE';
             if (k.status === 'REVOKED') return 'REVOKED';
             if (k.status === 'SUSPENDED' || k.status === 'PAUSED') return 'PAUSED';
-            if (!k.activated_at) return 'INACTIVE';
-            if (k.duration_hours === -1) return 'ACTIVE';
-            if (k.expires_at && new Date(k.expires_at).getTime() <= Date.now()) return 'EXPIRED';
+            if (k.status === 'EXPIRED') return 'EXPIRED';
+            if (k.duration_hours !== -1 && k.expires_at && new Date(k.expires_at).getTime() <= Date.now()) return 'EXPIRED';
+            if (k.status === 'ACTIVE' || (k.active_devices_count && k.active_devices_count > 0)) return 'ACTIVE';
+            if (k.status === 'UNUSED' || !k.activated_at) return 'INACTIVE';
             return 'ACTIVE';
         }
 
@@ -2042,13 +2080,32 @@
             }
         }
 
+        async function purgeAllKeys() {
+            if (!confirm('WARNING: Are you sure you want to PERMANENTLY REMOVE ALL KEYS and activations from the server? This cannot be undone.')) return;
+            const res = await api('/api/keys/clear-all', { method: 'POST' });
+            if (res.success) {
+                latestKeyData = null;
+                allKeys = [];
+                saveLatestKey(null);
+                saveAllKeys([]);
+                renderLatestKey(null);
+                showToast(`Successfully purged all ${res.count || 0} keys from server`);
+                loadStatsData();
+                loadKeysData();
+            } else {
+                alert(res.message || 'Failed to purge all keys');
+            }
+        }
+
         // --- EDIT KEY MODAL ---
         function openEditModal(id) {
             const keyItem = allKeys.find(k => k.id === id);
             if (!keyItem) return;
 
             document.getElementById('editKeyId').value = id;
-            document.getElementById('editModalKeyDisplay').innerText = keyItem.key_display;
+            document.getElementById('editKeyString').value = keyItem.key_display || '';
+            document.getElementById('editStatus').value = keyItem.status || 'ACTIVE';
+            document.getElementById('editDurationHours').value = (keyItem.duration_hours !== undefined && keyItem.duration_hours !== null) ? keyItem.duration_hours : -1;
             document.getElementById('editCustomerName').value = keyItem.customer_name || '';
             document.getElementById('editMaxDevices').value = keyItem.max_devices || 1;
             document.getElementById('editNotes').value = keyItem.notes || '';
@@ -2058,6 +2115,9 @@
 
         async function submitEditKey() {
             const id = document.getElementById('editKeyId').value;
+            const keyString = document.getElementById('editKeyString').value.trim().toUpperCase();
+            const status = document.getElementById('editStatus').value;
+            const durationHours = parseInt(document.getElementById('editDurationHours').value, 10);
             const customerName = document.getElementById('editCustomerName').value.trim();
             const maxDevices = parseInt(document.getElementById('editMaxDevices').value, 10) || 1;
             const notes = document.getElementById('editNotes').value.trim();
@@ -2065,6 +2125,9 @@
             const res = await api(`/api/keys/${id}`, {
                 method: 'PATCH',
                 body: JSON.stringify({
+                    key_display: keyString,
+                    status: status,
+                    duration_hours: durationHours,
                     customer_name: customerName,
                     max_devices: maxDevices,
                     notes: notes
@@ -2073,7 +2136,8 @@
 
             if (res.success) {
                 closeModal('modalEditKey');
-                showToast('Key details updated');
+                showToast('Key updated directly on server');
+                loadStatsData();
                 loadKeysData();
             } else {
                 alert(res.message || 'Failed to update key');

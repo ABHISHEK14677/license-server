@@ -311,18 +311,24 @@ async function initDatabase() {
             } catch (e) {}
         }
 
-        // Seed default product
-        let defaultProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['Optimizer']);
+        // Seed default product: Zexora
+        let defaultProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['Zexora']);
         if (!defaultProduct) {
-            defaultProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['ADB Optimizer']);
-        }
-        if (!defaultProduct) {
-            await query('INSERT INTO products (name, description, status) VALUES (?, ?, ?)', [
-                'Optimizer',
-                'Optimizer - Developed by MADARA FF',
-                'ACTIVE'
-            ]);
-            console.log('[INIT] Created default product: Optimizer');
+            defaultProduct = await queryOne('SELECT * FROM products WHERE name = ? OR name = ?', ['Optimizer', 'ADB Optimizer']);
+            if (defaultProduct) {
+                await query('UPDATE products SET name = ?, description = ? WHERE id = ?', [
+                    'Zexora',
+                    'Zexora - Developed by MADARA FF',
+                    defaultProduct.id
+                ]);
+            } else {
+                await query('INSERT INTO products (name, description, status) VALUES (?, ?, ?)', [
+                    'Zexora',
+                    'Zexora - Developed by MADARA FF',
+                    'ACTIVE'
+                ]);
+            }
+            console.log('[INIT] Default product set to: Zexora');
         }
 
         // Ensure admin MADARA-FF exists with configured credentials
@@ -466,7 +472,8 @@ async function importSeedKeys(customList = null) {
         }
         if (!Array.isArray(seedList) || seedList.length === 0) return 0;
 
-        let defaultProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['Optimizer']);
+        let defaultProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['Zexora']) ||
+                             await queryOne('SELECT * FROM products WHERE name = ?', ['Optimizer']);
         const prodId = defaultProduct ? defaultProduct.id : 1;
         let count = 0;
 
@@ -480,6 +487,8 @@ async function importSeedKeys(customList = null) {
             let existing = await queryOne('SELECT * FROM activation_keys WHERE key_hash = ?', [khash]);
             let keyId = null;
 
+            const itemDuration = (item.duration_hours !== undefined && item.duration_hours !== null) ? parseInt(item.duration_hours, 10) : 720;
+
             if (!existing) {
                 const insertRes = await query(`
                     INSERT INTO activation_keys (
@@ -492,7 +501,7 @@ async function importSeedKeys(customList = null) {
                     keyString,
                     prodId,
                     item.status || 'UNUSED',
-                    item.duration_hours !== undefined ? item.duration_hours : -1,
+                    itemDuration,
                     item.created_at || new Date().toISOString(),
                     item.activated_at || null,
                     item.expires_at || null,
@@ -506,17 +515,18 @@ async function importSeedKeys(customList = null) {
                 console.log(`[SEED] Restored persistent key: ${keyString} (${item.status || 'UNUSED'})`);
             } else {
                 keyId = existing.id;
-                // If seed has newer status or timestamps, update DB
-                if (item.status && (item.status !== existing.status || item.activated_at !== existing.activated_at || item.expires_at !== existing.expires_at)) {
+                // If seed has newer status, duration or timestamps, update DB without overwriting valid durations with defaults
+                if (item.status && (item.status !== existing.status || item.activated_at !== existing.activated_at || item.expires_at !== existing.expires_at || (item.duration_hours !== undefined && item.duration_hours !== existing.duration_hours))) {
                     await query(`
                         UPDATE activation_keys 
                         SET status = ?, 
+                            duration_hours = COALESCE(?, duration_hours),
                             activated_at = COALESCE(?, activated_at), 
                             expires_at = COALESCE(?, expires_at),
                             customer_name = COALESCE(customer_name, ?),
                             notes = COALESCE(notes, ?)
                         WHERE id = ?
-                    `, [item.status, item.activated_at || null, item.expires_at || null, item.customer_name || null, item.notes || null, keyId]);
+                    `, [item.status, item.duration_hours !== undefined ? parseInt(item.duration_hours, 10) : existing.duration_hours, item.activated_at || null, item.expires_at || null, item.customer_name || null, item.notes || null, keyId]);
                     count++;
                 }
             }
@@ -527,7 +537,7 @@ async function importSeedKeys(customList = null) {
                     if (!act.device_identifier) continue;
                     const custName = item.customer_name || `user_${act.device_identifier.slice(0, 8)}`;
                     const customer = await getOrCreateCustomer(custName, item.customer_name);
-                    const device = await getOrCreateDevice(customer.id, act.device_identifier, act.device_model || 'Android Device', 'com.example.rootoptimizer', act.platform || 'Android');
+                    const device = await getOrCreateDevice(customer.id, act.device_identifier, act.device_model || 'Android Device', 'com.example.zexora', act.platform || 'Android');
 
                     const existingAct = await findActivation(keyId, device.id);
                     if (!existingAct) {
@@ -777,9 +787,31 @@ async function getKeyByIdOrString(idOrKey) {
     `, [str.toUpperCase()]);
 }
 
-async function updateKeyDetails(id, { notes, customerName, maxDevices, status }) {
+async function updateKeyDetails(id, { notes, customerName, maxDevices, status, keyDisplay, durationHours, expiresAt, activatedAt }) {
     const fields = [];
     const params = [];
+
+    if (keyDisplay !== undefined && String(keyDisplay).trim().length > 0) {
+        const cleanKey = String(keyDisplay).trim().toUpperCase();
+        fields.push('key_display = ?');
+        params.push(cleanKey);
+        fields.push('key_hash = ?');
+        params.push(hashKey(cleanKey));
+        fields.push('key_last4 = ?');
+        params.push(getKeyLast4(cleanKey));
+    }
+    if (durationHours !== undefined) {
+        fields.push('duration_hours = ?');
+        params.push(parseInt(durationHours, 10));
+    }
+    if (expiresAt !== undefined) {
+        fields.push('expires_at = ?');
+        params.push(expiresAt ? new Date(expiresAt).toISOString() : null);
+    }
+    if (activatedAt !== undefined) {
+        fields.push('activated_at = ?');
+        params.push(activatedAt ? new Date(activatedAt).toISOString() : null);
+    }
     if (notes !== undefined) {
         fields.push('notes = ?');
         params.push(notes);
@@ -834,16 +866,31 @@ async function deleteKey(id) {
 }
 
 async function clearExpiredKeys() {
-    const expiredKeys = await query("SELECT id FROM activation_keys WHERE status = 'EXPIRED' OR (duration_hours != -1 AND expires_at IS NOT NULL AND expires_at < CURRENT_TIMESTAMP)");
-    if (expiredKeys.rows && expiredKeys.rows.length > 0) {
-        for (const k of expiredKeys.rows) {
-            await query('DELETE FROM activations WHERE key_id = ?', [k.id]);
-            await query('DELETE FROM activation_keys WHERE id = ?', [k.id]);
+    const allKeysRes = await query("SELECT id, status, expires_at, duration_hours FROM activation_keys");
+    const now = Date.now();
+    let count = 0;
+    if (allKeysRes.rows && allKeysRes.rows.length > 0) {
+        for (const k of allKeysRes.rows) {
+            const isPerm = k.duration_hours === -1;
+            const isExp = !isPerm && k.expires_at && (new Date(k.expires_at).getTime() <= now);
+            if (k.status === 'EXPIRED' || isExp) {
+                await query('DELETE FROM activations WHERE key_id = ?', [k.id]);
+                await query('DELETE FROM activation_keys WHERE id = ?', [k.id]);
+                count++;
+            }
         }
         await exportSeedKeys();
-        return expiredKeys.rows.length;
     }
-    return 0;
+    return count;
+}
+
+async function clearAllKeys() {
+    await query('DELETE FROM activations');
+    await query('DELETE FROM devices');
+    await query('DELETE FROM customers');
+    const res = await query('DELETE FROM activation_keys');
+    await exportSeedKeys(); // Will write [] to seed-keys.json
+    return res.rowCount || 0;
 }
 
 // -------------------------------------------------------------
@@ -869,7 +916,7 @@ async function getOrCreateDevice(customerId, deviceId, deviceModel = null, appId
             customerId,
             deviceId,
             deviceModel || 'Android Device',
-            appIdentifier || 'com.example.rootoptimizer',
+            appIdentifier || 'com.example.zexora',
             platform
         ]);
         dev = await queryOne('SELECT * FROM devices WHERE device_identifier = ?', [deviceId]);
@@ -1021,8 +1068,8 @@ async function createLicense({
     notes = '',
     status = 'ACTIVE'
 }) {
-    const product = await getOrCreateProduct('Optimizer');
-    const effectiveHours = durationDays === -1 ? 876000 : (durationDays * 24);
+    const product = await getOrCreateProduct('Zexora');
+    const effectiveHours = durationDays === -1 ? -1 : (durationDays * 24);
     return await createActivationKey({
         keyString: licenseKey,
         productId: product.id,
@@ -1059,6 +1106,7 @@ module.exports = {
     updateKeyDetails,
     deleteKey,
     clearExpiredKeys,
+    clearAllKeys,
     // Customers & Devices
     getOrCreateCustomer,
     getOrCreateDevice,

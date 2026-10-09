@@ -58,7 +58,7 @@ async function requireAdmin(req, res, next) {
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'ok',
-        service: 'Optimizer License Activation System',
+        service: 'Zexora License Authority',
         developedBy: 'MADARA FF',
         copyright: '© Developed by MADARA FF',
         serverTime: new Date().toISOString()
@@ -219,7 +219,7 @@ app.get('/api/admin/stats', requireAdmin, handleDashboardStats);
 async function handleKeyGeneration(req, res) {
     const ip = getClientIp(req);
     const {
-        product_name = 'Optimizer',
+        product_name = 'Zexora',
         duration_hours = null,
         duration_days = null,
         max_devices = 1,
@@ -396,20 +396,33 @@ app.get('/api/keys/:id', requireAdmin, async (req, res) => {
     }
 });
 
-// Update / Edit key (notes, customer name, max devices, status)
+// Update / Edit key (key code, status, duration, expiry, customer name, max devices, notes)
 async function handleUpdateKey(req, res) {
     try {
         const key = await db.getKeyByIdOrString(req.params.id);
         if (!key) return res.status(404).json({ success: false, message: 'Key not found' });
-        const { notes, customer_name, customerName, max_devices, maxDevices, status } = req.body;
+        const {
+            notes,
+            customer_name, customerName,
+            max_devices, maxDevices,
+            status,
+            key_display, keyDisplay, key: newKeyStr,
+            duration_hours, durationHours,
+            expires_at, expiresAt,
+            activated_at, activatedAt
+        } = req.body;
         const updated = await db.updateKeyDetails(key.id, {
             notes,
-            customerName: customer_name || customerName,
-            maxDevices: max_devices || maxDevices,
-            status
+            customerName: customer_name !== undefined ? customer_name : customerName,
+            maxDevices: max_devices !== undefined ? max_devices : maxDevices,
+            status,
+            keyDisplay: key_display || keyDisplay || newKeyStr,
+            durationHours: duration_hours !== undefined ? duration_hours : durationHours,
+            expiresAt: expires_at !== undefined ? expires_at : expiresAt,
+            activatedAt: activated_at !== undefined ? activated_at : activatedAt
         });
-        await db.logAuditEvent('KEY_UPDATED', { key_id: key.id, key_display: key.key_display, changes: req.body }, getClientIp(req));
-        res.json({ success: true, message: 'Key updated successfully', key: updated });
+        await db.logAuditEvent('KEY_UPDATED', { key_id: key.id, key_display: updated ? updated.key_display : key.key_display, changes: req.body }, getClientIp(req));
+        res.json({ success: true, message: 'Key updated successfully on server', key: updated });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }
@@ -466,6 +479,11 @@ app.post('/api/keys/:id/resume', requireAdmin, handleReactivateKey);
 // Delete key
 app.delete('/api/keys/:id', requireAdmin, async (req, res) => {
     try {
+        if (req.params.id === 'all' || req.params.id === 'ALL') {
+            const count = await db.clearAllKeys();
+            await db.logAuditEvent('ALL_KEYS_PURGED', { count }, getClientIp(req));
+            return res.json({ success: true, message: `Successfully purged all ${count} keys from server`, count });
+        }
         const key = await db.getKeyByIdOrString(req.params.id);
         if (!key) return res.status(404).json({ success: false, message: 'Key not found' });
         await db.deleteKey(key.id);
@@ -487,6 +505,20 @@ app.post('/api/keys/clear-expired', requireAdmin, async (req, res) => {
     }
 });
 
+// Purge / Remove all keys
+async function handleClearAllKeys(req, res) {
+    try {
+        const count = await db.clearAllKeys();
+        await db.logAuditEvent('ALL_KEYS_PURGED', { count }, getClientIp(req));
+        res.json({ success: true, message: `Successfully removed all ${count} keys from server`, count });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+}
+app.post('/api/keys/clear-all', requireAdmin, handleClearAllKeys);
+app.delete('/api/keys', requireAdmin, handleClearAllKeys);
+
+
 // -------------------------------------------------------------
 // Customer Activation Flow Endpoints
 // -------------------------------------------------------------
@@ -505,7 +537,7 @@ async function handleCustomerActivate(req, res) {
     const rawKey = req.body.key || req.body.license_key;
     const deviceId = req.body.device_id || req.body.deviceId;
     const deviceModel = req.body.device_model || req.body.deviceModel || 'Android Device';
-    const appIdentifier = req.body.app_identifier || 'com.example.rootoptimizer';
+    const appIdentifier = req.body.app_identifier || 'com.example.zexora';
     const customerName = req.body.customer_name || null;
     const platform = req.body.platform || 'Android';
 
@@ -549,8 +581,9 @@ async function handleCustomerActivate(req, res) {
         }
 
         if (!keyRecord && isValidKeyFormat(formattedKey)) {
-            const product = await db.getOrCreateProduct('Optimizer');
-            const dur = req.body.duration_days ? (parseInt(req.body.duration_days, 10) === -1 ? -1 : parseInt(req.body.duration_days, 10) * 24) : -1;
+            const product = await db.getOrCreateProduct('Zexora');
+            const durDays = req.body.duration_days !== undefined ? parseInt(req.body.duration_days, 10) : 30;
+            const dur = durDays === -1 ? -1 : (durDays > 0 ? durDays * 24 : 720);
             keyRecord = await db.createActivationKey({
                 keyString: formattedKey,
                 productId: product.id,
@@ -594,7 +627,7 @@ async function handleCustomerActivate(req, res) {
 
         // 6. Check whether key is expired
         const now = Date.now();
-        if (keyRecord.expires_at) {
+        if (keyRecord.duration_hours !== -1 && keyRecord.expires_at) {
             const expiryTime = new Date(keyRecord.expires_at).getTime();
             if (now > expiryTime) {
                 await db.updateKeyStatus(keyRecord.id, 'EXPIRED');
@@ -618,17 +651,32 @@ async function handleCustomerActivate(req, res) {
             const token = existingActivation.session_token || generateToken();
             await db.updateActivationLastSeen(existingActivation.id, token);
 
-            const remainingSeconds = isPermanent ? -1 : (keyRecord.expires_at ? Math.max(0, Math.floor((new Date(keyRecord.expires_at).getTime() - Date.now()) / 1000)) : null);
+            let effectiveExpiresAt = keyRecord.expires_at || existingActivation.expires_at;
+            let remainingSeconds = -1;
+            if (!isPermanent) {
+                if (!effectiveExpiresAt && keyRecord.duration_hours > 0) {
+                    const actTime = keyRecord.activated_at ? new Date(keyRecord.activated_at).getTime() : now;
+                    effectiveExpiresAt = new Date(actTime + keyRecord.duration_hours * 3600 * 1000).toISOString();
+                    await db.query("UPDATE activation_keys SET expires_at = ? WHERE id = ?", [effectiveExpiresAt, keyRecord.id]);
+                }
+                if (effectiveExpiresAt) {
+                    remainingSeconds = Math.max(0, Math.floor((new Date(effectiveExpiresAt).getTime() - Date.now()) / 1000));
+                }
+            } else {
+                effectiveExpiresAt = null;
+            }
+
+            const effectiveDurationDays = isPermanent ? -1 : Math.max(1, Math.round((keyRecord.duration_hours || 720) / 24));
 
             return res.json({
                 success: true,
                 message: 'Activation Successful',
-                product: keyRecord.product_name || 'Optimizer',
+                product: keyRecord.product_name || 'Zexora',
                 developer: 'MADARA FF',
                 copyright: '© Developed by MADARA FF',
                 status: 'ACTIVE',
                 activated_at: keyRecord.activated_at || existingActivation.activated_at,
-                expires_at: keyRecord.expires_at,
+                expires_at: effectiveExpiresAt,
                 remaining_seconds: remainingSeconds,
                 is_permanent: isPermanent,
                 duration_hours: keyRecord.duration_hours,
@@ -636,14 +684,14 @@ async function handleCustomerActivate(req, res) {
                 device_registered: true,
                 license: {
                     key: keyRecord.key_display,
-                    product: keyRecord.product_name || 'Optimizer',
+                    product: keyRecord.product_name || 'Zexora',
                     developer: 'MADARA FF',
                     status: 'ACTIVE',
                     activated_at: keyRecord.activated_at || existingActivation.activated_at,
-                    expires_at: keyRecord.expires_at,
+                    expires_at: effectiveExpiresAt,
                     remaining_seconds: remainingSeconds,
                     is_permanent: isPermanent,
-                    duration_days: isPermanent ? -1 : Math.round((keyRecord.duration_hours || 720) / 24),
+                    duration_days: effectiveDurationDays,
                     max_activations: keyRecord.max_devices
                 }
             });
@@ -662,13 +710,13 @@ async function handleCustomerActivate(req, res) {
 
         // 9. Calculate expiration date on activation:
         // Timer activates ONLY AFTER activated by the user!
-        const durationHours = keyRecord.duration_hours;
+        const durationHours = (keyRecord.duration_hours !== undefined && keyRecord.duration_hours !== null) ? keyRecord.duration_hours : 720;
         let finalExpiresAt = null;
         let remainingSeconds = -1;
 
         if (!isPermanent) {
-            const hours = durationHours && durationHours > 0 ? durationHours : 720;
-            if (keyRecord.status === 'UNUSED' || !keyRecord.activated_at || !keyRecord.expires_at) {
+            const hours = durationHours > 0 ? durationHours : 720;
+            if (!keyRecord.expires_at) {
                 finalExpiresAt = new Date(now + hours * 60 * 60 * 1000).toISOString();
             } else {
                 finalExpiresAt = keyRecord.expires_at;
@@ -689,21 +737,21 @@ async function handleCustomerActivate(req, res) {
         });
 
         // Set key to ACTIVE and record activated_at and expires_at
-        if (keyRecord.status === 'UNUSED' || !keyRecord.activated_at) {
-            await db.query(`
-                UPDATE activation_keys 
-                SET status = 'ACTIVE', activated_at = CURRENT_TIMESTAMP, expires_at = ?
-                WHERE id = ?
-            `, [finalExpiresAt, keyRecord.id]);
-        }
+        await db.query(`
+            UPDATE activation_keys 
+            SET status = 'ACTIVE', activated_at = COALESCE(activated_at, ?), expires_at = ?
+            WHERE id = ?
+        `, [activatedAtIso, finalExpiresAt, keyRecord.id]);
 
         await db.logAuditEvent('DEVICE_ACTIVATED', { key: formattedKey, device_id: deviceId, model: deviceModel }, ip);
+
+        const returnDurationDays = isPermanent ? -1 : Math.max(1, Math.round((durationHours || 720) / 24));
 
         // 11. Return activation success
         return res.json({
             success: true,
             message: 'Activation Successful',
-            product: keyRecord.product_name || 'Optimizer',
+            product: keyRecord.product_name || 'Zexora',
             developer: 'MADARA FF',
             copyright: '© Developed by MADARA FF',
             status: 'ACTIVE',
@@ -716,14 +764,14 @@ async function handleCustomerActivate(req, res) {
             device_registered: true,
             license: {
                 key: keyRecord.key_display,
-                product: keyRecord.product_name || 'Optimizer',
+                product: keyRecord.product_name || 'Zexora',
                 developer: 'MADARA FF',
                 status: 'ACTIVE',
                 activated_at: activatedAtIso,
                 expires_at: finalExpiresAt,
                 remaining_seconds: remainingSeconds,
                 is_permanent: isPermanent,
-                duration_days: isPermanent ? -1 : Math.round((durationHours || 720) / 24),
+                duration_days: returnDurationDays,
                 max_activations: keyRecord.max_devices
             }
         });
@@ -782,8 +830,9 @@ async function handleActivationStatus(req, res) {
 
         // Self-heal: if server restarted with fresh container and mobile sends valid key
         if (!keyRecord && isValidKeyFormat(rawKey)) {
-            const product = await db.getOrCreateProduct('Optimizer');
-            const dur = req.body.duration_days ? (parseInt(req.body.duration_days, 10) === -1 ? -1 : parseInt(req.body.duration_days, 10) * 24) : -1;
+            const product = await db.getOrCreateProduct('Zexora');
+            const durDays = req.body.duration_days !== undefined ? parseInt(req.body.duration_days, 10) : 30;
+            const dur = durDays === -1 ? -1 : (durDays > 0 ? durDays * 24 : 720);
             keyRecord = await db.createActivationKey({
                 keyString: rawKey.trim().toUpperCase(),
                 productId: product.id,
@@ -821,7 +870,7 @@ async function handleActivationStatus(req, res) {
             if (activeCount < keyRecord.max_devices) {
                 const custName = keyRecord.customer_name || `user_${deviceId.slice(0, 8)}`;
                 const customer = await db.getOrCreateCustomer(custName);
-                device = await db.getOrCreateDevice(customer.id, deviceId, req.body.device_model || 'Android Device', req.body.app_identifier || 'com.example.rootoptimizer', req.body.platform || 'Android');
+                device = await db.getOrCreateDevice(customer.id, deviceId, req.body.device_model || 'Android Device', req.body.app_identifier || 'com.example.zexora', req.body.platform || 'Android');
                 const sessionTok = sessionToken || generateToken();
                 await db.recordActivation({
                     keyId: keyRecord.id,
@@ -877,22 +926,37 @@ async function handleActivationStatus(req, res) {
             keyRecord.activated_at = nowIso;
         }
 
+        // Ensure non-permanent key has expires_at set and verified
+        if (!isPermanent && !keyRecord.expires_at) {
+            const hours = (keyRecord.duration_hours && keyRecord.duration_hours > 0) ? keyRecord.duration_hours : 720;
+            const actEpoch = keyRecord.activated_at ? new Date(keyRecord.activated_at).getTime() : Date.now();
+            const expIso = new Date(actEpoch + hours * 3600 * 1000).toISOString();
+            await db.query("UPDATE activation_keys SET expires_at = ? WHERE id = ?", [expIso, keyRecord.id]);
+            keyRecord.expires_at = expIso;
+        }
+
+        if (!isPermanent && keyRecord.expires_at && new Date(keyRecord.expires_at).getTime() <= Date.now()) {
+            await db.updateKeyStatus(keyRecord.id, 'EXPIRED');
+            return res.status(403).json({ success: false, valid: false, error: 'KEY_EXPIRED', message: 'Activation key has expired' });
+        }
+
         await db.updateActivationLastSeen(activation.id, sessionToken || activation.session_token);
 
         const remainingSeconds = isPermanent ? -1 : (keyRecord.expires_at ? Math.max(0, Math.floor((new Date(keyRecord.expires_at).getTime() - Date.now()) / 1000)) : null);
+        const effectiveDurationDays = isPermanent ? -1 : Math.max(1, Math.round((keyRecord.duration_hours || 720) / 24));
 
         res.json({
             success: true,
             valid: true,
             status: keyRecord.status,
-            product: keyRecord.product_name || 'Optimizer',
+            product: keyRecord.product_name || 'Zexora',
             developer: 'MADARA FF',
             copyright: '© Developed by MADARA FF',
             activated_at: keyRecord.activated_at,
             expires_at: keyRecord.expires_at,
             remaining_seconds: remainingSeconds,
             is_permanent: isPermanent,
-            duration_days: isPermanent ? -1 : Math.round((keyRecord.duration_hours || 720) / 24)
+            duration_days: effectiveDurationDays
         });
     } catch (err) {
         res.status(500).json({ success: false, valid: false, message: err.message });
@@ -915,7 +979,9 @@ function getAppUpdateConfig() {
         }
     }
 
-    const localApkPath = path.join(__dirname, 'public', 'downloads', 'RootOptimizer.apk');
+    const zexoraApk = path.join(__dirname, 'public', 'downloads', 'Zexora.apk');
+    const legacyApk = path.join(__dirname, 'public', 'downloads', 'RootOptimizer.apk');
+    const localApkPath = fs.existsSync(zexoraApk) ? zexoraApk : legacyApk;
     let fileSize = dynamicConfig.file_size_bytes || 8388608;
     if (fs.existsSync(localApkPath)) {
         try {
@@ -924,12 +990,12 @@ function getAppUpdateConfig() {
     }
 
     return {
-        latest_version: dynamicConfig.latest_version || process.env.APP_LATEST_VERSION || '1.0.1',
-        version_code: parseInt(dynamicConfig.version_code || process.env.APP_VERSION_CODE || '2', 10),
+        latest_version: dynamicConfig.latest_version || process.env.APP_LATEST_VERSION || '1.0.5',
+        version_code: parseInt(dynamicConfig.version_code || process.env.APP_VERSION_CODE || '6', 10),
         min_version: dynamicConfig.min_version || '1.0.0',
-        title: dynamicConfig.title || 'Optimizer Update Available',
+        title: dynamicConfig.title || 'Zexora Update Available',
         release_notes: dynamicConfig.release_notes || '• UI and performance improvements\n• Clean panel headers and badge stats\n• In-app one-click update installer',
-        apk_filename: dynamicConfig.apk_filename || 'RootOptimizer.apk',
+        apk_filename: dynamicConfig.apk_filename || (fs.existsSync(zexoraApk) ? 'Zexora.apk' : 'RootOptimizer.apk'),
         download_url: dynamicConfig.download_url || process.env.APP_DOWNLOAD_URL || '/api/app/download',
         file_size_bytes: fileSize
     };
@@ -991,19 +1057,23 @@ app.post(['/api/app/publish', '/api/admin/app/publish'], express.json(), (req, r
     res.json({ success: true, message: 'Update configuration published successfully', config: updatedConfig });
 });
 
-app.get(['/api/app/download', '/download/app-release.apk', '/download/RootOptimizer.apk'], (req, res) => {
-    const localApkPath = path.join(__dirname, 'public', 'downloads', 'RootOptimizer.apk');
+app.get(['/api/app/download', '/download/app-release.apk', '/download/Zexora.apk', '/download/RootOptimizer.apk'], (req, res) => {
+    const zexoraApk = path.join(__dirname, 'public', 'downloads', 'Zexora.apk');
+    const legacyApk = path.join(__dirname, 'public', 'downloads', 'RootOptimizer.apk');
+    const localApkPath = fs.existsSync(zexoraApk) ? zexoraApk : legacyApk;
+    const downloadName = fs.existsSync(zexoraApk) ? 'Zexora.apk' : 'RootOptimizer.apk';
+
     if (fs.existsSync(localApkPath)) {
-        return res.download(localApkPath, 'RootOptimizer.apk', {
+        return res.download(localApkPath, downloadName, {
             headers: {
                 'Content-Type': 'application/vnd.android.package-archive'
             }
         });
     }
 
-    const builtApkPath = path.join(__dirname, '..', 'RootOptimizer', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
-    if (fs.existsSync(builtApkPath)) {
-        return res.download(builtApkPath, 'RootOptimizer.apk', {
+    const builtZexoraApk = path.join(__dirname, '..', 'RootOptimizer', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
+    if (fs.existsSync(builtZexoraApk)) {
+        return res.download(builtZexoraApk, downloadName, {
             headers: {
                 'Content-Type': 'application/vnd.android.package-archive'
             }
@@ -1030,9 +1100,9 @@ app.get(['/', '/admin', '/login'], (req, res) => {
 // Initialize database schema and start server
 db.initDatabase().then(() => {
     app.listen(PORT, '0.0.0.0', () => {
-        console.log(`[SERVER] Optimizer License Server & Key Generator running on port ${PORT}`);
-        // Attempt non-blocking background sync with Render Cloud if running locally
-        if (!process.env.RENDER && process.env.AUTO_SYNC_CLOUD !== 'false') {
+        console.log(`[SERVER] Zexora License Server & Key Generator running on port ${PORT}`);
+        // Attempt non-blocking background sync with Render Cloud ONLY if explicitly enabled
+        if (!process.env.RENDER && process.env.AUTO_SYNC_CLOUD === 'true') {
             setTimeout(async () => {
                 try {
                     console.log('[SYNC] Starting background sync with Render cloud...');
