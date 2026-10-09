@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.0.6",
-  "version_code": 8,
+  "latest_version": "1.0.7",
+  "version_code": 9,
   "min_version": "1.0.0",
   "title": "Optimizer Update Available",
-  "release_notes": "• RAM Optimization: App list with individual ON/OFF protection switches\\n• Optimize All: Force-stops eligible running apps while preserving protected (ON) and restricted apps\\n• Clear Active Apps & Clear Recent Apps force-clear\\n• Dynamic categorization: All, Eligible, Protected, Restricted, Running, Recent",
+  "release_notes": "• Admin Key Deletion & Instant Customer Session Invalidation\n• Automatic logout with prominent Access Revoked notice\n• Permanent database purge and anti-reactivation protection\n• Real-time server-side heartbeat verification",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 7003279,
-  "updated_at": "2026-10-09T15:36:32Z"
+  "file_size_bytes": 7006711,
+  "updated_at": "2026-10-09T15:45:05Z"
 }
