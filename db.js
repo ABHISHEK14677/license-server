@@ -184,8 +184,18 @@ async function initDatabase() {
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
 
+                CREATE TABLE IF NOT EXISTS deleted_keys (
+                    id SERIAL PRIMARY KEY,
+                    key_hash VARCHAR(128) UNIQUE NOT NULL,
+                    key_display VARCHAR(100),
+                    deleted_by VARCHAR(100) DEFAULT 'admin',
+                    reason TEXT,
+                    deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_keys_hash ON activation_keys(key_hash);
                 CREATE INDEX IF NOT EXISTS idx_keys_status ON activation_keys(status);
+                CREATE INDEX IF NOT EXISTS idx_deleted_keys_hash ON deleted_keys(key_hash);
             `);
 
             try {
@@ -286,6 +296,15 @@ async function initDatabase() {
                     details TEXT,
                     ip_address TEXT,
                     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS deleted_keys (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    key_hash TEXT UNIQUE NOT NULL,
+                    key_display TEXT,
+                    deleted_by TEXT DEFAULT 'admin',
+                    reason TEXT,
+                    deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
             `);
 
@@ -858,11 +877,58 @@ async function updateKeyStatus(id, newStatus) {
     return updated;
 }
 
-async function deleteKey(id) {
-    await query('DELETE FROM activations WHERE key_id = ?', [id]);
-    const res = await query('DELETE FROM activation_keys WHERE id = ?', [id]);
+async function isKeyDeleted(keyHash) {
+    if (!keyHash) return false;
+    try {
+        const res = await queryOne('SELECT id FROM deleted_keys WHERE key_hash = ?', [keyHash]);
+        return !!res;
+    } catch (e) {
+        return false;
+    }
+}
+
+async function deleteKey(idOrKey, deletedBy = 'admin', reason = 'Deleted by Administrator') {
+    const key = await getKeyByIdOrString(idOrKey);
+    if (!key) {
+        return { success: true, count: 0, message: 'Key not found or already deleted' };
+    }
+
+    // 1. Blacklist key hash in deleted_keys so it can never be reused, reactivated, or restored
+    try {
+        if (isPostgres) {
+            await query(
+                'INSERT INTO deleted_keys (key_hash, key_display, deleted_by, reason) VALUES (?, ?, ?, ?) ON CONFLICT (key_hash) DO NOTHING',
+                [key.key_hash, key.key_display, deletedBy, reason]
+            );
+        } else {
+            await query(
+                'INSERT OR IGNORE INTO deleted_keys (key_hash, key_display, deleted_by, reason) VALUES (?, ?, ?, ?)',
+                [key.key_hash, key.key_display, deletedBy, reason]
+            );
+        }
+    } catch (e) {
+        console.error('[DB] Error recording deleted key hash:', e.message);
+    }
+
+    // 2. Immediately invalidate and remove all active sessions & device activations associated with this key
+    await query('DELETE FROM activations WHERE key_id = ? OR license_id = ?', [key.id, key.id]);
+
+    // 3. Delete from activation_keys table
+    const res = await query('DELETE FROM activation_keys WHERE id = ?', [key.id]);
+
+    // 4. Remove from legacy licenses table if exists
+    try {
+        await query('DELETE FROM licenses WHERE license_key = ? OR license_key = ?', [key.key_display, key.key_last4]);
+    } catch (e) {}
+
+    // 5. Update and persist seed-keys.json to guarantee permanence across restarts
     await exportSeedKeys();
-    return res;
+
+    return {
+        success: true,
+        count: res.rowCount || 1,
+        key: key
+    };
 }
 
 async function clearExpiredKeys() {
@@ -1105,6 +1171,7 @@ module.exports = {
     updateKeyStatus,
     updateKeyDetails,
     deleteKey,
+    isKeyDeleted,
     clearExpiredKeys,
     clearAllKeys,
     // Customers & Devices

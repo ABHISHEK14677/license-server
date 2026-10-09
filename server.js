@@ -477,22 +477,41 @@ app.post('/api/keys/:id/reactivate', requireAdmin, handleReactivateKey);
 app.post('/api/keys/:id/resume', requireAdmin, handleReactivateKey);
 
 // Delete key
-app.delete('/api/keys/:id', requireAdmin, async (req, res) => {
+async function handleDeleteKey(req, res) {
     try {
-        if (req.params.id === 'all' || req.params.id === 'ALL') {
+        const id = req.params.id || req.params.keyId;
+        if (id === 'all' || id === 'ALL') {
             const count = await db.clearAllKeys();
             await db.logAuditEvent('ALL_KEYS_PURGED', { count }, getClientIp(req));
             return res.json({ success: true, message: `Successfully purged all ${count} keys from server`, count });
         }
-        const key = await db.getKeyByIdOrString(req.params.id);
-        if (!key) return res.status(404).json({ success: false, message: 'Key not found' });
-        await db.deleteKey(key.id);
-        await db.logAuditEvent('KEY_DELETED', { key_id: key.id, key_display: key.key_display }, getClientIp(req));
-        res.json({ success: true, message: 'Key deleted successfully' });
+        const key = await db.getKeyByIdOrString(id);
+        if (!key) return res.status(404).json({ success: false, message: 'Key not found or already deleted' });
+        
+        const adminUsername = req.admin?.username || 'admin';
+        await db.deleteKey(key.id, adminUsername);
+        await db.logAuditEvent('KEY_DELETED', { 
+            key_id: key.id, 
+            key_display: key.key_display, 
+            customer_name: key.customer_name,
+            deleted_by: adminUsername 
+        }, getClientIp(req));
+        
+        res.json({ 
+            success: true, 
+            message: 'Key deleted successfully. Associated customer sessions have been revoked.',
+            key_id: key.id 
+        });
     } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+        console.error('Key deletion error:', err);
+        res.status(500).json({ success: false, message: 'Failed to delete key: ' + err.message });
     }
-});
+}
+app.delete('/api/keys/:id', requireAdmin, handleDeleteKey);
+app.delete('/api/admin/keys/:id', requireAdmin, handleDeleteKey);
+app.delete('/api/admin/keys/:keyId', requireAdmin, handleDeleteKey);
+app.post('/api/keys/:id/delete', requireAdmin, handleDeleteKey);
+app.post('/api/admin/keys/:id/delete', requireAdmin, handleDeleteKey);
 
 // Clear all expired keys
 app.post('/api/keys/clear-expired', requireAdmin, async (req, res) => {
@@ -564,6 +583,20 @@ async function handleCustomerActivate(req, res) {
     try {
         // 3. Server checks whether key exists via SHA-256 hash
         const keyHash = hashKey(formattedKey);
+
+        // Check if key was deleted/revoked by admin
+        if (await db.isKeyDeleted(keyHash)) {
+            await db.logAuditEvent('ACTIVATION_REJECTED_DELETED_KEY', { key: formattedKey, device_id: deviceId }, ip);
+            return res.status(403).json({
+                success: false,
+                valid: false,
+                error: 'KEY_DELETED',
+                errorCode: 'KEY_DELETED',
+                title: 'Access Revoked',
+                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Optimizer app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
+            });
+        }
+
         let keyRecord = await db.getKeyByHash(keyHash);
 
         // Fallback: check by key_display if legacy key
@@ -574,32 +607,18 @@ async function handleCustomerActivate(req, res) {
             }
         }
 
-        // Self-healing: if server restarted with fresh container and mobile sends valid key
         if (!keyRecord) {
             await db.importSeedKeys();
             keyRecord = await db.getKeyByHash(keyHash);
-        }
-
-        if (!keyRecord && isValidKeyFormat(formattedKey)) {
-            const product = await db.getOrCreateProduct('Zexora');
-            const durDays = req.body.duration_days !== undefined ? parseInt(req.body.duration_days, 10) : 30;
-            const dur = durDays === -1 ? -1 : (durDays > 0 ? durDays * 24 : 720);
-            keyRecord = await db.createActivationKey({
-                keyString: formattedKey,
-                productId: product.id,
-                durationHours: dur,
-                maxDevices: 1,
-                customerName: customerName || `user_${deviceId.slice(0, 8)}`,
-                notes: 'Auto-restored from mobile device activation'
-            });
-            console.log(`[SELF-HEAL] Recreated missing key from mobile activation: ${formattedKey}`);
         }
 
         if (!keyRecord) {
             await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Key not found', key: formattedKey, device_id: deviceId }, ip);
             return res.status(404).json({
                 success: false,
+                valid: false,
                 error: 'INVALID_KEY',
+                errorCode: 'INVALID_KEY',
                 message: 'Invalid activation key'
             });
         }
@@ -609,8 +628,11 @@ async function handleCustomerActivate(req, res) {
             await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Key revoked', key: formattedKey, device_id: deviceId }, ip);
             return res.status(403).json({
                 success: false,
+                valid: false,
                 error: 'KEY_REVOKED',
-                message: 'Activation key has been revoked'
+                errorCode: 'KEY_REVOKED',
+                title: 'Access Revoked',
+                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Optimizer app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
             });
         }
 
@@ -820,6 +842,19 @@ async function handleActivationStatus(req, res) {
 
     try {
         const keyHash = hashKey(rawKey.trim().toUpperCase());
+
+        // Check if key was deleted by administrator
+        if (await db.isKeyDeleted(keyHash)) {
+            return res.status(403).json({
+                success: false,
+                valid: false,
+                error: 'KEY_DELETED',
+                errorCode: 'KEY_DELETED',
+                title: 'Access Revoked',
+                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Optimizer app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
+            });
+        }
+
         let keyRecord = await db.getKeyByHash(keyHash);
 
         if (!keyRecord) {
@@ -828,32 +863,30 @@ async function handleActivationStatus(req, res) {
             keyRecord = await db.getKeyByHash(keyHash);
         }
 
-        // Self-heal: if server restarted with fresh container and mobile sends valid key
-        if (!keyRecord && isValidKeyFormat(rawKey)) {
-            const product = await db.getOrCreateProduct('Zexora');
-            const durDays = req.body.duration_days !== undefined ? parseInt(req.body.duration_days, 10) : 30;
-            const dur = durDays === -1 ? -1 : (durDays > 0 ? durDays * 24 : 720);
-            keyRecord = await db.createActivationKey({
-                keyString: rawKey.trim().toUpperCase(),
-                productId: product.id,
-                durationHours: dur,
-                maxDevices: 1,
-                customerName: req.body.customer_name || 'Self-Healed Device User',
-                notes: 'Auto-restored from mobile client status heartbeat'
-            });
-            console.log(`[SELF-HEAL] Recreated missing key from mobile status check: ${rawKey}`);
-        }
-
         if (!keyRecord) {
-            return res.status(404).json({ success: false, valid: false, error: 'INVALID_KEY', message: 'Invalid activation key' });
+            return res.status(403).json({
+                success: false,
+                valid: false,
+                error: 'KEY_DELETED',
+                errorCode: 'KEY_DELETED',
+                title: 'Access Revoked',
+                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Optimizer app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
+            });
         }
 
         if (keyRecord.status === 'REVOKED') {
-            return res.status(403).json({ success: false, valid: false, error: 'KEY_REVOKED', message: 'Activation key has been revoked' });
+            return res.status(403).json({
+                success: false,
+                valid: false,
+                error: 'KEY_REVOKED',
+                errorCode: 'KEY_REVOKED',
+                title: 'Access Revoked',
+                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Optimizer app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
+            });
         }
 
         if (keyRecord.status === 'SUSPENDED' || keyRecord.status === 'PAUSED') {
-            return res.status(403).json({ success: false, valid: false, error: 'KEY_PAUSED', message: 'Access has been paused by user, contact seller' });
+            return res.status(403).json({ success: false, valid: false, error: 'KEY_PAUSED', errorCode: 'KEY_PAUSED', message: 'Access has been paused by user, contact seller' });
         }
 
         const isPermanent = keyRecord.duration_hours === -1;
@@ -894,7 +927,14 @@ async function handleActivationStatus(req, res) {
                 return res.status(403).json({ success: false, valid: false, error: 'KEY_PAUSED', message: 'Access has been paused by user, contact seller' });
             }
             if (activation && activation.status === 'REVOKED') {
-                return res.status(403).json({ success: false, valid: false, error: 'KEY_REVOKED', message: 'Activation key has been revoked' });
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    error: 'KEY_REVOKED',
+                    errorCode: 'KEY_REVOKED',
+                    title: 'Access Revoked',
+                    message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Optimizer app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
+                });
             }
             // Self-healing: restore active activation if key allows
             if (activeCount < keyRecord.max_devices) {

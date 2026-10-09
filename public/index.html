@@ -1221,6 +1221,65 @@
         </div>
     </div>
 
+    <!-- ========================================== -->
+    <!-- MODAL: DELETE KEY CONFIRMATION             -->
+    <!-- ========================================== -->
+    <div id="modalDeleteKey" class="modal-overlay" onclick="closeModal('modalDeleteKey')">
+        <div class="modal-card" style="max-width: 500px;" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 class="modal-title" style="color: var(--status-expired); display: flex; align-items: center; gap: 8px;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18m-2 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"></path></svg>
+                    Delete Activation Key
+                </h3>
+                <button class="btn btn-outline btn-sm" onclick="closeModal('modalDeleteKey')">✕</button>
+            </div>
+            <input type="hidden" id="deleteTargetKeyId">
+            
+            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
+                Are you sure you want to permanently delete this key from the server database?
+            </p>
+
+            <div style="background: var(--bg-surface-variant); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px; margin-bottom: 16px;">
+                <div style="margin-bottom: 8px; font-size: 12px;">
+                    <span style="color: var(--text-muted);">Key ID:</span>
+                    <b id="delModalKeyId" style="color: var(--text-primary); margin-left: 6px; font-family: 'JetBrains Mono', monospace;"></b>
+                </div>
+                <div style="margin-bottom: 8px; font-size: 13px;">
+                    <span style="color: var(--text-muted);">Key Code:</span>
+                    <div id="delModalKeyCode" class="key-text-mono" style="font-size: 14px; margin-top: 2px; color: #93c5fd; word-break: break-all;"></div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; margin-top: 8px;">
+                    <div>
+                        <span style="color: var(--text-muted);">Customer:</span><br>
+                        <b id="delModalCustomer" style="color: var(--text-primary);"></b>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-muted);">Status:</span><br>
+                        <span id="delModalStatus"></span>
+                    </div>
+                </div>
+                <div style="margin-top: 8px; font-size: 12px;">
+                    <span style="color: var(--text-muted);">Active Devices:</span>
+                    <b id="delModalDevices" style="color: var(--text-primary); margin-left: 6px;"></b>
+                </div>
+            </div>
+
+            <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 10px; padding: 10px 12px; margin-bottom: 20px; font-size: 12px; color: #fca5a5;">
+                ⚠️ <b>Immediate Revocation:</b> All active customer sessions for this key will be instantly terminated, and the mobile app will be forced to log out with an Access Revoked notice.
+            </div>
+
+            <div id="deleteModalError" style="display: none; background: rgba(239, 68, 68, 0.2); color: #f87171; padding: 10px; border-radius: 8px; font-size: 12px; margin-bottom: 14px;"></div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button class="btn btn-outline" id="btnCancelDelete" onclick="closeModal('modalDeleteKey')">Cancel</button>
+                <button class="btn btn-danger" id="btnConfirmDelete" onclick="executeDeleteKey()">
+                    <span id="btnConfirmDeleteSpinner" style="display: none;">⏳ </span>
+                    <span id="btnConfirmDeleteText">Delete Key Permanently</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div id="toastNotification" class="toast-notification">Notification message</div>
 
@@ -2014,6 +2073,7 @@
                                 <span class="status-badge status-badge-${status.toLowerCase()}">${status}</span>
                                 <button class="btn btn-tonal btn-sm" onclick="copyText('${k.key_display}', 'Key')">Copy</button>
                                 <button class="btn btn-outline btn-sm" onclick="openKeyDetailsById(${k.id})">Details</button>
+                                <button class="btn btn-outline btn-sm" style="color: var(--status-expired); border-color: rgba(239, 68, 68, 0.4);" onclick="openDeleteModal(${k.id})">Delete</button>
                             </div>
                         </div>
                     </div>
@@ -2056,15 +2116,91 @@
             }
         }
 
-        async function deleteKeyItem(id) {
-            if (!confirm('Permanently delete this key from server? This cannot be undone.')) return;
-            const res = await api(`/api/keys/${id}`, { method: 'DELETE' });
-            if (res.success) {
-                showToast('Key deleted');
-                loadStatsData();
-                loadKeysData();
+        function deleteKeyItem(id) {
+            openDeleteModal(id);
+        }
+
+        function openDeleteModal(id) {
+            const keyItem = allKeys.find(k => k.id === id);
+            if (!keyItem) {
+                // If not in allKeys, fetch or use ID directly
+                document.getElementById('deleteTargetKeyId').value = id;
+                document.getElementById('delModalKeyId').innerText = `#${id}`;
+                document.getElementById('delModalKeyCode').innerText = `Key ID #${id}`;
+                document.getElementById('delModalCustomer').innerText = 'Unknown';
+                document.getElementById('delModalStatus').innerHTML = `<span class="status-badge status-badge-inactive">UNKNOWN</span>`;
+                document.getElementById('delModalDevices').innerText = '0 / 1';
             } else {
-                alert(res.message || 'Failed to delete key');
+                document.getElementById('deleteTargetKeyId').value = keyItem.id;
+                document.getElementById('delModalKeyId').innerText = `#${keyItem.id}`;
+                document.getElementById('delModalKeyCode').innerText = keyItem.key_display;
+                document.getElementById('delModalCustomer').innerText = keyItem.customer_name || 'None';
+                
+                const status = computeKeyStatus(keyItem);
+                document.getElementById('delModalStatus').innerHTML = `<span class="status-badge status-badge-${status.toLowerCase()}">${status}</span>`;
+                document.getElementById('delModalDevices').innerText = `${keyItem.active_devices_count || 0} / ${keyItem.max_devices || 1}`;
+            }
+            
+            document.getElementById('deleteModalError').style.display = 'none';
+            document.getElementById('deleteModalError').innerText = '';
+            
+            const btn = document.getElementById('btnConfirmDelete');
+            const cancelBtn = document.getElementById('btnCancelDelete');
+            btn.disabled = false;
+            cancelBtn.disabled = false;
+            document.getElementById('btnConfirmDeleteSpinner').style.display = 'none';
+            document.getElementById('btnConfirmDeleteText').innerText = 'Delete Key Permanently';
+            
+            openModal('modalDeleteKey');
+        }
+
+        async function executeDeleteKey() {
+            const id = document.getElementById('deleteTargetKeyId').value;
+            if (!id) return;
+
+            const btn = document.getElementById('btnConfirmDelete');
+            const cancelBtn = document.getElementById('btnCancelDelete');
+            const errorDiv = document.getElementById('deleteModalError');
+
+            btn.disabled = true;
+            cancelBtn.disabled = true;
+            document.getElementById('btnConfirmDeleteSpinner').style.display = 'inline';
+            document.getElementById('btnConfirmDeleteText').innerText = 'Deleting from Server...';
+            errorDiv.style.display = 'none';
+
+            try {
+                const res = await api(`/api/admin/keys/${id}`, { method: 'DELETE' });
+                if (res.success) {
+                    closeModal('modalDeleteKey');
+                    showToast('Key deleted successfully. Associated customer sessions have been revoked.');
+                    
+                    // Instantly remove from local list & storage
+                    allKeys = allKeys.filter(k => String(k.id) !== String(id));
+                    saveAllKeys(allKeys);
+                    if (latestKeyData && String(latestKeyData.id) === String(id)) {
+                        latestKeyData = null;
+                        saveLatestKey(null);
+                        renderLatestKey(null);
+                    }
+                    renderKeysList();
+                    renderHistoryList();
+                    loadStatsData();
+                    loadKeysData();
+                } else {
+                    errorDiv.style.display = 'block';
+                    errorDiv.innerText = res.message || 'Failed to delete key from server.';
+                    btn.disabled = false;
+                    cancelBtn.disabled = false;
+                    document.getElementById('btnConfirmDeleteSpinner').style.display = 'none';
+                    document.getElementById('btnConfirmDeleteText').innerText = 'Delete Key Permanently';
+                }
+            } catch (err) {
+                errorDiv.style.display = 'block';
+                errorDiv.innerText = 'Network/Server Error: ' + err.message;
+                btn.disabled = false;
+                cancelBtn.disabled = false;
+                document.getElementById('btnConfirmDeleteSpinner').style.display = 'none';
+                document.getElementById('btnConfirmDeleteText').innerText = 'Delete Key Permanently';
             }
         }
 
