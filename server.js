@@ -669,9 +669,21 @@ async function handleCustomerActivate(req, res) {
         // Check if device is already activated on this key
         const existingActivation = await db.findActivation(keyRecord.id, device.id);
         const isPermanent = keyRecord.duration_hours === -1;
-        if (existingActivation && existingActivation.status === 'ACTIVE') {
+        if (existingActivation) {
+            if (existingActivation.status === 'SUSPENDED' || existingActivation.status === 'PAUSED') {
+                return res.status(403).json({ success: false, error: 'KEY_PAUSED', message: 'Access has been paused by user, contact seller' });
+            }
+            if (existingActivation.status === 'REVOKED') {
+                return res.status(403).json({ success: false, error: 'KEY_REVOKED', message: 'Access has been revoked by the administrator' });
+            }
+
             const token = existingActivation.session_token || generateToken();
             await db.updateActivationLastSeen(existingActivation.id, token);
+            await db.query("UPDATE activations SET status = 'ACTIVE', is_active = 1 WHERE id = ?", [existingActivation.id]);
+            if (keyRecord.status === 'UNUSED') {
+                await db.updateKeyStatus(keyRecord.id, 'ACTIVE');
+                keyRecord.status = 'ACTIVE';
+            }
 
             let effectiveExpiresAt = keyRecord.expires_at || existingActivation.expires_at;
             let remainingSeconds = -1;
@@ -922,11 +934,11 @@ async function handleActivationStatus(req, res) {
         }
 
         let activation = await db.findActivation(keyRecord.id, device.id);
-        if (!activation || activation.status !== 'ACTIVE') {
-            if (activation && (activation.status === 'SUSPENDED' || activation.status === 'PAUSED')) {
+        if (activation) {
+            if (activation.status === 'SUSPENDED' || activation.status === 'PAUSED') {
                 return res.status(403).json({ success: false, valid: false, error: 'KEY_PAUSED', message: 'Access has been paused by user, contact seller' });
             }
-            if (activation && activation.status === 'REVOKED') {
+            if (activation.status === 'REVOKED') {
                 return res.status(403).json({
                     success: false,
                     valid: false,
@@ -936,9 +948,13 @@ async function handleActivationStatus(req, res) {
                     message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Optimizer app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
                 });
             }
+            if (activation.status !== 'ACTIVE') {
+                await db.query("UPDATE activations SET status = 'ACTIVE', is_active = 1 WHERE id = ?", [activation.id]);
+            }
+        } else {
             // Self-healing: restore active activation if key allows
             if (activeCount < keyRecord.max_devices) {
-                const sessionTok = sessionToken || (activation ? activation.session_token : null) || generateToken();
+                const sessionTok = sessionToken || generateToken();
                 await db.recordActivation({
                     keyId: keyRecord.id,
                     customerId: device.customer_id,

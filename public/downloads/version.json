@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.0.9",
-  "version_code": 11,
+  "latest_version": "1.1.0",
+  "version_code": 12,
   "min_version": "1.0.0",
   "title": "Optimizer Update Available",
-  "release_notes": "• Added dedicated Battery Exemption panel with ON/OFF toggle switch & active status badges\n• Cleaned FPS Optimization and Network Optimization header rows\n• Removed battery exemption badges from RAM Optimization items",
+  "release_notes": "• Retained seamless persistent license session across patch updates\\n• Prevented automatic logout or device deletion during server redeploys and app updates\\n• Added dual-layer encrypted session fallback",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 7027472,
-  "updated_at": "2026-10-09T16:45:34Z"
+  "file_size_bytes": 7028504,
+  "updated_at": "2026-10-09T16:53:08Z"
 }
