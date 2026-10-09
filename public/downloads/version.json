@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.0.5",
-  "version_code": 7,
+  "latest_version": "1.0.6",
+  "version_code": 8,
   "min_version": "1.0.0",
   "title": "Optimizer Update Available",
-  "release_notes": "• Performance and stability enhancements\\n• Real-time RAM management and persistent license telemetry\\n• Seamless in-app APK installer",
+  "release_notes": "• RAM Optimization: App list with individual ON/OFF protection switches\\n• Optimize All: Force-stops eligible running apps while preserving protected (ON) and restricted apps\\n• Clear Active Apps & Clear Recent Apps force-clear\\n• Dynamic categorization: All, Eligible, Protected, Restricted, Running, Recent",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 6991335,
-  "updated_at": "2026-10-09T15:12:20Z"
+  "file_size_bytes": 7003279,
+  "updated_at": "2026-10-09T15:36:32Z"
 }
