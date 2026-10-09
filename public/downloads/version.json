@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.1.0",
-  "version_code": 12,
+  "latest_version": "1.1.1",
+  "version_code": 13,
   "min_version": "1.0.0",
   "title": "Optimizer Update Available",
-  "release_notes": "• Retained seamless persistent license session across patch updates\\n• Prevented automatic logout or device deletion during server redeploys and app updates\\n• Added dual-layer encrypted session fallback",
+  "release_notes": "• Network Optimization: Reordered Boost options (High Optimization -> Select App -> Ping Booster)\\n• RAM Optimization: Positioned protection button below Eligible and Running badges\\n• Resolved Free Fire MAX automatic protection issue",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 7028504,
-  "updated_at": "2026-10-09T16:53:08Z"
+  "file_size_bytes": 7028620,
+  "updated_at": "2026-10-09T17:22:39Z"
 }
