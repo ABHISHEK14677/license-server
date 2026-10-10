@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.1.7",
-  "version_code": 19,
+  "latest_version": "1.1.8",
+  "version_code": 20,
   "min_version": "1.0.0",
   "title": "Optimizer Update Available",
-  "release_notes": "• Fixed Optimization Profiles selection and programmatic state loop bug\\n• Added real-time dynamic Active Optimization Profile status badge in Network Optimization\\n• Synchronized active profile readout on Home Dashboard and dynamic profile description",
+  "release_notes": "• Advanced performance upgrade: Eliminated Binder IPC bottlenecks with single-pass package activity scanning and batch RAM mapping\\n• Full GPU hardware acceleration and largeHeap memory optimization enabled\\n• Optimized RecyclerView view caching and diffing to eliminate list lag and stutter\\n• In Android Info: Removed secondary title and refresh button for a cleaner, unified diagnostics layout\\n• Reduced redundant view layout invalidations and AppBarLayout scroll disruptions",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 7048350,
-  "updated_at": "2026-10-10T06:45:26Z"
+  "file_size_bytes": 7049238,
+  "updated_at": "2026-10-10T07:12:32Z"
 }
