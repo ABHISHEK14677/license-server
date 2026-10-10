@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.2.1",
-  "version_code": 23,
+  "latest_version": "1.2.2",
+  "version_code": 24,
   "min_version": "1.0.0",
   "title": "Optimizer Update Available",
-  "release_notes": "• Added Shizuku Root Access (UID 0) under Root Kernel Engine\\n• Zero-overhead IPC root binder execution\\n• Dual Root Engine (Direct SU + Shizuku Root Binder)",
+  "release_notes": "• Removed root access options (Root Kernel Engine & Shizuku) for seamless root-free device operation\\n• Pure native Android performance tuning, RAM optimizer, Network booster & FPS stabilization\\n• Enhanced security and compatibility across standard and non-rooted devices",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 7117097,
-  "updated_at": "2026-10-10T13:37:26Z"
+  "file_size_bytes": 7076593,
+  "updated_at": "2026-10-10T14:10:22Z"
 }
