@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.2.0",
-  "version_code": 22,
+  "latest_version": "1.2.1",
+  "version_code": 23,
   "min_version": "1.0.0",
   "title": "Optimizer Update Available",
-  "release_notes": "• Pure Root Power Engine: Fully unlocked for rooted devices (su / UID 0)\\n• Removed Shizuku bridge and background real-time service in favor of direct root execution\\n• Kernel Memory Compaction & PageCache Flushing (drop_caches & vm tuning)\\n• Low Memory Killer (LMK) Immunity: locks oom_score_adj to -1000 for protected apps\\n• SurfaceFlinger zero-latency rendering and Qualcomm GPU devfreq boost\\n• Kernel TCP BBR stack tuning & iptables QoS/DSCP packet prioritization",
+  "release_notes": "• Added Shizuku Root Access (UID 0) under Root Kernel Engine\\n• Zero-overhead IPC root binder execution\\n• Dual Root Engine (Direct SU + Shizuku Root Binder)",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 7082653,
-  "updated_at": "2026-10-10T13:19:05Z"
+  "file_size_bytes": 7117097,
+  "updated_at": "2026-10-10T13:37:26Z"
 }
