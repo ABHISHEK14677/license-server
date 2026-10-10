@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.2.2",
-  "version_code": 24,
+  "latest_version": "1.2.3",
+  "version_code": 25,
   "min_version": "1.0.0",
   "title": "Optimizer Update Available",
-  "release_notes": "• Removed root access options (Root Kernel Engine & Shizuku) for seamless root-free device operation\\n• Pure native Android performance tuning, RAM optimizer, Network booster & FPS stabilization\\n• Enhanced security and compatibility across standard and non-rooted devices",
+  "release_notes": "• Added new dedicated Free Fire Optimizer panel in left sidebar\\n• Dual game detection & launch for Free Fire & Free Fire MAX\\n• 4 Gaming performance profiles: Balanced, Performance, Battery Saver, Custom\\n• Real-time network telemetry, Wi-Fi high-performance lock & DNS benchmark\\n• Reversible FPS & display optimization, RAM clearance & device diagnostics",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 7076593,
-  "updated_at": "2026-10-10T14:10:22Z"
+  "file_size_bytes": 7147520,
+  "updated_at": "2026-10-10T14:58:28Z"
 }
