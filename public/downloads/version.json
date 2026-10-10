@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.1.6",
-  "version_code": 18,
+  "latest_version": "1.1.7",
+  "version_code": 19,
   "min_version": "1.0.0",
   "title": "Optimizer Update Available",
-  "release_notes": "• Inserted Performance Optimization quick module into Home Dashboard\n• In-app non-intrusive Update Available banner on Activate Optimizer page with one-tap instant download\n• Added Device Information quick card to Home Dashboard",
+  "release_notes": "• Fixed Optimization Profiles selection and programmatic state loop bug\\n• Added real-time dynamic Active Optimization Profile status badge in Network Optimization\\n• Synchronized active profile readout on Home Dashboard and dynamic profile description",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 7047726,
-  "updated_at": "2026-10-10T06:12:00Z"
+  "file_size_bytes": 7048350,
+  "updated_at": "2026-10-10T06:45:26Z"
 }
