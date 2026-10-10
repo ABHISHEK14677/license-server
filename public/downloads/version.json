@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.1.4",
-  "version_code": 16,
+  "latest_version": "1.1.5",
+  "version_code": 17,
   "min_version": "1.0.0",
   "title": "Optimizer Update Available",
-  "release_notes": "• Resolved ANR and page-switch stuttering with instant app model caching and decoupled network probes\n• Redesigned Battery Optimization with clean right-aligned toggle switch: seamlessly manages Android DeviceIdle whitelist and background execution\n• Removed app info action from battery optimization list for clean UI\n• Advanced Network Optimization profiles with kernel TCP sysctl tuning (BBR/cubic, Fast Open, buffer scaling) and hardware low-latency Wi-Fi locks",
+  "release_notes": "• Fixed activation lifecycle for deleted license keys: immediately informs user and rejects activation without false success popup\n• Completely hardened license validation with instant revocation and automatic session cleanup\n• Bidirectional cloud deletion synchronization between local license authority and cloud\n• Removed erroneous auto-key generation on mobile client activation attempts",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 7045418,
-  "updated_at": "2026-10-10T03:41:13Z"
+  "file_size_bytes": 7046034,
+  "updated_at": "2026-10-10T04:38:00Z"
 }

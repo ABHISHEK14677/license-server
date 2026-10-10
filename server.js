@@ -307,6 +307,44 @@ app.post('/api/keys/import', requireAdmin, async (req, res) => {
     }
 });
 
+// Helper: Forward key deletion to Cloud Server immediately
+async function deleteKeyFromCloud(keyIdentifier) {
+    try {
+        const cloudUrl = process.env.CLOUD_SERVER_URL || 'https://optimizer-stzd.onrender.com';
+        const adminUser = process.env.ADMIN_USERNAME || 'MADARA-FF';
+        const adminPass = process.env.ADMIN_PASSWORD || 'ABHISHEK!';
+        
+        const loginRes = await fetch(`${cloudUrl}/api/auth/admin/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: adminUser, password: adminPass })
+        });
+        const loginData = await loginRes.json();
+        if (!loginData.success || !loginData.token) return;
+
+        let targetId = keyIdentifier;
+        if (typeof keyIdentifier === 'string' && keyIdentifier.startsWith('MADARA-FF')) {
+            const listRes = await fetch(`${cloudUrl}/api/keys?search=${encodeURIComponent(keyIdentifier)}`, {
+                headers: { 'Authorization': `Bearer ${loginData.token}` }
+            });
+            const listData = await listRes.json();
+            if (listData.keys && listData.keys.length > 0) {
+                const found = listData.keys.find(k => k.key_display === keyIdentifier);
+                if (found) targetId = found.id;
+            }
+        }
+
+        const delRes = await fetch(`${cloudUrl}/api/keys/${targetId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${loginData.token}` }
+        });
+        const delData = await delRes.json();
+        console.log(`[SYNC] Forwarded deletion of key ${keyIdentifier} to cloud:`, delData.message || delRes.status);
+    } catch (e) {
+        console.warn(`[SYNC] Failed to forward deletion of ${keyIdentifier} to cloud:`, e.message);
+    }
+}
+
 // Cloud Synchronization
 async function syncWithCloudServer() {
     const cloudUrl = process.env.CLOUD_SERVER_URL || 'https://optimizer-stzd.onrender.com';
@@ -332,11 +370,61 @@ async function syncWithCloudServer() {
     });
     const cloudKeysData = await cloudKeysRes.json();
     let importedLocally = 0;
+    let purgedFromCloud = 0;
+
+    // Step 3: Purge any locally deleted keys from Cloud Server
+    const localDeleted = await db.getAllDeletedKeys();
+    const localDeletedHashes = new Set(localDeleted.map(d => d.key_hash));
+    const localDeletedDisplays = new Set(localDeleted.filter(d => d.key_display).map(d => d.key_display.trim().toUpperCase()));
+
     if (cloudKeysData.success && Array.isArray(cloudKeysData.keys)) {
-        importedLocally = await db.importSeedKeys(cloudKeysData.keys);
+        const remainingCloudKeys = [];
+        for (const ck of cloudKeysData.keys) {
+            const ckDisplay = (ck.key_display || '').trim().toUpperCase();
+            const ckHash = ck.key_hash || hashKey(ckDisplay);
+            if (localDeletedHashes.has(ckHash) || localDeletedDisplays.has(ckDisplay)) {
+                // Key is deleted locally - delete from Cloud as well!
+                try {
+                    await fetch(`${cloudUrl}/api/keys/${ck.id}`, {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${cloudToken}` }
+                    });
+                    purgedFromCloud++;
+                    console.log(`[SYNC] Purged deleted key from cloud: ${ckDisplay} (ID ${ck.id})`);
+                } catch (delErr) {
+                    console.warn(`[SYNC] Failed to delete key ${ck.id} from cloud:`, delErr.message);
+                }
+            } else {
+                remainingCloudKeys.push(ck);
+            }
+        }
+
+        // Try to fetch remote deleted keys from Cloud Server (if endpoint exists)
+        try {
+            const remoteDeletedRes = await fetch(`${cloudUrl}/api/admin/deleted-keys`, {
+                headers: { 'Authorization': `Bearer ${cloudToken}` }
+            });
+            if (remoteDeletedRes.ok) {
+                const remoteDeletedData = await remoteDeletedRes.json();
+                if (remoteDeletedData.success && Array.isArray(remoteDeletedData.deletedKeys)) {
+                    for (const rk of remoteDeletedData.deletedKeys) {
+                        const rkHash = rk.key_hash;
+                        const rkDisplay = rk.key_display;
+                        if (!(await db.isKeyDeleted(rkHash))) {
+                            await db.deleteKey(rkDisplay || rkHash, 'cloud-sync', 'Synced deletion from cloud');
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            // Cloud endpoint might not exist yet on older deployed build
+        }
+
+        // Only import keys that are NOT deleted
+        importedLocally = await db.importSeedKeys(remainingCloudKeys);
     }
 
-    // Step 3: Export local keys and sync to Cloud Server
+    // Step 4: Export local valid keys and sync to Cloud Server
     const localSeedKeys = await db.exportSeedKeys();
     const pushRes = await fetch(`${cloudUrl}/api/keys/import`, {
         method: 'POST',
@@ -353,6 +441,7 @@ async function syncWithCloudServer() {
         message: 'Bidirectional Cloud Synchronization Successful',
         cloudUrl,
         importedLocally,
+        purgedFromCloud,
         pushedToCloud: pushData.count || localSeedKeys.length
     };
 }
@@ -365,6 +454,15 @@ app.post('/api/admin/sync-cloud', requireAdmin, async (req, res) => {
     } catch (err) {
         console.error('Cloud sync error:', err.message);
         res.status(500).json({ success: false, message: 'Cloud sync failed: ' + err.message });
+    }
+});
+
+app.get('/api/admin/deleted-keys', requireAdmin, async (req, res) => {
+    try {
+        const deletedKeys = await db.getAllDeletedKeys();
+        res.json({ success: true, deletedKeys });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
     }
 });
 
@@ -497,6 +595,11 @@ async function handleDeleteKey(req, res) {
             deleted_by: adminUsername 
         }, getClientIp(req));
         
+        // Propagate deletion to Cloud Server immediately
+        deleteKeyFromCloud(key.key_display || key.id).catch(err => {
+            console.warn('[SYNC] Cloud delete forward deferred:', err.message);
+        });
+
         res.json({ 
             success: true, 
             message: 'Key deleted successfully. Associated customer sessions have been revoked.',
@@ -612,26 +715,19 @@ async function handleCustomerActivate(req, res) {
             keyRecord = await db.getKeyByHash(keyHash);
         }
 
-        if (!keyRecord && isValidKeyFormat(formattedKey) && !(await db.isKeyDeleted(keyHash))) {
-            try {
-                const product = await db.getOrCreateProduct('Zexora');
-                const durDays = req.body.duration_days !== undefined ? parseInt(req.body.duration_days, 10) : 30;
-                const dur = durDays === -1 ? -1 : (durDays > 0 ? durDays * 24 : 720);
-                keyRecord = await db.createActivationKey({
-                    keyString: formattedKey,
-                    productId: product.id,
-                    durationHours: dur,
-                    maxDevices: 1,
-                    customerName: customerName || `user_${deviceId.slice(0, 8)}`,
-                    notes: 'Auto-restored from mobile device activation'
-                });
-                console.log(`[SELF-HEAL] Recreated missing key from mobile activation: ${formattedKey}`);
-            } catch (healErr) {
-                console.warn('[SELF-HEAL] Failed to create key:', healErr.message);
-            }
-        }
-
         if (!keyRecord) {
+            if (await db.isKeyDeleted(keyHash)) {
+                await db.logAuditEvent('ACTIVATION_REJECTED_DELETED_KEY', { key: formattedKey, device_id: deviceId }, ip);
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    error: 'KEY_DELETED',
+                    errorCode: 'KEY_DELETED',
+                    title: 'Access Revoked',
+                    message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Optimizer app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
+                });
+            }
+
             await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Key not found', key: formattedKey, device_id: deviceId }, ip);
             return res.status(404).json({
                 success: false,
@@ -880,7 +976,8 @@ async function handleActivationStatus(req, res) {
     }
 
     try {
-        const keyHash = hashKey(rawKey.trim().toUpperCase());
+        const formattedKey = rawKey.trim().toUpperCase();
+        const keyHash = hashKey(formattedKey);
 
         // Check if key was deleted by administrator
         if (await db.isKeyDeleted(keyHash)) {
@@ -922,35 +1019,14 @@ async function handleActivationStatus(req, res) {
                 });
             }
 
-            if (isValidKeyFormat(formattedKey)) {
-                try {
-                    const product = await db.getOrCreateProduct('Zexora');
-                    const durDays = req.body.duration_days !== undefined ? parseInt(req.body.duration_days, 10) : 30;
-                    const dur = durDays === -1 ? -1 : (durDays > 0 ? durDays * 24 : 720);
-                    keyRecord = await db.createActivationKey({
-                        keyString: formattedKey,
-                        productId: product.id,
-                        durationHours: dur,
-                        maxDevices: 1,
-                        customerName: req.body.customer_name || 'Self-Healed Device User',
-                        notes: 'Auto-restored from mobile client status heartbeat'
-                    });
-                    console.log(`[SELF-HEAL] Recreated missing key from mobile status check: ${formattedKey}`);
-                } catch (healErr) {
-                    console.warn('[SELF-HEAL] Failed to create key in status check:', healErr.message);
-                }
-            }
-
-            if (!keyRecord) {
-                return res.status(404).json({
-                    success: false,
-                    valid: false,
-                    error: 'KEY_NOT_FOUND',
-                    errorCode: 'KEY_NOT_FOUND',
-                    title: 'License Not Found',
-                    message: 'Your activation key was not found in the license registry. Please verify your activation key or check server synchronization.'
-                });
-            }
+            return res.status(404).json({
+                success: false,
+                valid: false,
+                error: 'KEY_NOT_FOUND',
+                errorCode: 'KEY_NOT_FOUND',
+                title: 'License Not Found',
+                message: 'Your activation key was not found in the license registry. Please verify your activation key or check server synchronization.'
+            });
         }
 
         if (keyRecord.status === 'REVOKED') {

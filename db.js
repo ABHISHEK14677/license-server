@@ -473,6 +473,13 @@ async function exportSeedKeys() {
         }
 
         for (const k of dbRows) {
+            const kUpper = (k.key_display || '').trim().toUpperCase();
+            const kHash = k.key_hash || hashKey(kUpper);
+            if (await isKeyDeleted(kHash)) {
+                if (kUpper) existingSeedMap.delete(kUpper);
+                continue;
+            }
+
             const activationsRes = await query(`
                 SELECT a.*, d.device_identifier, d.device_model, d.platform
                 FROM activations a
@@ -510,7 +517,6 @@ async function exportSeedKeys() {
                 }))
             };
 
-            const kUpper = (k.key_display || '').trim().toUpperCase();
             if (kUpper) {
                 existingSeedMap.set(kUpper, item);
             }
@@ -549,6 +555,14 @@ async function importSeedKeys(customList = null) {
 
             const khash = hashKey(keyString);
             const last4 = getKeyLast4(keyString);
+
+            // Skip keys that have been explicitly deleted by administrator
+            if (await isKeyDeleted(khash)) {
+                console.log(`[SEED] Ignoring deleted key: ${keyString}`);
+                // Ensure it is purged from activation_keys if previously existed
+                await query('DELETE FROM activation_keys WHERE key_hash = ?', [khash]);
+                continue;
+            }
 
             let existing = await queryOne('SELECT * FROM activation_keys WHERE key_hash = ?', [khash]);
             let keyId = null;
@@ -934,6 +948,15 @@ async function isKeyDeleted(keyHash) {
     }
 }
 
+async function getAllDeletedKeys() {
+    try {
+        const res = await query('SELECT * FROM deleted_keys ORDER BY id DESC');
+        return res ? (res.rows || []) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
 async function deleteKey(idOrKey, deletedBy = 'admin', reason = 'Deleted by Administrator') {
     const key = await getKeyByIdOrString(idOrKey);
     if (!key) {
@@ -1219,6 +1242,7 @@ module.exports = {
     updateKeyDetails,
     deleteKey,
     isKeyDeleted,
+    getAllDeletedKeys,
     clearExpiredKeys,
     clearAllKeys,
     // Customers & Devices
