@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.1.5",
-  "version_code": 17,
+  "latest_version": "1.1.6",
+  "version_code": 18,
   "min_version": "1.0.0",
   "title": "Optimizer Update Available",
-  "release_notes": "• Fixed activation lifecycle for deleted license keys: immediately informs user and rejects activation without false success popup\n• Completely hardened license validation with instant revocation and automatic session cleanup\n• Bidirectional cloud deletion synchronization between local license authority and cloud\n• Removed erroneous auto-key generation on mobile client activation attempts",
+  "release_notes": "• Inserted Performance Optimization quick module into Home Dashboard\n• In-app non-intrusive Update Available banner on Activate Optimizer page with one-tap instant download\n• Added Device Information quick card to Home Dashboard",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 7046034,
-  "updated_at": "2026-10-10T04:38:00Z"
+  "file_size_bytes": 7047726,
+  "updated_at": "2026-10-10T06:12:00Z"
 }
