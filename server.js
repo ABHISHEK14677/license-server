@@ -612,6 +612,25 @@ async function handleCustomerActivate(req, res) {
             keyRecord = await db.getKeyByHash(keyHash);
         }
 
+        if (!keyRecord && isValidKeyFormat(formattedKey) && !(await db.isKeyDeleted(keyHash))) {
+            try {
+                const product = await db.getOrCreateProduct('Zexora');
+                const durDays = req.body.duration_days !== undefined ? parseInt(req.body.duration_days, 10) : 30;
+                const dur = durDays === -1 ? -1 : (durDays > 0 ? durDays * 24 : 720);
+                keyRecord = await db.createActivationKey({
+                    keyString: formattedKey,
+                    productId: product.id,
+                    durationHours: dur,
+                    maxDevices: 1,
+                    customerName: customerName || `user_${deviceId.slice(0, 8)}`,
+                    notes: 'Auto-restored from mobile device activation'
+                });
+                console.log(`[SELF-HEAL] Recreated missing key from mobile activation: ${formattedKey}`);
+            } catch (healErr) {
+                console.warn('[SELF-HEAL] Failed to create key:', healErr.message);
+            }
+        }
+
         if (!keyRecord) {
             await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Key not found', key: formattedKey, device_id: deviceId }, ip);
             return res.status(404).json({
@@ -667,7 +686,15 @@ async function handleCustomerActivate(req, res) {
         const device = await db.getOrCreateDevice(customer.id, deviceId, deviceModel, appIdentifier, platform);
 
         // Check if device is already activated on this key
-        const existingActivation = await db.findActivation(keyRecord.id, device.id);
+        let existingActivation = await db.findActivation(keyRecord.id, device.id);
+        if (!existingActivation) {
+            existingActivation = await db.queryOne(`
+                SELECT a.*, d.device_identifier, d.device_model
+                FROM activations a
+                JOIN devices d ON a.device_id = d.id
+                WHERE (a.key_id = ? OR a.license_id = ?) AND d.device_identifier = ?
+            `, [keyRecord.id, keyRecord.id, deviceId]);
+        }
         const isPermanent = keyRecord.duration_hours === -1;
         if (existingActivation) {
             if (existingActivation.status === 'SUSPENDED' || existingActivation.status === 'PAUSED') {
@@ -876,14 +903,54 @@ async function handleActivationStatus(req, res) {
         }
 
         if (!keyRecord) {
-            return res.status(403).json({
-                success: false,
-                valid: false,
-                error: 'KEY_DELETED',
-                errorCode: 'KEY_DELETED',
-                title: 'Access Revoked',
-                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Optimizer app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
-            });
+            const allMatch = await db.getAllKeys({ search: formattedKey, limit: 1 });
+            if (allMatch && allMatch.length > 0 && allMatch[0].key_display === formattedKey) {
+                keyRecord = allMatch[0];
+            }
+        }
+
+        if (!keyRecord) {
+            const isExplicitlyDeleted = await db.isKeyDeleted(keyHash);
+            if (isExplicitlyDeleted) {
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    error: 'KEY_DELETED',
+                    errorCode: 'KEY_DELETED',
+                    title: 'Access Revoked',
+                    message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Optimizer app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
+                });
+            }
+
+            if (isValidKeyFormat(formattedKey)) {
+                try {
+                    const product = await db.getOrCreateProduct('Zexora');
+                    const durDays = req.body.duration_days !== undefined ? parseInt(req.body.duration_days, 10) : 30;
+                    const dur = durDays === -1 ? -1 : (durDays > 0 ? durDays * 24 : 720);
+                    keyRecord = await db.createActivationKey({
+                        keyString: formattedKey,
+                        productId: product.id,
+                        durationHours: dur,
+                        maxDevices: 1,
+                        customerName: req.body.customer_name || 'Self-Healed Device User',
+                        notes: 'Auto-restored from mobile client status heartbeat'
+                    });
+                    console.log(`[SELF-HEAL] Recreated missing key from mobile status check: ${formattedKey}`);
+                } catch (healErr) {
+                    console.warn('[SELF-HEAL] Failed to create key in status check:', healErr.message);
+                }
+            }
+
+            if (!keyRecord) {
+                return res.status(404).json({
+                    success: false,
+                    valid: false,
+                    error: 'KEY_NOT_FOUND',
+                    errorCode: 'KEY_NOT_FOUND',
+                    title: 'License Not Found',
+                    message: 'Your activation key was not found in the license registry. Please verify your activation key or check server synchronization.'
+                });
+            }
         }
 
         if (keyRecord.status === 'REVOKED') {

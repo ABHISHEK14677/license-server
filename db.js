@@ -430,10 +430,49 @@ async function exportSeedKeys() {
             ORDER BY k.created_at ASC
         `);
 
-        if (!keysRes || !keysRes.rows) return [];
+        // Load existing seed keys from file as persistent baseline so keys are NEVER accidentally wiped
+        const existingSeedMap = new Map();
+        if (fs.existsSync(SEED_FILE_PATH)) {
+            try {
+                const rawExisting = fs.readFileSync(SEED_FILE_PATH, 'utf8').trim();
+                if (rawExisting) {
+                    const parsed = JSON.parse(rawExisting);
+                    if (Array.isArray(parsed)) {
+                        for (const item of parsed) {
+                            const kStr = (item.key || item.key_display || '').trim().toUpperCase();
+                            if (kStr) existingSeedMap.set(kStr, item);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('[SEED] Could not read existing seed-keys.json:', e.message);
+            }
+        }
 
-        const output = [];
-        for (const k of keysRes.rows) {
+        // Filter out any keys that have been explicitly deleted
+        try {
+            const delRes = await query("SELECT key_hash, key_display FROM deleted_keys");
+            if (delRes && delRes.rows) {
+                for (const del of delRes.rows) {
+                    if (del.key_display) existingSeedMap.delete(del.key_display.trim().toUpperCase());
+                    for (const [kStr, _] of existingSeedMap) {
+                        if (hashKey(kStr) === del.key_hash) {
+                            existingSeedMap.delete(kStr);
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            // deleted_keys query failure is non-fatal
+        }
+
+        const dbRows = (keysRes && keysRes.rows) ? keysRes.rows : [];
+        if (dbRows.length === 0 && existingSeedMap.size > 0) {
+            console.log(`[SEED] Database has 0 keys; preserving existing ${existingSeedMap.size} seed keys in seed-keys.json`);
+            return Array.from(existingSeedMap.values());
+        }
+
+        for (const k of dbRows) {
             const activationsRes = await query(`
                 SELECT a.*, d.device_identifier, d.device_model, d.platform
                 FROM activations a
@@ -448,7 +487,7 @@ async function exportSeedKeys() {
                 await query("UPDATE activation_keys SET status = 'ACTIVE' WHERE id = ?", [k.id]);
             }
 
-            output.push({
+            const item = {
                 key: k.key_display,
                 product: k.product_name || 'Optimizer',
                 status: effectiveStatus,
@@ -469,11 +508,19 @@ async function exportSeedKeys() {
                     session_token: a.session_token,
                     last_seen_at: a.last_seen_at
                 }))
-            });
+            };
+
+            const kUpper = (k.key_display || '').trim().toUpperCase();
+            if (kUpper) {
+                existingSeedMap.set(kUpper, item);
+            }
         }
 
-        fs.writeFileSync(SEED_FILE_PATH, JSON.stringify(output, null, 2), 'utf8');
-        return output;
+        const finalOutput = Array.from(existingSeedMap.values());
+        if (finalOutput.length > 0) {
+            fs.writeFileSync(SEED_FILE_PATH, JSON.stringify(finalOutput, null, 2), 'utf8');
+        }
+        return finalOutput;
     } catch (err) {
         console.error('[SEED] Failed to export seed-keys.json:', err.message);
         return [];
