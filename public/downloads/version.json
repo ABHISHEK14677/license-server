@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.2.4",
-  "version_code": 26,
+  "latest_version": "1.2.5",
+  "version_code": 27,
   "min_version": "1.0.0",
   "title": "Optimizer Update Available",
-  "release_notes": "• Fix display context exception when entering Free Fire Optimizer panel\\n• Robust fallback for display refresh rates and system diagnostics",
+  "release_notes": "• Streamlined Free Fire Optimizer panel to straight-aligned game bars with one-tap ON/OFF switches\\n• Automatic high FPS push & lock, performance mode, battery exemption, network lock, and max RAM allocation",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 7148364,
-  "updated_at": "2026-10-10T17:14:41Z"
+  "file_size_bytes": 7137856,
+  "updated_at": "2026-10-10T17:40:12Z"
 }
