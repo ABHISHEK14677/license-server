@@ -420,8 +420,8 @@ async function syncWithCloudServer() {
             // Cloud endpoint might not exist yet on older deployed build
         }
 
-        // Only import keys that are NOT deleted
-        importedLocally = await db.importSeedKeys(remainingCloudKeys);
+        // Per user requirement: Do NOT import previous generated keys from cloud
+        importedLocally = 0;
     }
 
     // Step 4: Export local valid keys and sync to Cloud Server
@@ -627,12 +627,37 @@ app.post('/api/keys/clear-expired', requireAdmin, async (req, res) => {
     }
 });
 
-// Purge / Remove all keys
+// Purge / Remove all keys & sessions
 async function handleClearAllKeys(req, res) {
     try {
         const count = await db.clearAllKeys();
         await db.logAuditEvent('ALL_KEYS_PURGED', { count }, getClientIp(req));
-        res.json({ success: true, message: `Successfully removed all ${count} keys from server`, count });
+
+        // Also purge remote keys on Render Cloud if not running directly on Render
+        if (!process.env.RENDER) {
+            try {
+                const cloudUrl = process.env.CLOUD_SERVER_URL || 'https://optimizer-stzd.onrender.com';
+                const adminUser = process.env.ADMIN_USERNAME || 'MADARA-FF';
+                const adminPass = process.env.ADMIN_PASSWORD || 'ABHISHEK!';
+                const loginRes = await fetch(`${cloudUrl}/api/auth/admin/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: adminUser, password: adminPass })
+                });
+                const loginData = await loginRes.json();
+                if (loginData.token) {
+                    await fetch(`${cloudUrl}/api/keys/clear-all`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${loginData.token}` }
+                    });
+                    console.log('[SYNC] Purged all keys and sessions on Render Cloud as well');
+                }
+            } catch (cloudErr) {
+                console.warn('[SYNC] Could not purge remote cloud keys:', cloudErr.message);
+            }
+        }
+
+        res.json({ success: true, message: `Successfully removed all ${count} keys from server and signed out all sessions`, count });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
     }

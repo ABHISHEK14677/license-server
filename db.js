@@ -371,46 +371,6 @@ async function initDatabase() {
             console.log(`[INIT] Verified/Updated admin account credentials for: "${adminUser}"`);
         }
 
-        // Auto-migrate legacy licenses table into activation_keys if table exists
-        try {
-            const legacyRes = await query('SELECT * FROM licenses');
-            if (legacyRes && legacyRes.rows && legacyRes.rows.length > 0) {
-                const prodId = defaultProduct ? defaultProduct.id : 1;
-                for (const lic of legacyRes.rows) {
-                    if (!lic.license_key) continue;
-                    const keyClean = lic.license_key.trim().toUpperCase();
-                    const khash = hashKey(keyClean);
-                    const exists = await queryOne('SELECT id FROM activation_keys WHERE key_hash = ?', [khash]);
-                    if (!exists) {
-                        const last4 = getKeyLast4(keyClean);
-                        const durationH = (lic.duration_days && lic.duration_days > 0) ? (lic.duration_days * 24) : 720;
-                        await query(`
-                            INSERT INTO activation_keys (
-                                key_hash, key_last4, key_display, product_id, status, duration_hours,
-                                created_at, activated_at, expires_at, max_devices, customer_name, notes
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        `, [
-                            khash,
-                            last4,
-                            keyClean,
-                            prodId,
-                            lic.status || 'ACTIVE',
-                            durationH,
-                            lic.created_at || new Date().toISOString(),
-                            lic.activated_at || null,
-                            lic.expires_at || null,
-                            lic.max_activations || 1,
-                            'Legacy Licensee',
-                            lic.notes || 'Migrated from legacy licenses table'
-                        ]);
-                        console.log(`[INIT] Migrated legacy key: ${keyClean}`);
-                    }
-                }
-            }
-        } catch (e) {
-            // licenses table may not exist, ignore
-        }
-
         // Restore persistent keys and active devices from seed-keys.json
         await importSeedKeys();
     } catch (err) {
@@ -467,9 +427,12 @@ async function exportSeedKeys() {
         }
 
         const dbRows = (keysRes && keysRes.rows) ? keysRes.rows : [];
-        if (dbRows.length === 0 && existingSeedMap.size > 0) {
-            console.log(`[SEED] Database has 0 keys; preserving existing ${existingSeedMap.size} seed keys in seed-keys.json`);
-            return Array.from(existingSeedMap.values());
+        if (dbRows.length === 0) {
+            existingSeedMap.clear();
+            try {
+                fs.writeFileSync(SEED_FILE_PATH, JSON.stringify([], null, 2), 'utf8');
+            } catch (e) {}
+            return [];
         }
 
         for (const k of dbRows) {
@@ -523,9 +486,9 @@ async function exportSeedKeys() {
         }
 
         const finalOutput = Array.from(existingSeedMap.values());
-        if (finalOutput.length > 0) {
+        try {
             fs.writeFileSync(SEED_FILE_PATH, JSON.stringify(finalOutput, null, 2), 'utf8');
-        }
+        } catch (e) {}
         return finalOutput;
     } catch (err) {
         console.error('[SEED] Failed to export seed-keys.json:', err.message);
@@ -1024,8 +987,15 @@ async function clearAllKeys() {
     await query('DELETE FROM activations');
     await query('DELETE FROM devices');
     await query('DELETE FROM customers');
+    await query('DELETE FROM admin_sessions');
+    await query('DELETE FROM deleted_keys');
+    try {
+        await query('DROP TABLE IF EXISTS licenses');
+    } catch (e) {}
     const res = await query('DELETE FROM activation_keys');
-    await exportSeedKeys(); // Will write [] to seed-keys.json
+    try {
+        fs.writeFileSync(SEED_FILE_PATH, JSON.stringify([], null, 2), 'utf8');
+    } catch (e) {}
     return res.rowCount || 0;
 }
 
