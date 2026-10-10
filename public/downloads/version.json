@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.1.2",
-  "version_code": 14,
+  "latest_version": "1.1.3",
+  "version_code": 15,
   "min_version": "1.0.0",
   "title": "Optimizer Update Available",
-  "release_notes": "• Fixed license activation persistence across APK updates\\n• Added Free Fire MAX launch shortcut to network boost panel\\n• Enhanced RAM optimization controls and stability improvements",
+  "release_notes": "• Fixed Sign Out flow\\n• Battery Optimization with right-aligned APK controls\\n• New Home dashboard as primary startup screen\\n• Fixed panel collision on tab switches\\n• Fixed button size expansion\\n• Substantial performance boost with in-memory caching",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 7030812,
-  "updated_at": "2026-10-10T02:16:02Z"
+  "file_size_bytes": 7037066,
+  "updated_at": "2026-10-10T03:03:16Z"
 }
