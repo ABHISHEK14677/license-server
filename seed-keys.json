@@ -1,1 +1,26 @@
-[]
+[
+  {
+    "key": "MADARA-FF-Q4EG-WAG4-3FG3-T29Y",
+    "product": "Optimizer",
+    "status": "ACTIVE",
+    "duration_hours": 12,
+    "created_at": "2026-10-10 11:08:53",
+    "activated_at": "2026-10-10T11:09:14.686Z",
+    "expires_at": "2026-10-10T23:09:14.686Z",
+    "max_devices": 1,
+    "customer_name": null,
+    "notes": "",
+    "activations": [
+      {
+        "device_identifier": "0f3968c60e13236424e6dcbd2e911e737dd935e232c6e08754771136b16dce5a",
+        "device_model": "Xiaomi 2412DPC0AI",
+        "platform": "Android",
+        "activated_at": "2026-10-10 11:09:14",
+        "expires_at": "2026-10-10T23:09:14.686Z",
+        "status": "ACTIVE",
+        "session_token": "3ca0c0ebf486e22884e472f98998d563d239dd0def2a0a938eb818ada01040a2",
+        "last_seen_at": "2026-10-10 11:29:38"
+      }
+    ]
+  }
+]

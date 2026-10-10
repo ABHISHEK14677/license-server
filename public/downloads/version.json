@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.1.8",
-  "version_code": 20,
+  "latest_version": "1.1.9",
+  "version_code": 21,
   "min_version": "1.0.0",
   "title": "Optimizer Update Available",
-  "release_notes": "• Advanced performance upgrade: Eliminated Binder IPC bottlenecks with single-pass package activity scanning and batch RAM mapping\\n• Full GPU hardware acceleration and largeHeap memory optimization enabled\\n• Optimized RecyclerView view caching and diffing to eliminate list lag and stutter\\n• In Android Info: Removed secondary title and refresh button for a cleaner, unified diagnostics layout\\n• Reduced redundant view layout invalidations and AppBarLayout scroll disruptions",
+  "release_notes": "• Shizuku ADB & Root Privileged Bridge: direct control of system/secure/global settings, standby buckets, and process force-stopping\\n• Real-Time Game & App Optimization: dynamic high refresh rate locking (90/120/144 Hz) and foreground CPU priority renice\\n• Adaptive Low-Memory Guard (<15% RAM auto-trim)\\n• Live Shizuku status & real-time telemetry card on Home Dashboard",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 7049238,
-  "updated_at": "2026-10-10T07:12:32Z"
+  "file_size_bytes": 7123401,
+  "updated_at": "2026-10-10T12:31:32Z"
 }
