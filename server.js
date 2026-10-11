@@ -812,13 +812,14 @@ async function handleCustomerActivate(req, res) {
                 });
             }
 
-            await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Key not found', key: formattedKey, device_id: deviceId }, ip);
-            return res.status(404).json({
+            await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Key not found in key manager', key: formattedKey, device_id: deviceId }, ip);
+            return res.status(403).json({
                 success: false,
                 valid: false,
-                error: 'INVALID_KEY',
-                errorCode: 'INVALID_KEY',
-                message: 'Invalid activation key'
+                error: 'KEY_DELETED',
+                errorCode: 'KEY_DELETED',
+                title: 'Access Revoked',
+                message: 'No active key found in key manager. Access denied.'
             });
         }
 
@@ -1098,25 +1099,14 @@ async function handleActivationStatus(req, res) {
         }
 
         if (!keyRecord) {
-            const isExplicitlyDeleted = await db.isKeyDeleted(keyHash);
-            if (isExplicitlyDeleted) {
-                return res.status(403).json({
-                    success: false,
-                    valid: false,
-                    error: 'KEY_DELETED',
-                    errorCode: 'KEY_DELETED',
-                    title: 'Access Revoked',
-                    message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Z E X O app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
-                });
-            }
-
-            return res.status(404).json({
+            await db.logAuditEvent('VALIDATION_REJECTED_UNKNOWN_KEY', { key: formattedKey, device_id: deviceId }, ip);
+            return res.status(403).json({
                 success: false,
                 valid: false,
-                error: 'KEY_NOT_FOUND',
-                errorCode: 'KEY_NOT_FOUND',
-                title: 'License Not Found',
-                message: 'Your activation key was not found in the license registry. Please verify your activation key or check server synchronization.'
+                error: 'KEY_DELETED',
+                errorCode: 'KEY_DELETED',
+                title: 'Access Revoked',
+                message: 'No active license key found in key manager. Your session has been terminated and access to Z E X O has been revoked.'
             });
         }
 
