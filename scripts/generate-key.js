@@ -83,7 +83,7 @@ async function main() {
         }
 
         console.log(`=======================================================`);
-        console.log(`              NEW OPTIMIZER LICENSE KEY                `);
+        console.log(`                NEW Z E X O LICENSE KEY                `);
         console.log(`              Developed by MADARA FF                   `);
         console.log(`=======================================================`);
         console.log(`License Key:     ${key}`);
