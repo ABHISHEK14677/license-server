@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.2.7",
-  "version_code": 29,
+  "latest_version": "1.2.8",
+  "version_code": 30,
   "min_version": "1.0.0",
   "title": "Optimizer Update Available",
-  "release_notes": "• Remove Custom Optimization category title\\n• Custom Optimization Hub drawer accordion with password authentication\\n• Sub-modules listed inside drawer and hub only after unlocking",
+  "release_notes": "• Blank minimalist Home screen with centered Optimizer icon\\n• Custom Optimization Hub completely hidden inside Optimizer icon image\\n• Password-protected access on icon tap",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 7155627,
-  "updated_at": "2026-10-11T03:08:00Z"
+  "file_size_bytes": 7151591,
+  "updated_at": "2026-10-11T03:20:39Z"
 }
