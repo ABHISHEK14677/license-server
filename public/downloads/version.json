@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.2.6",
-  "version_code": 28,
+  "latest_version": "1.2.7",
+  "version_code": 29,
   "min_version": "1.0.0",
   "title": "Optimizer Update Available",
-  "release_notes": "• Custom Optimization hub with password protection\\n• Restore Defaults button in sidebar footer\\n• Automatic system settings restoration on key expiry & app deletion\\n• Real application icons displayed in Free Fire Optimizer",
+  "release_notes": "• Remove Custom Optimization category title\\n• Custom Optimization Hub drawer accordion with password authentication\\n• Sub-modules listed inside drawer and hub only after unlocking",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 7154631,
-  "updated_at": "2026-10-10T18:08:39Z"
+  "file_size_bytes": 7155627,
+  "updated_at": "2026-10-11T03:08:00Z"
 }
