@@ -230,14 +230,21 @@ async function handleKeyGeneration(req, res) {
     } = req.body;
 
     try {
-        // Calculate duration in hours (-1 means permanent / lifetime)
+        // Calculate duration in hours: ONLY 1h (1), 1d (24), 7d (168), 30d (720) are allowed
         let effectiveHours = 720; // default 30 days
-        if (req.body.permanent === true || duration_hours === -1 || duration_days === -1) {
-            effectiveHours = -1;
-        } else if (duration_hours !== null && duration_hours !== undefined) {
+        if (duration_hours !== null && duration_hours !== undefined) {
             effectiveHours = parseInt(duration_hours, 10);
         } else if (duration_days !== null && duration_days !== undefined) {
-            effectiveHours = parseInt(duration_days, 10) * 24;
+            const d = parseInt(duration_days, 10);
+            effectiveHours = d === 1 ? 24 : d === 7 ? 168 : d === 30 ? 720 : d * 24;
+        }
+
+        const ALLOWED_DURATIONS = [1, 24, 168, 720];
+        if (!ALLOWED_DURATIONS.includes(effectiveHours)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid duration. Only 1h (1 hour), 1d (24 hours), 7d (7 days), and 30d (30 days) keys can be generated.'
+            });
         }
 
         const product = await db.getOrCreateProduct(product_name);
@@ -511,13 +518,26 @@ async function handleUpdateKey(req, res) {
             expires_at, expiresAt,
             activated_at, activatedAt
         } = req.body;
+
+        const rawDuration = duration_hours !== undefined ? duration_hours : durationHours;
+        let finalDuration = undefined;
+        if (rawDuration !== undefined && rawDuration !== null) {
+            finalDuration = parseInt(rawDuration, 10);
+            const ALLOWED_DURATIONS = [1, 24, 168, 720];
+            if (!ALLOWED_DURATIONS.includes(finalDuration)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid duration. Only 1h (1 hour), 1d (24 hours), 7d (7 days), and 30d (30 days) are allowed.'
+                });
+            }
+        }
         const updated = await db.updateKeyDetails(key.id, {
             notes,
             customerName: customer_name !== undefined ? customer_name : customerName,
             maxDevices: max_devices !== undefined ? max_devices : maxDevices,
             status,
             keyDisplay: key_display || keyDisplay || newKeyStr,
-            durationHours: duration_hours !== undefined ? duration_hours : durationHours,
+            durationHours: finalDuration,
             expiresAt: expires_at !== undefined ? expires_at : expiresAt,
             activatedAt: activated_at !== undefined ? activated_at : activatedAt
         });
@@ -666,6 +686,43 @@ async function handleClearAllKeys(req, res) {
 }
 app.post('/api/keys/clear-all', requireAdmin, handleClearAllKeys);
 app.delete('/api/keys', requireAdmin, handleClearAllKeys);
+
+// Clear / Delete all active keys and terminate connected active apps
+async function handleClearActiveKeys(req, res) {
+    try {
+        const count = await db.deleteActiveKeys('admin', 'Revoked and cleared by Administrator');
+        await db.logAuditEvent('ACTIVE_KEYS_DELETED', { count }, getClientIp(req));
+
+        if (!process.env.RENDER) {
+            try {
+                const cloudUrl = process.env.CLOUD_SERVER_URL || 'https://optimizer-stzd.onrender.com';
+                const adminUser = process.env.ADMIN_USERNAME || 'MADARA-FF';
+                const adminPass = process.env.ADMIN_PASSWORD || 'ABHISHEK!';
+                const loginRes = await fetch(`${cloudUrl}/api/auth/admin/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: adminUser, password: adminPass })
+                });
+                const loginData = await loginRes.json();
+                if (loginData.token) {
+                    await fetch(`${cloudUrl}/api/keys/clear-active`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${loginData.token}` }
+                    });
+                    console.log('[SYNC] Purged active keys on Render Cloud as well');
+                }
+            } catch (cloudErr) {
+                console.warn('[SYNC] Could not purge active keys on Render Cloud:', cloudErr.message);
+            }
+        }
+
+        res.json({ success: true, message: `Successfully deleted ${count} active keys and revoked active app sessions`, count });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+}
+app.post('/api/keys/clear-active', requireAdmin, handleClearActiveKeys);
+app.delete('/api/keys/active', requireAdmin, handleClearActiveKeys);
 
 
 // -------------------------------------------------------------

@@ -2,7 +2,7 @@
 const { generateLicenseKey } = require('../auth');
 const { createLicense } = require('../db');
 
-let durationDays = 30;
+let durationHours = 720; // default 30d
 let maxActivations = 1;
 let notes = `Key generated on ${new Date().toISOString()}`;
 let prefix = 'MADARA-FF';
@@ -10,13 +10,20 @@ let prefix = 'MADARA-FF';
 const args = process.argv.slice(2);
 for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--permanent' || arg === '-P') {
-        durationDays = -1;
+    if (arg === '--1h') {
+        durationHours = 1;
+    } else if (arg === '--1d') {
+        durationHours = 24;
+    } else if (arg === '--7d') {
+        durationHours = 168;
+    } else if (arg === '--30d') {
+        durationHours = 720;
     } else if (arg === '--days' || arg === '-d') {
-        durationDays = parseInt(args[++i], 10);
+        const d = parseInt(args[++i], 10);
+        durationHours = d === 1 ? 24 : d === 7 ? 168 : 720;
     } else if (arg === '--hours' || arg === '-h') {
-        const hours = parseInt(args[++i], 10);
-        durationDays = hours === -1 ? -1 : Math.max(1, Math.ceil(hours / 24));
+        const h = parseInt(args[++i], 10);
+        durationHours = h <= 1 ? 1 : h <= 24 ? 24 : h <= 168 ? 168 : 720;
     } else if (arg === '--max' || arg === '--devices' || arg === '-m') {
         maxActivations = parseInt(args[++i], 10);
     } else if (arg === '--notes' || arg === '-n') {
@@ -26,8 +33,17 @@ for (let i = 0; i < args.length; i++) {
     } else if (arg === '--product') {
         i++; // skip product name argument
     } else if (!arg.startsWith('-')) {
-        // Positional fallback: durationDays, maxActivations, notes, prefix
-        if (i === 0 && !isNaN(parseInt(arg, 10))) durationDays = parseInt(arg, 10);
+        if (i === 0) {
+            const val = arg.toLowerCase();
+            if (val === '1h') durationHours = 1;
+            else if (val === '1d') durationHours = 24;
+            else if (val === '7d') durationHours = 168;
+            else if (val === '30d') durationHours = 720;
+            else if (!isNaN(parseInt(arg, 10))) {
+                const num = parseInt(arg, 10);
+                durationHours = num <= 1 ? 1 : num <= 24 ? 24 : num <= 168 ? 168 : 720;
+            }
+        }
         else if (i === 1 && !isNaN(parseInt(arg, 10))) maxActivations = parseInt(arg, 10);
         else if (i === 2) notes = arg;
         else if (i === 3) prefix = arg;
@@ -39,7 +55,7 @@ async function main() {
         const key = generateLicenseKey(prefix);
         await createLicense({
             licenseKey: key,
-            durationDays,
+            durationHours,
             maxActivations,
             notes,
             status: 'UNUSED'

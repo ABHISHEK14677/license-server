@@ -1,26 +1,119 @@
 [
   {
-    "key": "MADARA-FF-Q4EG-WAG4-3FG3-T29Y",
+    "key": "MADARA-FF-Z7YL-2X85-7QVS-DTWP",
     "product": "Z E X O",
-    "status": "EXPIRED",
-    "duration_hours": 12,
-    "created_at": "2026-10-10 11:08:53",
-    "activated_at": "2026-10-10T11:09:14.686Z",
-    "expires_at": "2026-10-10T23:09:14.686Z",
+    "status": "UNUSED",
+    "duration_hours": 168,
+    "created_at": "2026-10-11 10:53:46",
+    "activated_at": null,
+    "expires_at": null,
+    "max_devices": 100,
+    "customer_name": null,
+    "notes": "",
+    "activations": []
+  },
+  {
+    "key": "MADARA-FF-HEX3-HR6G-49TL-5NZF",
+    "product": "Zexora",
+    "status": "UNUSED",
+    "duration_hours": 1,
+    "created_at": "2026-10-11 11:07:16",
+    "activated_at": null,
+    "expires_at": null,
     "max_devices": 1,
     "customer_name": null,
     "notes": "",
-    "activations": [
-      {
-        "device_identifier": "0f3968c60e13236424e6dcbd2e911e737dd935e232c6e08754771136b16dce5a",
-        "device_model": "Xiaomi 2412DPC0AI",
-        "platform": "Android",
-        "activated_at": "2026-10-10 11:09:14",
-        "expires_at": "2030-12-31T23:59:59.000Z",
-        "status": "ACTIVE",
-        "session_token": "3ca0c0ebf486e22884e472f98998d563d239dd0def2a0a938eb818ada01040a2",
-        "last_seen_at": "2026-10-10 11:29:38"
-      }
-    ]
+    "activations": []
+  },
+  {
+    "key": "MADARA-FF-LC8H-VH53-CD7D-QG5L",
+    "product": "Zexora",
+    "status": "UNUSED",
+    "duration_hours": 24,
+    "created_at": "2026-10-11 11:07:16",
+    "activated_at": null,
+    "expires_at": null,
+    "max_devices": 1,
+    "customer_name": null,
+    "notes": "",
+    "activations": []
+  },
+  {
+    "key": "MADARA-FF-LG5X-D6D3-9E6S-9H9S",
+    "product": "Zexora",
+    "status": "UNUSED",
+    "duration_hours": 168,
+    "created_at": "2026-10-11 11:07:16",
+    "activated_at": null,
+    "expires_at": null,
+    "max_devices": 1,
+    "customer_name": null,
+    "notes": "",
+    "activations": []
+  },
+  {
+    "key": "MADARA-FF-8ZXD-XDR9-XLU8-ALGM",
+    "product": "Zexora",
+    "status": "UNUSED",
+    "duration_hours": 720,
+    "created_at": "2026-10-11 11:07:17",
+    "activated_at": null,
+    "expires_at": null,
+    "max_devices": 1,
+    "customer_name": null,
+    "notes": "",
+    "activations": []
+  },
+  {
+    "key": "MADARA-FF-4L9H-PDNK-KMDE-JXNG",
+    "product": "Zexora",
+    "status": "UNUSED",
+    "duration_hours": 1,
+    "created_at": "2026-10-11 11:08:08",
+    "activated_at": null,
+    "expires_at": null,
+    "max_devices": 1,
+    "customer_name": null,
+    "notes": "",
+    "activations": []
+  },
+  {
+    "key": "MADARA-FF-MXPZ-256T-5X8T-F62T",
+    "product": "Zexora",
+    "status": "UNUSED",
+    "duration_hours": 24,
+    "created_at": "2026-10-11 11:08:08",
+    "activated_at": null,
+    "expires_at": null,
+    "max_devices": 1,
+    "customer_name": null,
+    "notes": "",
+    "activations": []
+  },
+  {
+    "key": "MADARA-FF-CFQN-FL42-YVH4-5PVA",
+    "product": "Zexora",
+    "status": "UNUSED",
+    "duration_hours": 168,
+    "created_at": "2026-10-11 11:08:09",
+    "activated_at": null,
+    "expires_at": null,
+    "max_devices": 1,
+    "customer_name": null,
+    "notes": "",
+    "activations": []
+  },
+  {
+    "key": "MADARA-FF-E9EW-M3CA-SGB2-4AJ2",
+    "product": "Zexora",
+    "status": "UNUSED",
+    "duration_hours": 720,
+    "created_at": "2026-10-11 11:08:09",
+    "activated_at": null,
+    "expires_at": null,
+    "max_devices": 1,
+    "customer_name": null,
+    "notes": "",
+    "activations": []
   }
 ]

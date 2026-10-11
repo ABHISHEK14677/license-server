@@ -892,23 +892,12 @@
                         <span class="section-subtitle-value" id="selectedDurationLabel">30 Days</span>
                     </div>
 
-                    <!-- Preset chips row -->
+                    <!-- Preset chips row: ONLY 1h, 1d, 7d, 30d allowed -->
                     <div class="duration-chips-scroll">
-                        <button class="chip selected" data-hours="720" onclick="selectDuration(720, this)">30d</button>
                         <button class="chip" data-hours="1" onclick="selectDuration(1, this)">1h</button>
-                        <button class="chip" data-hours="6" onclick="selectDuration(6, this)">6h</button>
-                        <button class="chip" data-hours="12" onclick="selectDuration(12, this)">12h</button>
                         <button class="chip" data-hours="24" onclick="selectDuration(24, this)">1d</button>
                         <button class="chip" data-hours="168" onclick="selectDuration(168, this)">7d</button>
-                        <button class="chip" data-hours="-1" onclick="selectDuration(-1, this)">
-                            <span>∞</span> Permanent
-                        </button>
-                        <button class="chip chip-custom" id="chipCustom" onclick="openCustomHoursModal()">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                                <circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                            </svg>
-                            Custom...
-                        </button>
+                        <button class="chip selected" data-hours="720" onclick="selectDuration(720, this)">30d</button>
                     </div>
 
                     <!-- Collapsible optional details -->
@@ -1000,6 +989,12 @@
                             </svg>
                             Clear Expired
                         </button>
+                        <button class="btn btn-outline btn-sm" style="color: #f59e0b; border-color: rgba(245, 158, 11, 0.4);" onclick="clearActiveKeys()" title="Revoke and Delete All Active Keys & Connected Sessions">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line>
+                            </svg>
+                            Clear Active
+                        </button>
                         <button class="btn btn-danger btn-sm" onclick="purgeAllKeys()" title="Remove All Keys From Server">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -1077,13 +1072,10 @@
             <div class="form-group">
                 <label class="form-label">Validity / Duration</label>
                 <select id="editDurationHours" class="form-input">
-                    <option value="-1">Lifetime / Permanent</option>
-                    <option value="1">1 Hour</option>
-                    <option value="24">24 Hours (1 Day)</option>
-                    <option value="168">7 Days (1 Week)</option>
-                    <option value="720">30 Days (1 Month)</option>
-                    <option value="2160">90 Days (3 Months)</option>
-                    <option value="8760">365 Days (1 Year)</option>
+                    <option value="1">1 Hour (1h)</option>
+                    <option value="24">1 Day (1d)</option>
+                    <option value="168">7 Days (7d)</option>
+                    <option value="720">30 Days (30d)</option>
                 </select>
             </div>
             <div class="form-group">
@@ -1522,14 +1514,12 @@
 
         // --- DURATION SELECTOR LOGIC ---
         function formatDurationLabel(hours) {
+            if (hours === 1) return '1 Hour (1h)';
+            if (hours === 24) return '1 Day (1d)';
+            if (hours === 168) return '7 Days (7d)';
+            if (hours === 720) return '30 Days (30d)';
             if (hours === -1 || hours >= 876000) return 'Permanent (Lifetime)';
-            if (hours === 1) return '1 Hour';
-            if (hours === 6) return '6 Hours';
-            if (hours === 12) return '12 Hours';
-            if (hours === 24) return '1 Day (24h)';
-            if (hours === 168) return '7 Days';
-            if (hours === 720) return '30 Days';
-            if (hours % 24 === 0) return `${hours / 24} Days (${hours}h)`;
+            if (hours % 24 === 0) return `${hours / 24} Days`;
             return `${hours} Hours`;
         }
 
@@ -2139,6 +2129,18 @@
                 loadKeysData();
             } else {
                 alert(res.message || 'Failed to clear expired keys');
+            }
+        }
+
+        async function clearActiveKeys() {
+            if (!confirm('Are you sure you want to permanently REVOKE and DELETE ALL ACTIVE KEYS? All currently active apps and user sessions will immediately be terminated.')) return;
+            const res = await api('/api/keys/clear-active', { method: 'POST' });
+            if (res.success) {
+                showToast(res.message || `Deleted ${res.count || 0} active keys and terminated active apps`);
+                loadStatsData();
+                loadKeysData();
+            } else {
+                alert(res.message || 'Failed to clear active keys');
             }
         }
 

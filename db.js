@@ -997,12 +997,71 @@ async function clearExpiredKeys() {
     return count;
 }
 
-async function clearAllKeys() {
+async function deleteActiveKeys(deletedBy = 'admin', reason = 'Active key revoked and deleted by Administrator') {
+    // 1. Find all keys that are active or have active activations
+    const activeKeysRes = await query(`
+        SELECT DISTINCT k.id, k.key_hash, k.key_display 
+        FROM activation_keys k
+        LEFT JOIN activations a ON a.key_id = k.id
+        WHERE k.status = 'ACTIVE' OR a.status = 'ACTIVE' OR a.is_active = 1 OR k.activated_at IS NOT NULL
+    `);
+
+    let count = 0;
+    if (activeKeysRes.rows && activeKeysRes.rows.length > 0) {
+        for (const k of activeKeysRes.rows) {
+            try {
+                if (isPostgres) {
+                    await query(
+                        'INSERT INTO deleted_keys (key_hash, key_display, deleted_by, reason) VALUES (?, ?, ?, ?) ON CONFLICT (key_hash) DO NOTHING',
+                        [k.key_hash, k.key_display, deletedBy, reason]
+                    );
+                } else {
+                    await query(
+                        'INSERT OR IGNORE INTO deleted_keys (key_hash, key_display, deleted_by, reason) VALUES (?, ?, ?, ?)',
+                        [k.key_hash, k.key_display, deletedBy, reason]
+                    );
+                }
+            } catch (e) {}
+
+            await query('DELETE FROM activations WHERE key_id = ?', [k.id]);
+            await query('DELETE FROM activation_keys WHERE id = ?', [k.id]);
+            count++;
+        }
+    }
+
+    // Clean up any remaining active activations or devices
+    await query("UPDATE activations SET status = 'REVOKED', is_active = 0 WHERE status = 'ACTIVE' OR is_active = 1");
+    await query("DELETE FROM activations WHERE status = 'REVOKED'");
+    await exportSeedKeys();
+    return count;
+}
+
+async function clearAllKeys(deletedBy = 'admin', reason = 'All keys purged by Administrator') {
+    // Record all existing keys into deleted_keys so any active client apps receive KEY_DELETED and get revoked
+    try {
+        const allKeysRes = await query('SELECT key_hash, key_display FROM activation_keys');
+        if (allKeysRes.rows && allKeysRes.rows.length > 0) {
+            for (const k of allKeysRes.rows) {
+                if (isPostgres) {
+                    await query(
+                        'INSERT INTO deleted_keys (key_hash, key_display, deleted_by, reason) VALUES (?, ?, ?, ?) ON CONFLICT (key_hash) DO NOTHING',
+                        [k.key_hash, k.key_display, deletedBy, reason]
+                    );
+                } else {
+                    await query(
+                        'INSERT OR IGNORE INTO deleted_keys (key_hash, key_display, deleted_by, reason) VALUES (?, ?, ?, ?)',
+                        [k.key_hash, k.key_display, deletedBy, reason]
+                    );
+                }
+            }
+        }
+    } catch (e) {}
+
     await query('DELETE FROM activations');
     await query('DELETE FROM devices');
     await query('DELETE FROM customers');
     await query('DELETE FROM admin_sessions');
-    await query('DELETE FROM deleted_keys');
+    // Note: Do NOT delete from deleted_keys, so that active client apps receive KEY_DELETED upon check-in
     try {
         await query('DROP TABLE IF EXISTS licenses');
     } catch (e) {}
@@ -1184,12 +1243,23 @@ async function getRecentLogs(limit = 50) {
 async function createLicense({
     licenseKey,
     durationDays = 30,
+    durationHours = null,
     maxActivations = 1,
     notes = '',
     status = 'ACTIVE'
 }) {
     const product = await getOrCreateProduct('Zexora');
-    const effectiveHours = durationDays === -1 ? -1 : (durationDays * 24);
+    let effectiveHours = 720;
+    if (durationHours !== null && durationHours !== undefined) {
+        effectiveHours = parseInt(durationHours, 10);
+    } else if (durationDays !== null && durationDays !== undefined) {
+        const d = parseInt(durationDays, 10);
+        effectiveHours = d === 1 ? 24 : d === 7 ? 168 : d === 30 ? 720 : d * 24;
+    }
+    const ALLOWED_DURATIONS = [1, 24, 168, 720];
+    if (!ALLOWED_DURATIONS.includes(effectiveHours)) {
+        effectiveHours = 720;
+    }
     return await createActivationKey({
         keyString: licenseKey,
         productId: product.id,
@@ -1228,6 +1298,7 @@ module.exports = {
     isKeyDeleted,
     getAllDeletedKeys,
     clearExpiredKeys,
+    deleteActiveKeys,
     clearAllKeys,
     // Customers & Devices
     getOrCreateCustomer,
