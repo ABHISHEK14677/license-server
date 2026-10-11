@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.2.8",
-  "version_code": 30,
+  "latest_version": "1.2.9",
+  "version_code": 31,
   "min_version": "1.0.0",
-  "title": "Optimizer Update Available",
-  "release_notes": "• Blank minimalist Home screen with centered Optimizer icon\\n• Custom Optimization Hub completely hidden inside Optimizer icon image\\n• Password-protected access on icon tap",
+  "title": "Z E X O Update Available",
+  "release_notes": "• Rebranded to Z E X O\\n• Removed blank home screen for direct access to features\\n• Added Discord community link to key activation screen",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 7151591,
-  "updated_at": "2026-10-11T03:20:39Z"
+  "file_size_bytes": 7150782,
+  "updated_at": "2026-10-11T05:49:58Z"
 }

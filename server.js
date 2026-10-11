@@ -721,7 +721,7 @@ async function handleCustomerActivate(req, res) {
                 error: 'KEY_DELETED',
                 errorCode: 'KEY_DELETED',
                 title: 'Access Revoked',
-                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Optimizer app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
+                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Z E X O app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
             });
         }
 
@@ -749,7 +749,7 @@ async function handleCustomerActivate(req, res) {
                     error: 'KEY_DELETED',
                     errorCode: 'KEY_DELETED',
                     title: 'Access Revoked',
-                    message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Optimizer app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
+                    message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Z E X O app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
                 });
             }
 
@@ -772,7 +772,7 @@ async function handleCustomerActivate(req, res) {
                 error: 'KEY_REVOKED',
                 errorCode: 'KEY_REVOKED',
                 title: 'Access Revoked',
-                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Optimizer app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
+                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Z E X O app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
             });
         }
 
@@ -1012,7 +1012,7 @@ async function handleActivationStatus(req, res) {
                 error: 'KEY_DELETED',
                 errorCode: 'KEY_DELETED',
                 title: 'Access Revoked',
-                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Optimizer app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
+                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Z E X O app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
             });
         }
 
@@ -1040,7 +1040,7 @@ async function handleActivationStatus(req, res) {
                     error: 'KEY_DELETED',
                     errorCode: 'KEY_DELETED',
                     title: 'Access Revoked',
-                    message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Optimizer app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
+                    message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Z E X O app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
                 });
             }
 
@@ -1061,7 +1061,7 @@ async function handleActivationStatus(req, res) {
                 error: 'KEY_REVOKED',
                 errorCode: 'KEY_REVOKED',
                 title: 'Access Revoked',
-                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Optimizer app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
+                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Z E X O app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
             });
         }
 
@@ -1113,7 +1113,7 @@ async function handleActivationStatus(req, res) {
                     error: 'KEY_REVOKED',
                     errorCode: 'KEY_REVOKED',
                     title: 'Access Revoked',
-                    message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Optimizer app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
+                    message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Z E X O app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
                 });
             }
             if (activation.status !== 'ACTIVE') {
@@ -1217,7 +1217,7 @@ function getAppUpdateConfig() {
         latest_version: dynamicConfig.latest_version || process.env.APP_LATEST_VERSION || '1.0.5',
         version_code: parseInt(dynamicConfig.version_code || process.env.APP_VERSION_CODE || '6', 10),
         min_version: dynamicConfig.min_version || '1.0.0',
-        title: dynamicConfig.title || 'Zexora Update Available',
+        title: dynamicConfig.title || 'Z E X O Update Available',
         release_notes: dynamicConfig.release_notes || '• UI and performance improvements\n• Clean panel headers and badge stats\n• In-app one-click update installer',
         apk_filename: dynamicConfig.apk_filename || (fs.existsSync(zexoraApk) ? 'Zexora.apk' : 'RootOptimizer.apk'),
         download_url: dynamicConfig.download_url || process.env.APP_DOWNLOAD_URL || '/api/app/download',
@@ -1324,7 +1324,7 @@ app.get(['/', '/admin', '/login'], (req, res) => {
 // Initialize database schema and start server
 db.initDatabase().then(() => {
     app.listen(PORT, '0.0.0.0', () => {
-        console.log(`[SERVER] Zexora License Server & Key Generator running on port ${PORT}`);
+        console.log(`[SERVER] Z E X O License Server & Key Generator running on port ${PORT}`);
         // Attempt non-blocking background sync with Render Cloud ONLY if explicitly enabled
         if (!process.env.RENDER && process.env.AUTO_SYNC_CLOUD === 'true') {
             setTimeout(async () => {

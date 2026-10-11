@@ -330,24 +330,24 @@ async function initDatabase() {
             } catch (e) {}
         }
 
-        // Seed default product: Zexora
-        let defaultProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['Zexora']);
+        // Seed default product: Z E X O
+        let defaultProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['Z E X O']);
         if (!defaultProduct) {
-            defaultProduct = await queryOne('SELECT * FROM products WHERE name = ? OR name = ?', ['Optimizer', 'ADB Optimizer']);
+            defaultProduct = await queryOne('SELECT * FROM products WHERE name = ? OR name = ? OR name = ?', ['Zexora', 'Optimizer', 'ADB Optimizer']);
             if (defaultProduct) {
                 await query('UPDATE products SET name = ?, description = ? WHERE id = ?', [
-                    'Zexora',
-                    'Zexora - Developed by MADARA FF',
+                    'Z E X O',
+                    'Z E X O - Developed by MADARA FF',
                     defaultProduct.id
                 ]);
             } else {
                 await query('INSERT INTO products (name, description, status) VALUES (?, ?, ?)', [
-                    'Zexora',
-                    'Zexora - Developed by MADARA FF',
+                    'Z E X O',
+                    'Z E X O - Developed by MADARA FF',
                     'ACTIVE'
                 ]);
             }
-            console.log('[INIT] Default product set to: Zexora');
+            console.log('[INIT] Default product set to: Z E X O');
         }
 
         // Ensure admin MADARA-FF exists with configured credentials
@@ -459,7 +459,7 @@ async function exportSeedKeys() {
 
             const item = {
                 key: k.key_display,
-                product: k.product_name || 'Optimizer',
+                product: k.product_name || 'Z E X O',
                 status: effectiveStatus,
                 duration_hours: k.duration_hours,
                 created_at: k.created_at,
@@ -507,7 +507,8 @@ async function importSeedKeys(customList = null) {
         }
         if (!Array.isArray(seedList) || seedList.length === 0) return 0;
 
-        let defaultProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['Zexora']) ||
+        let defaultProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['Z E X O']) ||
+                             await queryOne('SELECT * FROM products WHERE name = ?', ['Zexora']) ||
                              await queryOne('SELECT * FROM products WHERE name = ?', ['Optimizer']);
         const prodId = defaultProduct ? defaultProduct.id : 1;
         let count = 0;
