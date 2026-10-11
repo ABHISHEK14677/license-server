@@ -1052,6 +1052,7 @@ app.post('/api/deactivate', async (req, res) => {
 
 // Periodic Validation / Activation Status Endpoint
 async function handleActivationStatus(req, res) {
+    const ip = getClientIp(req);
     const rawKey = req.body.key || req.body.license_key || req.query.key;
     const deviceId = req.body.device_id || req.body.deviceId || req.query.device_id;
     const sessionToken = req.body.session_token || req.query.session_token;
