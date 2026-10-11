@@ -559,8 +559,14 @@ async function importSeedKeys(customList = null) {
                 console.log(`[SEED] Restored persistent key: ${keyString} (${item.status || 'UNUSED'})`);
             } else {
                 keyId = existing.id;
-                // If seed has newer status, duration or timestamps, update DB without overwriting valid durations with defaults
-                if (item.status && (item.status !== existing.status || item.activated_at !== existing.activated_at || item.expires_at !== existing.expires_at || (item.duration_hours !== undefined && item.duration_hours !== existing.duration_hours))) {
+                // Preserve ACTIVE status so an active key is never downgraded to UNUSED
+                const targetStatus = (existing.status === 'ACTIVE' && item.status === 'UNUSED') 
+                    ? 'ACTIVE' 
+                    : (item.status || existing.status);
+                const targetActivatedAt = existing.activated_at || item.activated_at || null;
+                const targetExpiresAt = existing.expires_at || item.expires_at || null;
+
+                if (targetStatus !== existing.status || targetActivatedAt !== existing.activated_at || targetExpiresAt !== existing.expires_at || (item.duration_hours !== undefined && item.duration_hours !== existing.duration_hours)) {
                     await query(`
                         UPDATE activation_keys 
                         SET status = ?, 
@@ -570,7 +576,7 @@ async function importSeedKeys(customList = null) {
                             customer_name = COALESCE(customer_name, ?),
                             notes = COALESCE(notes, ?)
                         WHERE id = ?
-                    `, [item.status, item.duration_hours !== undefined ? parseInt(item.duration_hours, 10) : existing.duration_hours, item.activated_at || null, item.expires_at || null, item.customer_name || null, item.notes || null, keyId]);
+                    `, [targetStatus, item.duration_hours !== undefined ? parseInt(item.duration_hours, 10) : existing.duration_hours, targetActivatedAt, targetExpiresAt, item.customer_name || null, item.notes || null, keyId]);
                     count++;
                 }
             }
@@ -581,14 +587,14 @@ async function importSeedKeys(customList = null) {
                     if (!act.device_identifier) continue;
                     const custName = item.customer_name || `user_${act.device_identifier.slice(0, 8)}`;
                     const customer = await getOrCreateCustomer(custName, item.customer_name);
-                    const device = await getOrCreateDevice(customer.id, act.device_identifier, act.device_model || 'Android Device', 'com.example.zexora', act.platform || 'Android');
+                    const device = await getOrCreateDevice(customer.id, act.device_identifier, act.device_model || 'Android Device', 'com.example.rootoptimizer', act.platform || 'Android');
 
                     const existingAct = await findActivation(keyId, device.id);
                     if (!existingAct) {
                         await query(`
                             INSERT INTO activations (
-                                key_id, license_id, customer_id, device_id, activated_at, expires_at, status, session_token, last_seen_at
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                key_id, license_id, customer_id, device_id, activated_at, expires_at, status, session_token, last_seen_at, is_active
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
                         `, [
                             keyId, keyId, customer.id, device.id,
                             act.activated_at || new Date().toISOString(),
@@ -598,8 +604,15 @@ async function importSeedKeys(customList = null) {
                             act.last_seen_at || act.activated_at || new Date().toISOString()
                         ]);
                         console.log(`[SEED] Restored device activation for key ${keyString} on ${act.device_identifier}`);
-                    } else if (act.session_token && !existingAct.session_token) {
-                        await query(`UPDATE activations SET session_token = ?, status = ? WHERE id = ?`, [act.session_token, act.status || 'ACTIVE', existingAct.id]);
+                    } else {
+                        await query(`
+                            UPDATE activations 
+                            SET session_token = COALESCE(?, session_token),
+                                status = 'ACTIVE',
+                                is_active = 1,
+                                last_seen_at = COALESCE(?, last_seen_at)
+                            WHERE id = ?
+                        `, [act.session_token || null, act.last_seen_at || null, existingAct.id]);
                     }
                 }
             }

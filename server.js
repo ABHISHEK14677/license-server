@@ -420,8 +420,10 @@ async function syncWithCloudServer() {
             // Cloud endpoint might not exist yet on older deployed build
         }
 
-        // Per user requirement: Do NOT import previous generated keys from cloud
-        importedLocally = 0;
+        // Import active/valid keys from Cloud to local database
+        if (remainingCloudKeys.length > 0) {
+            importedLocally = await db.importSeedKeys(remainingCloudKeys);
+        }
     }
 
     // Step 4: Export local valid keys and sync to Cloud Server
@@ -684,7 +686,7 @@ async function handleCustomerActivate(req, res) {
     const rawKey = req.body.key || req.body.license_key;
     const deviceId = req.body.device_id || req.body.deviceId;
     const deviceModel = req.body.device_model || req.body.deviceModel || 'Android Device';
-    const appIdentifier = req.body.app_identifier || 'com.example.zexora';
+    const appIdentifier = req.body.app_identifier || 'com.example.rootoptimizer';
     const customerName = req.body.customer_name || null;
     const platform = req.body.platform || 'Android';
 
@@ -1031,6 +1033,13 @@ async function handleActivationStatus(req, res) {
             }
         }
 
+        if (!keyRecord && !process.env.RENDER) {
+            try {
+                await syncWithCloudServer();
+                keyRecord = await db.getKeyByHash(keyHash);
+            } catch (e) {}
+        }
+
         if (!keyRecord) {
             const isExplicitlyDeleted = await db.isKeyDeleted(keyHash);
             if (isExplicitlyDeleted) {
@@ -1078,12 +1087,20 @@ async function handleActivationStatus(req, res) {
         let device = await db.queryOne('SELECT id, customer_id FROM devices WHERE device_identifier = ?', [deviceId]);
         const activeCount = await db.getActiveActivationsCount(keyRecord.id);
 
-        if (!device) {
+        if (device) {
+            await db.query(`
+                UPDATE devices 
+                SET device_model = COALESCE(?, device_model),
+                    app_identifier = COALESCE(?, app_identifier),
+                    last_seen_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `, [req.body.device_model || null, req.body.app_identifier || 'com.example.rootoptimizer', device.id]);
+        } else {
             // Self-healing: if key is active or within limit, auto-register device
             if (activeCount < keyRecord.max_devices) {
                 const custName = keyRecord.customer_name || `user_${deviceId.slice(0, 8)}`;
                 const customer = await db.getOrCreateCustomer(custName);
-                device = await db.getOrCreateDevice(customer.id, deviceId, req.body.device_model || 'Android Device', req.body.app_identifier || 'com.example.zexora', req.body.platform || 'Android');
+                device = await db.getOrCreateDevice(customer.id, deviceId, req.body.device_model || 'Android Device', req.body.app_identifier || 'com.example.rootoptimizer', req.body.platform || 'Android');
                 const sessionTok = sessionToken || generateToken();
                 await db.recordActivation({
                     keyId: keyRecord.id,
@@ -1321,23 +1338,31 @@ app.get(['/', '/admin', '/login'], (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Initialize database schema and start server
-db.initDatabase().then(() => {
-    app.listen(PORT, '0.0.0.0', () => {
-        console.log(`[SERVER] Z E X O License Server & Key Generator running on port ${PORT}`);
-        // Attempt non-blocking background sync with Render Cloud ONLY if explicitly enabled
-        if (!process.env.RENDER && process.env.AUTO_SYNC_CLOUD === 'true') {
-            setTimeout(async () => {
-                try {
-                    console.log('[SYNC] Starting background sync with Render cloud...');
-                    const syncRes = await syncWithCloudServer();
-                    console.log('[SYNC] Background sync finished:', syncRes.message);
-                } catch (e) {
-                    console.log('[SYNC] Background cloud sync deferred:', e.message);
-                }
-            }, 3000);
-        }
+// Initialize database schema and start server if executed directly
+if (require.main === module) {
+    db.initDatabase().then(() => {
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`[SERVER] Z E X O License Server & Key Generator running on port ${PORT}`);
+            // Attempt non-blocking background sync with Render Cloud
+            if (!process.env.RENDER && process.env.AUTO_SYNC_CLOUD !== 'false') {
+                setTimeout(async () => {
+                    try {
+                        console.log('[SYNC] Starting background sync with Render cloud...');
+                        const syncRes = await syncWithCloudServer();
+                        console.log('[SYNC] Background sync finished:', syncRes.message);
+                    } catch (e) {
+                        console.log('[SYNC] Background cloud sync deferred:', e.message);
+                    }
+                }, 3000);
+            }
+        });
+    }).catch(err => {
+        console.error('[SERVER] Failed to start:', err);
     });
-}).catch(err => {
-    console.error('[SERVER] Failed to start:', err);
-});
+}
+
+module.exports = {
+    app,
+    syncWithCloudServer,
+    deleteKeyFromCloud
+};
