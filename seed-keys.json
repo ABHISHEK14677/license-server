@@ -1,5 +1,29 @@
 [
   {
+    "key": "MADARA-FF-8KDJ-95K9-YC85-H833",
+    "product": "Z E X O",
+    "status": "ACTIVE",
+    "duration_hours": 24,
+    "created_at": "2026-10-16 06:42:20",
+    "activated_at": "2026-10-16T06:42:20.321Z",
+    "expires_at": "2026-10-17T06:42:20.321Z",
+    "max_devices": 10,
+    "customer_name": "user_0f3968c6",
+    "notes": "Testing key for client changes",
+    "activations": [
+      {
+        "device_identifier": "0f3968c60e13236424e6dcbd2e911e737dd935e232c6e08754771136b16dce5a",
+        "device_model": "Xiaomi 2412DPC0AI",
+        "platform": "Android",
+        "session_token": "3de7cdd1348a4b0e89b05397d993897ab37594f551f6b2d75d23b2dedb286d95",
+        "activated_at": "2026-10-16 06:42:20",
+        "expires_at": "2026-10-17T06:42:20.321Z",
+        "status": "ACTIVE",
+        "is_active": 1
+      }
+    ]
+  },
+  {
     "key": "MADARA-FF-Z7YL-2X85-7QVS-DTWP",
     "product": "Z E X O",
     "status": "UNUSED",
