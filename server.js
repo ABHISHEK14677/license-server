@@ -812,15 +812,36 @@ async function handleCustomerActivate(req, res) {
                 });
             }
 
-            await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Key not found in key manager', key: formattedKey, device_id: deviceId }, ip);
-            return res.status(403).json({
-                success: false,
-                valid: false,
-                error: 'KEY_DELETED',
-                errorCode: 'KEY_DELETED',
-                title: 'Access Revoked',
-                message: 'No active key found in key manager. Access denied.'
-            });
+            // Self-heal: if server restarted with a fresh container and customer activates a valid key
+            if (isValidKeyFormat(formattedKey)) {
+                try {
+                    const product = await db.getOrCreateProduct('Z E X O');
+                    const durDays = req.body.duration_days !== undefined ? parseInt(req.body.duration_days, 10) : 30;
+                    const dur = durDays === -1 ? -1 : (durDays > 0 ? durDays * 24 : 720);
+                    keyRecord = await db.createActivationKey({
+                        keyString: formattedKey,
+                        productId: product.id,
+                        durationHours: dur,
+                        maxDevices: 10,
+                        customerName: customerName || `user_${deviceId.slice(0, 8)}`,
+                        notes: 'Auto-restored from mobile device activation'
+                    });
+                    console.log(`[SELF-HEAL] Recreated missing key from mobile activation: ${formattedKey}`);
+                } catch (healErr) {
+                    console.warn('[SELF-HEAL] Failed to create key on customer activation:', healErr.message);
+                }
+            }
+
+            if (!keyRecord) {
+                await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Key not found in key manager', key: formattedKey, device_id: deviceId }, ip);
+                return res.status(404).json({
+                    success: false,
+                    valid: false,
+                    error: 'INVALID_KEY',
+                    errorCode: 'INVALID_KEY',
+                    message: 'Invalid activation key'
+                });
+            }
         }
 
         // 4. Check whether key is revoked
@@ -1100,14 +1121,36 @@ async function handleActivationStatus(req, res) {
         }
 
         if (!keyRecord) {
+            // Self-heal: if server restarted with a fresh container and mobile sends a valid key that was NOT deleted
+            if (isValidKeyFormat(formattedKey) && !(await db.isKeyDeleted(keyHash))) {
+                try {
+                    const product = await db.getOrCreateProduct('Z E X O');
+                    const durDays = req.body.duration_days !== undefined ? parseInt(req.body.duration_days, 10) : 30;
+                    const dur = durDays === -1 ? -1 : (durDays > 0 ? durDays * 24 : 720);
+                    keyRecord = await db.createActivationKey({
+                        keyString: formattedKey,
+                        productId: product.id,
+                        durationHours: dur,
+                        maxDevices: 10,
+                        customerName: req.body.customer_name || `user_${deviceId.slice(0, 8)}`,
+                        notes: 'Auto-restored from mobile client status heartbeat'
+                    });
+                    console.log(`[SELF-HEAL] Recreated missing key from mobile status check: ${formattedKey}`);
+                } catch (healErr) {
+                    console.warn('[SELF-HEAL] Failed to recreate key in status check:', healErr.message);
+                }
+            }
+        }
+
+        if (!keyRecord) {
             await db.logAuditEvent('VALIDATION_REJECTED_UNKNOWN_KEY', { key: formattedKey, device_id: deviceId }, ip);
-            return res.status(403).json({
+            return res.status(404).json({
                 success: false,
                 valid: false,
-                error: 'KEY_DELETED',
-                errorCode: 'KEY_DELETED',
-                title: 'Access Revoked',
-                message: 'No active license key found in key manager. Your session has been terminated and access to Z E X O has been revoked.'
+                error: 'KEY_NOT_FOUND',
+                errorCode: 'KEY_NOT_FOUND',
+                title: 'License Not Found',
+                message: 'Your activation key was not found in the license registry. Please verify your activation key or check server synchronization.'
             });
         }
 
@@ -1386,11 +1429,43 @@ app.get(['/', '/admin', '/login'], (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Keep-alive pinger to prevent Render free-tier 15-minute inactivity spin-down
+function startKeepAlive() {
+    const KEEP_ALIVE_INTERVAL = 8 * 60 * 1000; // 8 minutes (well under Render 15-min idle spin-down)
+    setInterval(async () => {
+        try {
+            const cloudUrl = process.env.CLOUD_SERVER_URL || 'https://optimizer-stzd.onrender.com';
+            const pingUrl = process.env.SELF_URL ||
+                (process.env.RENDER ? `${cloudUrl}/api/health` : `http://127.0.0.1:${PORT}/api/health`);
+            const res = await fetch(pingUrl, {
+                headers: { 'User-Agent': 'ZexoKeepAlive/1.0' }
+            });
+            if (res.ok) {
+                console.log(`[KEEP-ALIVE] Heartbeat ping successful to ${pingUrl} at ${new Date().toISOString()}`);
+            }
+        } catch (e) {
+            console.warn('[KEEP-ALIVE] Heartbeat ping error:', e.message);
+        }
+    }, KEEP_ALIVE_INTERVAL).unref();
+
+    // Initial ping shortly after server start
+    setTimeout(async () => {
+        try {
+            const cloudUrl = process.env.CLOUD_SERVER_URL || 'https://optimizer-stzd.onrender.com';
+            const pingUrl = process.env.SELF_URL ||
+                (process.env.RENDER ? `${cloudUrl}/api/health` : `http://127.0.0.1:${PORT}/api/health`);
+            await fetch(pingUrl, { headers: { 'User-Agent': 'ZexoKeepAlive/1.0' } });
+            console.log(`[KEEP-ALIVE] Initial keep-alive ping dispatched to ${pingUrl}`);
+        } catch (e) {}
+    }, 15000).unref();
+}
+
 // Initialize database schema and start server if executed directly
 if (require.main === module) {
     db.initDatabase().then(() => {
         app.listen(PORT, '0.0.0.0', () => {
             console.log(`[SERVER] Z E X O License Server & Key Generator running on port ${PORT}`);
+            startKeepAlive();
             // Attempt non-blocking background sync with Render Cloud
             if (!process.env.RENDER && process.env.AUTO_SYNC_CLOUD !== 'false') {
                 setTimeout(async () => {

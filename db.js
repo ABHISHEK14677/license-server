@@ -428,7 +428,9 @@ async function exportSeedKeys() {
 
         const dbRows = (keysRes && keysRes.rows) ? keysRes.rows : [];
         if (dbRows.length === 0) {
-            existingSeedMap.clear();
+            if (existingSeedMap.size > 0) {
+                return Array.from(existingSeedMap.values());
+            }
             try {
                 fs.writeFileSync(SEED_FILE_PATH, JSON.stringify([], null, 2), 'utf8');
             } catch (e) {}
@@ -488,11 +490,67 @@ async function exportSeedKeys() {
         const finalOutput = Array.from(existingSeedMap.values());
         try {
             fs.writeFileSync(SEED_FILE_PATH, JSON.stringify(finalOutput, null, 2), 'utf8');
+            syncSeedKeysToGitHub().catch(() => {});
         } catch (e) {}
         return finalOutput;
     } catch (err) {
         console.error('[SEED] Failed to export seed-keys.json:', err.message);
         return [];
+    }
+}
+
+async function syncSeedKeysToGitHub() {
+    const token = process.env.GITHUB_TOKEN;
+    const repo = process.env.GITHUB_REPO || 'ABHISHEK14677/license-server';
+    const filePath = 'seed-keys.json';
+
+    if (!token || !repo || !fs.existsSync(SEED_FILE_PATH)) return;
+
+    try {
+        const seedKeysData = fs.readFileSync(SEED_FILE_PATH, 'utf8');
+        if (!seedKeysData || seedKeysData.trim() === '[]') return;
+
+        const getRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
+            headers: {
+                'Authorization': `token ${token}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'User-Agent': 'LicenseServer-Sync'
+            }
+        });
+
+        let sha = null;
+        if (getRes.ok) {
+            const getData = await getRes.json();
+            sha = getData.sha;
+            const remoteContent = Buffer.from(getData.content, 'base64').toString('utf8');
+            if (remoteContent.trim() === seedKeysData.trim()) {
+                return;
+            }
+        }
+
+        const putBody = {
+            message: 'Auto-sync: update seed-keys.json persistence baseline',
+            content: Buffer.from(seedKeysData, 'utf8').toString('base64'),
+            branch: 'main'
+        };
+        if (sha) putBody.sha = sha;
+
+        const putRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `token ${token}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/vnd.github.v3+json',
+                'User-Agent': 'LicenseServer-Sync'
+            },
+            body: JSON.stringify(putBody)
+        });
+
+        if (putRes.ok) {
+            console.log('[GITHUB-SYNC] Successfully persisted seed-keys.json to GitHub repository');
+        }
+    } catch (e) {
+        console.warn('[GITHUB-SYNC] GitHub persistence sync deferred:', e.message);
     }
 }
 
@@ -1316,5 +1374,6 @@ module.exports = {
     getRecentLogs,
     // Persistence
     exportSeedKeys,
-    importSeedKeys
+    importSeedKeys,
+    syncSeedKeysToGitHub
 };
