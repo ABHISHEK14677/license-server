@@ -3,9 +3,9 @@
   "version_code": 34,
   "min_version": "1.0.0",
   "title": "Z E X O Update Available",
-  "release_notes": "• License server and key auto-deletion issue resolved\n• Self-healing key validation and keep-alive stability active",
+  "release_notes": "",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 7151030,
-  "updated_at": "2026-10-16T06:41:00Z"
+  "file_size_bytes": 6672400,
+  "updated_at": "2026-10-16T18:03:00Z"
 }

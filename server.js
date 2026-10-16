@@ -352,6 +352,48 @@ async function deleteKeyFromCloud(keyIdentifier) {
     }
 }
 
+// Helper: Forward key edit / update to Cloud Server immediately
+async function updateKeyOnCloud(keyIdentifier, updatePayload) {
+    try {
+        const cloudUrl = process.env.CLOUD_SERVER_URL || 'https://optimizer-stzd.onrender.com';
+        const adminUser = process.env.ADMIN_USERNAME || 'MADARA-FF';
+        const adminPass = process.env.ADMIN_PASSWORD || 'ABHISHEK!';
+        
+        const loginRes = await fetch(`${cloudUrl}/api/auth/admin/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: adminUser, password: adminPass })
+        });
+        const loginData = await loginRes.json();
+        if (!loginData.success || !loginData.token) return;
+
+        let targetId = keyIdentifier;
+        if (typeof keyIdentifier === 'string' && keyIdentifier.startsWith('MADARA-FF')) {
+            const listRes = await fetch(`${cloudUrl}/api/keys?search=${encodeURIComponent(keyIdentifier)}`, {
+                headers: { 'Authorization': `Bearer ${loginData.token}` }
+            });
+            const listData = await listRes.json();
+            if (listData.keys && listData.keys.length > 0) {
+                const found = listData.keys.find(k => k.key_display === keyIdentifier);
+                if (found) targetId = found.id;
+            }
+        }
+
+        const patchRes = await fetch(`${cloudUrl}/api/keys/${targetId}`, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${loginData.token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(updatePayload)
+        });
+        const patchData = await patchRes.json();
+        console.log(`[SYNC] Forwarded update of key ${keyIdentifier} to cloud:`, patchData.message || patchRes.status);
+    } catch (e) {
+        console.warn(`[SYNC] Failed to forward update of ${keyIdentifier} to cloud:`, e.message);
+    }
+}
+
 // Cloud Synchronization
 async function syncWithCloudServer() {
     const cloudUrl = process.env.CLOUD_SERVER_URL || 'https://optimizer-stzd.onrender.com';
@@ -523,11 +565,11 @@ async function handleUpdateKey(req, res) {
         let finalDuration = undefined;
         if (rawDuration !== undefined && rawDuration !== null) {
             finalDuration = parseInt(rawDuration, 10);
-            const ALLOWED_DURATIONS = [1, 24, 168, 720];
+            const ALLOWED_DURATIONS = [-1, 1, 24, 168, 720];
             if (!ALLOWED_DURATIONS.includes(finalDuration)) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Invalid duration. Only 1h (1 hour), 1d (24 hours), 7d (7 days), and 30d (30 days) are allowed.'
+                    message: 'Invalid duration. Only 1h (1 hour), 1d (24 hours), 7d (7 days), 30d (30 days), and Lifetime (-1) are allowed.'
                 });
             }
         }
@@ -542,6 +584,12 @@ async function handleUpdateKey(req, res) {
             activatedAt: activated_at !== undefined ? activated_at : activatedAt
         });
         await db.logAuditEvent('KEY_UPDATED', { key_id: key.id, key_display: updated ? updated.key_display : key.key_display, changes: req.body }, getClientIp(req));
+
+        // Sync with Render Cloud if running in local environment
+        if (!process.env.RENDER) {
+            updateKeyOnCloud(updated ? (updated.key_display || updated.id) : key.id, req.body).catch(() => {});
+        }
+
         res.json({ success: true, message: 'Key updated successfully on server', key: updated });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -869,6 +917,16 @@ async function handleCustomerActivate(req, res) {
         }
 
         // 6. Check whether key is expired
+        if (keyRecord.status === 'EXPIRED') {
+            await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Key expired', key: formattedKey, device_id: deviceId }, ip);
+            return res.status(403).json({
+                success: false,
+                valid: false,
+                error: 'KEY_EXPIRED',
+                errorCode: 'KEY_EXPIRED',
+                message: 'Activation key has expired'
+            });
+        }
         const now = Date.now();
         if (keyRecord.duration_hours !== -1 && keyRecord.expires_at) {
             const expiryTime = new Date(keyRecord.expires_at).getTime();
@@ -877,7 +935,9 @@ async function handleCustomerActivate(req, res) {
                 await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Key expired', key: formattedKey, device_id: deviceId }, ip);
                 return res.status(403).json({
                     success: false,
+                    valid: false,
                     error: 'KEY_EXPIRED',
+                    errorCode: 'KEY_EXPIRED',
                     message: 'Activation key has expired'
                 });
             }
@@ -1120,6 +1180,10 @@ async function handleActivationStatus(req, res) {
             } catch (e) {}
         }
 
+        if (!keyRecord && (deviceId || sessionToken)) {
+            keyRecord = await db.getKeyByDeviceOrSession(deviceId, sessionToken);
+        }
+
         if (!keyRecord) {
             // Self-heal: if server restarted with a fresh container and mobile sends a valid key that was NOT deleted
             if (isValidKeyFormat(formattedKey) && !(await db.isKeyDeleted(keyHash))) {
@@ -1169,10 +1233,36 @@ async function handleActivationStatus(req, res) {
             return res.status(403).json({ success: false, valid: false, error: 'KEY_PAUSED', errorCode: 'KEY_PAUSED', message: 'Access has been paused by user, contact seller' });
         }
 
+        if (keyRecord.status === 'EXPIRED') {
+            return res.status(403).json({
+                success: false,
+                valid: false,
+                error: 'KEY_EXPIRED',
+                errorCode: 'KEY_EXPIRED',
+                message: 'Activation key has expired'
+            });
+        }
+
+        if (keyRecord.status === 'UNUSED') {
+            return res.status(403).json({
+                success: false,
+                valid: false,
+                error: 'DEVICE_NOT_ACTIVATED',
+                errorCode: 'DEVICE_NOT_ACTIVATED',
+                message: 'Activation key is not currently activated on this device'
+            });
+        }
+
         const isPermanent = keyRecord.duration_hours === -1;
-        if (!isPermanent && keyRecord.expires_at && new Date(keyRecord.expires_at).getTime() < Date.now()) {
+        if (!isPermanent && keyRecord.expires_at && new Date(keyRecord.expires_at).getTime() <= Date.now()) {
             await db.updateKeyStatus(keyRecord.id, 'EXPIRED');
-            return res.status(403).json({ success: false, valid: false, error: 'KEY_EXPIRED', message: 'Activation key has expired' });
+            return res.status(403).json({
+                success: false,
+                valid: false,
+                error: 'KEY_EXPIRED',
+                errorCode: 'KEY_EXPIRED',
+                message: 'Activation key has expired'
+            });
         }
 
         let device = await db.queryOne('SELECT id, customer_id FROM devices WHERE device_identifier = ?', [deviceId]);
@@ -1200,10 +1290,6 @@ async function handleActivationStatus(req, res) {
                     expiresAt: keyRecord.expires_at,
                     sessionToken: sessionTok
                 });
-                if (keyRecord.status === 'UNUSED') {
-                    await db.updateKeyStatus(keyRecord.id, 'ACTIVE');
-                    keyRecord.status = 'ACTIVE';
-                }
             } else {
                 return res.status(403).json({ success: false, valid: false, error: 'DEVICE_NOT_ACTIVATED', message: 'Device not registered' });
             }
@@ -1212,7 +1298,7 @@ async function handleActivationStatus(req, res) {
         let activation = await db.findActivation(keyRecord.id, device.id);
         if (activation) {
             if (activation.status === 'SUSPENDED' || activation.status === 'PAUSED') {
-                return res.status(403).json({ success: false, valid: false, error: 'KEY_PAUSED', message: 'Access has been paused by user, contact seller' });
+                return res.status(403).json({ success: false, valid: false, error: 'KEY_PAUSED', errorCode: 'KEY_PAUSED', message: 'Access has been paused by user, contact seller' });
             }
             if (activation.status === 'REVOKED') {
                 return res.status(403).json({
@@ -1222,6 +1308,15 @@ async function handleActivationStatus(req, res) {
                     errorCode: 'KEY_REVOKED',
                     title: 'Access Revoked',
                     message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Z E X O app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
+                });
+            }
+            if (activation.status === 'EXPIRED') {
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    error: 'KEY_EXPIRED',
+                    errorCode: 'KEY_EXPIRED',
+                    message: 'Activation key has expired'
                 });
             }
             if (activation.status !== 'ACTIVE') {
@@ -1239,19 +1334,11 @@ async function handleActivationStatus(req, res) {
                     sessionToken: sessionTok
                 });
                 activation = await db.findActivation(keyRecord.id, device.id);
-                if (keyRecord.status === 'UNUSED') {
-                    await db.updateKeyStatus(keyRecord.id, 'ACTIVE');
-                    keyRecord.status = 'ACTIVE';
-                }
             } else {
                 return res.status(403).json({ success: false, valid: false, error: 'DEVICE_NOT_ACTIVATED', message: 'Device is not active on this key' });
             }
         }
 
-        if (keyRecord.status === 'UNUSED') {
-            await db.updateKeyStatus(keyRecord.id, 'ACTIVE');
-            keyRecord.status = 'ACTIVE';
-        }
         if (!keyRecord.activated_at) {
             const nowIso = new Date().toISOString();
             await db.query("UPDATE activation_keys SET activated_at = ? WHERE id = ?", [nowIso, keyRecord.id]);
@@ -1269,7 +1356,13 @@ async function handleActivationStatus(req, res) {
 
         if (!isPermanent && keyRecord.expires_at && new Date(keyRecord.expires_at).getTime() <= Date.now()) {
             await db.updateKeyStatus(keyRecord.id, 'EXPIRED');
-            return res.status(403).json({ success: false, valid: false, error: 'KEY_EXPIRED', message: 'Activation key has expired' });
+            return res.status(403).json({
+                success: false,
+                valid: false,
+                error: 'KEY_EXPIRED',
+                errorCode: 'KEY_EXPIRED',
+                message: 'Activation key has expired'
+            });
         }
 
         await db.updateActivationLastSeen(activation.id, sessionToken || activation.session_token);
@@ -1281,6 +1374,8 @@ async function handleActivationStatus(req, res) {
             success: true,
             valid: true,
             status: keyRecord.status,
+            key: keyRecord.key_display,
+            license_key: keyRecord.key_display,
             product: keyRecord.product_name || 'Zexora',
             developer: 'MADARA FF',
             copyright: '© Developed by MADARA FF',
@@ -1326,7 +1421,7 @@ function getAppUpdateConfig() {
         version_code: parseInt(dynamicConfig.version_code || process.env.APP_VERSION_CODE || '6', 10),
         min_version: dynamicConfig.min_version || '1.0.0',
         title: dynamicConfig.title || 'Z E X O Update Available',
-        release_notes: dynamicConfig.release_notes || '• UI and performance improvements\n• Clean panel headers and badge stats\n• In-app one-click update installer',
+        release_notes: (dynamicConfig.release_notes !== undefined) ? dynamicConfig.release_notes : '',
         apk_filename: dynamicConfig.apk_filename || (fs.existsSync(zexoraApk) ? 'Zexora.apk' : 'RootOptimizer.apk'),
         download_url: dynamicConfig.download_url || process.env.APP_DOWNLOAD_URL || '/api/app/download',
         file_size_bytes: fileSize
