@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.3.3",
-  "version_code": 35,
+  "latest_version": "1.3.2",
+  "version_code": 34,
   "min_version": "1.0.0",
   "title": "Z E X O Update Available",
-  "release_notes": "• Fix 15-minute key auto-deletion and session revocation\n• Add self-healing key validation and keep-alive stability\n• Critical license server stability update",
+  "release_notes": "• License server and key auto-deletion issue resolved\n• Self-healing key validation and keep-alive stability active",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
   "file_size_bytes": 7151030,
-  "updated_at": "2026-10-16T06:34:00Z"
+  "updated_at": "2026-10-16T06:41:00Z"
 }
