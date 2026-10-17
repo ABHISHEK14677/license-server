@@ -53,6 +53,59 @@ async function requireAdmin(req, res, next) {
 }
 
 // -------------------------------------------------------------
+// Real-Time Server-Sent Events (SSE) Engine
+// -------------------------------------------------------------
+const sseClients = new Set();
+
+function broadcastAdminEvent(eventType, payload = {}) {
+    const dataString = `data: ${JSON.stringify({ type: eventType, payload, timestamp: new Date().toISOString() })}\n\n`;
+    for (const client of sseClients) {
+        try {
+            client.res.write(dataString);
+        } catch (err) {
+            sseClients.delete(client);
+        }
+    }
+}
+
+// Keepalive heartbeat for SSE proxies
+setInterval(() => {
+    for (const client of sseClients) {
+        try {
+            client.res.write(':keepalive\n\n');
+        } catch (err) {
+            sseClients.delete(client);
+        }
+    }
+}, 15000).unref();
+
+app.get('/api/admin/events', async (req, res) => {
+    let token = req.query.token;
+    if (!token && req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
+        token = req.headers.authorization.slice(7).trim();
+    }
+    const session = token ? await db.getAdminSession(token) : null;
+    if (!session) {
+        return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    if (typeof res.flushHeaders === 'function') res.flushHeaders();
+
+    const client = { id: Date.now() + Math.random(), res, adminId: session.admin_id };
+    sseClients.add(client);
+
+    res.write(`data: ${JSON.stringify({ type: 'CONNECTED', message: 'SSE Stream active' })}\n\n`);
+
+    req.on('close', () => {
+        sseClients.delete(client);
+    });
+});
+
+// -------------------------------------------------------------
 // System & Health Endpoints
 // -------------------------------------------------------------
 app.get('/api/health', (req, res) => {
@@ -252,7 +305,13 @@ async function handleKeyGeneration(req, res) {
         const limitCount = Math.min(Math.max(parseInt(count, 10) || 1, 1), 50);
 
         for (let i = 0; i < limitCount; i++) {
-            const rawKey = generateLicenseKey(prefix || 'MADARA-FF');
+            let rawKey = generateLicenseKey(prefix || 'MADARA-FF');
+            let attempts = 0;
+            while (attempts < 5 && ((await db.getKeyByIdOrString(rawKey)) || (await db.isKeyDeleted(hashKey(rawKey))))) {
+                rawKey = generateLicenseKey(prefix || 'MADARA-FF');
+                attempts++;
+            }
+
             const keyRecord = await db.createActivationKey({
                 keyString: rawKey,
                 productId: product.id,
@@ -278,6 +337,7 @@ async function handleKeyGeneration(req, res) {
         }
 
         await db.logAuditEvent('KEYS_GENERATED', { count: limitCount, product: product.name, duration_hours: effectiveHours }, ip);
+        broadcastAdminEvent('KEY_CREATED', { count: limitCount, keys: generatedKeys });
 
         if (limitCount === 1) {
             res.json({
@@ -584,6 +644,7 @@ async function handleUpdateKey(req, res) {
             activatedAt: activated_at !== undefined ? activated_at : activatedAt
         });
         await db.logAuditEvent('KEY_UPDATED', { key_id: key.id, key_display: updated ? updated.key_display : key.key_display, changes: req.body }, getClientIp(req));
+        broadcastAdminEvent('KEY_UPDATED', { key: updated });
 
         // Sync with Render Cloud if running in local environment
         if (!process.env.RENDER) {
@@ -598,6 +659,37 @@ async function handleUpdateKey(req, res) {
 app.patch('/api/keys/:id', requireAdmin, handleUpdateKey);
 app.put('/api/keys/:id', requireAdmin, handleUpdateKey);
 
+// Extend key expiry
+async function handleExtendKey(req, res) {
+    try {
+        const id = req.params.id;
+        const { extension_hours = 24, hours, days } = req.body;
+        let extHours = 24;
+        if (hours !== undefined) extHours = parseInt(hours, 10);
+        else if (days !== undefined) extHours = parseInt(days, 10) * 24;
+        else if (extension_hours !== undefined) extHours = parseInt(extension_hours, 10);
+
+        if (isNaN(extHours) || extHours <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid extension hours' });
+        }
+
+        const key = await db.getKeyByIdOrString(id);
+        if (!key) return res.status(404).json({ success: false, message: 'Key not found' });
+        if (key.status === 'REVOKED') {
+            return res.status(400).json({ success: false, message: 'Revoked keys cannot be extended. Generate a new key if access is needed.' });
+        }
+
+        const updated = await db.extendKeyExpiry(key.id, extHours);
+        await db.logAuditEvent('KEY_EXPIRY_EXTENDED', { key_id: key.id, extension_hours: extHours, new_expires_at: updated.expires_at }, getClientIp(req));
+        broadcastAdminEvent('KEY_EXTENDED', { key: updated });
+
+        res.json({ success: true, message: `Key validity extended by ${extHours} hours`, key: updated });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+}
+app.post('/api/keys/:id/extend', requireAdmin, handleExtendKey);
+
 // Revoke key
 app.post('/api/keys/:id/revoke', requireAdmin, async (req, res) => {
     try {
@@ -605,6 +697,7 @@ app.post('/api/keys/:id/revoke', requireAdmin, async (req, res) => {
         if (!key) return res.status(404).json({ success: false, message: 'Key not found' });
         const updated = await db.updateKeyStatus(key.id, 'REVOKED');
         await db.logAuditEvent('KEY_REVOKED', { key_id: key.id, key_display: key.key_display }, getClientIp(req));
+        broadcastAdminEvent('KEY_REVOKED', { key: updated });
         res.json({ success: true, message: 'Key revoked successfully', key: updated });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -616,8 +709,12 @@ async function handleSuspendKey(req, res) {
     try {
         const key = await db.getKeyByIdOrString(req.params.id);
         if (!key) return res.status(404).json({ success: false, message: 'Key not found' });
-        const updated = await db.updateKeyStatus(key.id, 'SUSPENDED');
-        await db.logAuditEvent('KEY_SUSPENDED', { key_id: key.id, key_display: key.key_display }, getClientIp(req));
+        if (key.status === 'REVOKED') {
+            return res.status(400).json({ success: false, message: 'Revoked key cannot be paused' });
+        }
+        const updated = await db.updateKeyStatus(key.id, 'PAUSED');
+        await db.logAuditEvent('KEY_PAUSED', { key_id: key.id, key_display: key.key_display }, getClientIp(req));
+        broadcastAdminEvent('KEY_PAUSED', { key: updated });
         res.json({ success: true, message: 'Key paused/suspended successfully', key: updated });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -632,10 +729,24 @@ async function handleReactivateKey(req, res) {
         const key = await db.getKeyByIdOrString(req.params.id);
         if (!key) return res.status(404).json({ success: false, message: 'Key not found' });
 
+        if (key.status === 'REVOKED') {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'A revoked key must never be reactivated; generate a new key if access is needed again.' 
+            });
+        }
+        if (key.status === 'EXPIRED') {
+            return res.status(400).json({
+                success: false,
+                message: 'Expired key cannot be resumed. Please extend key expiry instead.'
+            });
+        }
+
         // If it was unused, keep unused; otherwise activate
         const targetStatus = key.activated_at ? 'ACTIVE' : 'UNUSED';
         const updated = await db.updateKeyStatus(key.id, targetStatus);
         await db.logAuditEvent('KEY_REACTIVATED', { key_id: key.id, key_display: key.key_display }, getClientIp(req));
+        broadcastAdminEvent('KEY_RESUMED', { key: updated });
         res.json({ success: true, message: 'Key resumed/reactivated successfully', key: updated });
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
@@ -651,6 +762,7 @@ async function handleDeleteKey(req, res) {
         if (id === 'all' || id === 'ALL') {
             const count = await db.clearAllKeys();
             await db.logAuditEvent('ALL_KEYS_PURGED', { count }, getClientIp(req));
+            broadcastAdminEvent('KEYS_PURGED', { count });
             return res.json({ success: true, message: `Successfully purged all ${count} keys from server`, count });
         }
         const key = await db.getKeyByIdOrString(id);
@@ -665,6 +777,8 @@ async function handleDeleteKey(req, res) {
             deleted_by: adminUsername 
         }, getClientIp(req));
         
+        broadcastAdminEvent('KEY_DELETED', { id: key.id });
+
         // Propagate deletion to Cloud Server immediately
         deleteKeyFromCloud(key.key_display || key.id).catch(err => {
             console.warn('[SYNC] Cloud delete forward deferred:', err.message);
@@ -834,17 +948,11 @@ async function handleCustomerActivate(req, res) {
 
         let keyRecord = await db.getKeyByHash(keyHash);
 
-        // Fallback: check by key_display if legacy key
         if (!keyRecord) {
             const allMatch = await db.getAllKeys({ search: formattedKey, limit: 1 });
             if (allMatch && allMatch.length > 0 && allMatch[0].key_display === formattedKey) {
                 keyRecord = allMatch[0];
             }
-        }
-
-        if (!keyRecord) {
-            await db.importSeedKeys();
-            keyRecord = await db.getKeyByHash(keyHash);
         }
 
         if (!keyRecord) {
@@ -860,36 +968,14 @@ async function handleCustomerActivate(req, res) {
                 });
             }
 
-            // Self-heal: if server restarted with a fresh container and customer activates a valid key
-            if (isValidKeyFormat(formattedKey)) {
-                try {
-                    const product = await db.getOrCreateProduct('Z E X O');
-                    const durDays = req.body.duration_days !== undefined ? parseInt(req.body.duration_days, 10) : 30;
-                    const dur = durDays === -1 ? -1 : (durDays > 0 ? durDays * 24 : 720);
-                    keyRecord = await db.createActivationKey({
-                        keyString: formattedKey,
-                        productId: product.id,
-                        durationHours: dur,
-                        maxDevices: 10,
-                        customerName: customerName || `user_${deviceId.slice(0, 8)}`,
-                        notes: 'Auto-restored from mobile device activation'
-                    });
-                    console.log(`[SELF-HEAL] Recreated missing key from mobile activation: ${formattedKey}`);
-                } catch (healErr) {
-                    console.warn('[SELF-HEAL] Failed to create key on customer activation:', healErr.message);
-                }
-            }
-
-            if (!keyRecord) {
-                await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Key not found in key manager', key: formattedKey, device_id: deviceId }, ip);
-                return res.status(404).json({
-                    success: false,
-                    valid: false,
-                    error: 'INVALID_KEY',
-                    errorCode: 'INVALID_KEY',
-                    message: 'Invalid activation key'
-                });
-            }
+            await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Key not found in key manager', key: formattedKey, device_id: deviceId }, ip);
+            return res.status(404).json({
+                success: false,
+                valid: false,
+                error: 'INVALID_KEY',
+                errorCode: 'INVALID_KEY',
+                message: 'Invalid activation key'
+            });
         }
 
         // 4. Check whether key is revoked
@@ -1161,49 +1247,14 @@ async function handleActivationStatus(req, res) {
         let keyRecord = await db.getKeyByHash(keyHash);
 
         if (!keyRecord) {
-            // Check if seed keys restore it
-            await db.importSeedKeys();
-            keyRecord = await db.getKeyByHash(keyHash);
-        }
-
-        if (!keyRecord) {
             const allMatch = await db.getAllKeys({ search: formattedKey, limit: 1 });
             if (allMatch && allMatch.length > 0 && allMatch[0].key_display === formattedKey) {
                 keyRecord = allMatch[0];
             }
         }
 
-        if (!keyRecord && !process.env.RENDER) {
-            try {
-                await syncWithCloudServer();
-                keyRecord = await db.getKeyByHash(keyHash);
-            } catch (e) {}
-        }
-
         if (!keyRecord && (deviceId || sessionToken)) {
             keyRecord = await db.getKeyByDeviceOrSession(deviceId, sessionToken);
-        }
-
-        if (!keyRecord) {
-            // Self-heal: if server restarted with a fresh container and mobile sends a valid key that was NOT deleted
-            if (isValidKeyFormat(formattedKey) && !(await db.isKeyDeleted(keyHash))) {
-                try {
-                    const product = await db.getOrCreateProduct('Z E X O');
-                    const durDays = req.body.duration_days !== undefined ? parseInt(req.body.duration_days, 10) : 30;
-                    const dur = durDays === -1 ? -1 : (durDays > 0 ? durDays * 24 : 720);
-                    keyRecord = await db.createActivationKey({
-                        keyString: formattedKey,
-                        productId: product.id,
-                        durationHours: dur,
-                        maxDevices: 10,
-                        customerName: req.body.customer_name || `user_${deviceId.slice(0, 8)}`,
-                        notes: 'Auto-restored from mobile client status heartbeat'
-                    });
-                    console.log(`[SELF-HEAL] Recreated missing key from mobile status check: ${formattedKey}`);
-                } catch (healErr) {
-                    console.warn('[SELF-HEAL] Failed to recreate key in status check:', healErr.message);
-                }
-            }
         }
 
         if (!keyRecord) {

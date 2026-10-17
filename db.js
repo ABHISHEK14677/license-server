@@ -428,11 +428,9 @@ async function exportSeedKeys() {
 
         const dbRows = (keysRes && keysRes.rows) ? keysRes.rows : [];
         if (dbRows.length === 0) {
-            if (existingSeedMap.size > 0) {
-                return Array.from(existingSeedMap.values());
-            }
             try {
                 fs.writeFileSync(SEED_FILE_PATH, JSON.stringify([], null, 2), 'utf8');
+                syncSeedKeysToGitHub().catch(() => {});
             } catch (e) {}
             return [];
         }
@@ -934,15 +932,7 @@ async function updateKeyDetails(id, { notes, customerName, maxDevices, status, k
     const fields = [];
     const params = [];
 
-    if (keyDisplay !== undefined && String(keyDisplay).trim().length > 0) {
-        const cleanKey = String(keyDisplay).trim().toUpperCase();
-        fields.push('key_display = ?');
-        params.push(cleanKey);
-        fields.push('key_hash = ?');
-        params.push(hashKey(cleanKey));
-        fields.push('key_last4 = ?');
-        params.push(getKeyLast4(cleanKey));
-    }
+    // Note: Secret key value (key_display, key_hash, key_last4) is strictly immutable per security policy
 
     if (notes !== undefined) {
         fields.push('notes = ?');
@@ -1052,12 +1042,17 @@ async function updateKeyDetails(id, { notes, customerName, maxDevices, status, k
 }
 
 async function updateKeyStatus(id, newStatus) {
+    const current = await getKeyById(id);
+    if (!current) return null;
     const s = (newStatus || '').toUpperCase();
+    if (current.status === 'REVOKED' && s !== 'REVOKED') {
+        throw new Error('A revoked key must never be reactivated; generate a new key if access is needed again.');
+    }
     await query('UPDATE activation_keys SET status = ? WHERE id = ?', [s, id]);
     if (s === 'REVOKED') {
         await query("UPDATE activations SET status = 'REVOKED', is_active = 0 WHERE key_id = ?", [id]);
     } else if (s === 'SUSPENDED' || s === 'PAUSED') {
-        await query("UPDATE activations SET status = 'SUSPENDED' WHERE key_id = ?", [id]);
+        await query("UPDATE activations SET status = 'SUSPENDED', is_active = 0 WHERE key_id = ?", [id]);
     } else if (s === 'EXPIRED') {
         const exp = new Date(Date.now() - 1000).toISOString();
         await query("UPDATE activations SET status = 'EXPIRED', expires_at = ? WHERE key_id = ?", [exp, id]);
@@ -1071,6 +1066,57 @@ async function updateKeyStatus(id, newStatus) {
     const updated = await getKeyById(id);
     await exportSeedKeys();
     return updated;
+}
+
+async function extendKeyExpiry(id, hours) {
+    const key = await getKeyById(id);
+    if (!key) return null;
+    if (key.status === 'REVOKED') {
+        throw new Error('Revoked keys cannot be extended. Generate a new key if access is needed.');
+    }
+    const extHours = parseInt(hours, 10);
+    if (isNaN(extHours) || extHours <= 0) {
+        throw new Error('Invalid extension hours.');
+    }
+
+    if (key.duration_hours === -1) {
+        return key;
+    }
+
+    const now = Date.now();
+    let newExpiresAtIso = null;
+
+    if (key.expires_at) {
+        const curExp = new Date(key.expires_at).getTime();
+        const base = Math.max(curExp, now);
+        newExpiresAtIso = new Date(base + extHours * 3600 * 1000).toISOString();
+    } else if (key.activated_at) {
+        const base = Math.max(new Date(key.activated_at).getTime(), now);
+        newExpiresAtIso = new Date(base + extHours * 3600 * 1000).toISOString();
+    } else {
+        const newDur = (key.duration_hours || 0) + extHours;
+        await query('UPDATE activation_keys SET duration_hours = ? WHERE id = ?', [newDur, id]);
+        await exportSeedKeys();
+        return await getKeyById(id);
+    }
+
+    const newDurationHours = (key.duration_hours || 0) + extHours;
+    const newStatus = (key.status === 'PAUSED' || key.status === 'SUSPENDED') ? 'PAUSED' : 'ACTIVE';
+
+    await query(`
+        UPDATE activation_keys 
+        SET expires_at = ?, duration_hours = ?, status = ?
+        WHERE id = ?
+    `, [newExpiresAtIso, newDurationHours, newStatus, id]);
+
+    await query(`
+        UPDATE activations 
+        SET expires_at = ?, status = 'ACTIVE', is_active = 1 
+        WHERE key_id = ? AND status != 'REVOKED'
+    `, [newExpiresAtIso, id]);
+
+    await exportSeedKeys();
+    return await getKeyById(id);
 }
 
 async function isKeyDeleted(keyHash) {
@@ -1218,7 +1264,6 @@ async function clearAllKeys(deletedBy = 'admin', reason = 'All keys purged by Ad
     await query('DELETE FROM activations');
     await query('DELETE FROM devices');
     await query('DELETE FROM customers');
-    await query('DELETE FROM admin_sessions');
     // Note: Do NOT delete from deleted_keys, so that active client apps receive KEY_DELETED upon check-in
     try {
         await query('DROP TABLE IF EXISTS licenses');
@@ -1226,6 +1271,7 @@ async function clearAllKeys(deletedBy = 'admin', reason = 'All keys purged by Ad
     const res = await query('DELETE FROM activation_keys');
     try {
         fs.writeFileSync(SEED_FILE_PATH, JSON.stringify([], null, 2), 'utf8');
+        syncSeedKeysToGitHub().catch(() => {});
     } catch (e) {}
     return res.rowCount || 0;
 }
@@ -1453,6 +1499,7 @@ module.exports = {
     getAllKeys,
     updateKeyStatus,
     updateKeyDetails,
+    extendKeyExpiry,
     deleteKey,
     isKeyDeleted,
     getAllDeletedKeys,

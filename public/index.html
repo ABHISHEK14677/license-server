@@ -920,6 +920,57 @@
                         <span id="btnGenerateKeyText">Generate Key • 30 Days</span>
                     </button>
                 </div>
+
+                <!-- 3. Latest Generated Key Card -->
+                <div class="card" style="margin-top: 16px;">
+                    <div class="section-header-row">
+                        <h2 class="section-title">Latest Key Access</h2>
+                        <span id="latestKeyStatusBadge" class="status-badge status-badge-inactive">INACTIVE</span>
+                    </div>
+
+                    <div id="latestKeyPlaceholder" style="text-align: center; padding: 24px 16px; color: var(--text-muted); font-size: 13px;">
+                        No key has been generated yet in this session. Generate a key above to view and manage it in real-time.
+                    </div>
+
+                    <div id="latestKeyContent" style="display: none;">
+                        <div class="key-box-display" style="background: var(--bg-surface-variant); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px;">
+                            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Authorization Key</div>
+                            <div id="latestKeyText" class="key-text-mono" style="font-size: 18px; word-break: break-all; color: #93c5fd;"></div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; font-size: 12px;">
+                            <div>
+                                <span style="color: var(--text-muted);">Created:</span><br>
+                                <b id="latestCreatedVal" style="color: var(--text-primary);">-</b>
+                            </div>
+                            <div>
+                                <span style="color: var(--text-muted);" id="latestExpiryLabel">Validity:</span><br>
+                                <b id="latestExpiryVal" style="color: var(--text-primary);">-</b>
+                            </div>
+                            <div>
+                                <span style="color: var(--text-muted);">Devices Allowed:</span><br>
+                                <b id="latestMaxDevicesVal" style="color: var(--text-primary);">-</b>
+                            </div>
+                        </div>
+
+                        <div style="background: var(--bg-surface-variant); border-radius: 8px; padding: 10px 12px; margin-bottom: 14px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-bottom: 4px;">
+                                <span id="latestTimerLabel" style="color: var(--text-muted); font-weight: 700; text-transform: uppercase;">ACTIVATION STATUS</span>
+                                <span id="latestCountdownText" style="font-family: 'JetBrains Mono', monospace; font-weight: 700;">-</span>
+                            </div>
+                            <div id="latestProgressWrap" style="display: none; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+                                <div id="latestProgressBar" style="height: 100%; width: 100%; background: var(--status-active); transition: width 0.3s;"></div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <button class="btn btn-tonal btn-sm" onclick="copyLatestKey()">Copy Key</button>
+                            <button class="btn btn-outline btn-sm" onclick="shareLatestKey()">Share</button>
+                            <button class="btn btn-tonal btn-sm" onclick="openExtendModal(latestKeyData ? latestKeyData.id : null)">Extend Expiry</button>
+                            <button class="btn btn-danger btn-sm" id="btnToggleRevokeLatest" onclick="toggleRevokeLatest()">Revoke</button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- ========================================== -->
@@ -959,11 +1010,11 @@
                 <!-- Filter Chips Row -->
                 <div class="duration-chips-scroll" style="margin-bottom: 16px;">
                     <button class="chip selected" data-status="ALL" onclick="setStatusFilter('ALL', this)">All</button>
-                    <button class="chip" data-status="INACTIVE" onclick="setStatusFilter('INACTIVE', this)">Non-Active</button>
                     <button class="chip" data-status="ACTIVE" onclick="setStatusFilter('ACTIVE', this)">Active</button>
-                    <button class="chip" data-status="EXPIRED" onclick="setStatusFilter('EXPIRED', this)">Expired</button>
+                    <button class="chip" data-status="INACTIVE" onclick="setStatusFilter('INACTIVE', this)">Inactive</button>
                     <button class="chip" data-status="PAUSED" onclick="setStatusFilter('PAUSED', this)">Paused</button>
                     <button class="chip" data-status="REVOKED" onclick="setStatusFilter('REVOKED', this)">Revoked</button>
+                    <button class="chip" data-status="EXPIRED" onclick="setStatusFilter('EXPIRED', this)">Expired</button>
                 </div>
 
                 <!-- Keys Cards List Container -->
@@ -1046,6 +1097,53 @@
     </div>
 
     <!-- ========================================== -->
+    <!-- MODAL: EXTEND KEY EXPIRY                   -->
+    <!-- ========================================== -->
+    <div id="modalExtendExpiry" class="modal-overlay" onclick="closeModal('modalExtendExpiry')">
+        <div class="modal-card" style="max-width: 480px;" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 class="modal-title" style="display: flex; align-items: center; gap: 8px;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    Extend Key Expiry
+                </h3>
+                <button class="btn btn-outline btn-sm" onclick="closeModal('modalExtendExpiry')">✕</button>
+            </div>
+            <input type="hidden" id="extendKeyId">
+
+            <div style="background: var(--bg-surface-variant); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px;">
+                <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Key Code</div>
+                <div id="extendModalKeyCode" class="key-text-mono" style="font-size: 15px; color: #93c5fd; margin-top: 2px;"></div>
+                <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px;">
+                    <div><span style="color: var(--text-muted);">Current Expiry:</span> <b id="extendModalCurrentExpiry">-</b></div>
+                    <div><span style="color: var(--text-muted);">Status:</span> <span id="extendModalStatus">-</span></div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Add Duration (Hours)</label>
+                <input type="number" id="inputExtendHours" class="form-input" placeholder="e.g. 24 for +1 day" value="24" min="1">
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="setExtendHoursVal(1)">+1h</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="setExtendHoursVal(24)">+24h (1d)</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="setExtendHoursVal(168)">+7d</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="setExtendHoursVal(720)">+30d</button>
+            </div>
+
+            <div id="extendModalError" style="display: none; background: rgba(239, 68, 68, 0.2); color: #f87171; padding: 10px; border-radius: 8px; font-size: 12px; margin-bottom: 14px;"></div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                <button class="btn btn-outline" onclick="closeModal('modalExtendExpiry')">Cancel</button>
+                <button class="btn btn-primary" id="btnConfirmExtend" onclick="submitExtendExpiry()">
+                    <span id="btnExtendSpinner" style="display: none;">⏳ </span>
+                    <span>Extend Expiry</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
     <!-- MODAL: EDIT KEY DETAILS                    -->
     <!-- ========================================== -->
     <div id="modalEditKey" class="modal-overlay" onclick="closeModal('modalEditKey')">
@@ -1056,8 +1154,8 @@
             </div>
             <input type="hidden" id="editKeyId">
             <div class="form-group">
-                <label class="form-label">License Key Code</label>
-                <input type="text" id="editKeyString" class="form-input" style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #93c5fd;" placeholder="MADARA-FF-XXXX-XXXX-XXXX-XXXX">
+                <label class="form-label">License Key Code (Secret - Immutable)</label>
+                <input type="text" id="editKeyString" class="form-input" style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #93c5fd; background: rgba(255,255,255,0.05); cursor: not-allowed;" placeholder="MADARA-FF-XXXX-XXXX-XXXX-XXXX" readonly disabled>
             </div>
             <div class="form-group">
                 <label class="form-label">Status</label>
@@ -1207,36 +1305,90 @@
 
         const TOKEN_STORAGE_KEY = 'madara_admin_token';
         const USERNAME_STORAGE_KEY = 'madara_admin_username';
-        const LATEST_KEY_STORAGE_KEY = 'optimizer_admin_latest_key_v1';
-        const ALL_KEYS_STORAGE_KEY = 'optimizer_admin_all_keys_v1';
 
-        // Initialize state from local cache so keys never disappear on logout/refresh
+        // Purge any stale client-side key storage so server is the single source of truth
         try {
-            const cachedLatest = localStorage.getItem(LATEST_KEY_STORAGE_KEY);
-            if (cachedLatest) latestKeyData = JSON.parse(cachedLatest);
-        } catch (e) {}
-
-        try {
-            const cachedAll = localStorage.getItem(ALL_KEYS_STORAGE_KEY);
-            if (cachedAll) {
-                const parsed = JSON.parse(cachedAll);
-                if (Array.isArray(parsed)) allKeys = parsed;
-            }
+            localStorage.removeItem('optimizer_admin_latest_key_v1');
+            localStorage.removeItem('optimizer_admin_all_keys_v1');
+            sessionStorage.removeItem('optimizer_admin_latest_key_v1');
+            sessionStorage.removeItem('optimizer_admin_all_keys_v1');
         } catch (e) {}
 
         function saveLatestKey(k) {
             latestKeyData = k;
-            try {
-                if (k) localStorage.setItem(LATEST_KEY_STORAGE_KEY, JSON.stringify(k));
-                else localStorage.removeItem(LATEST_KEY_STORAGE_KEY);
-            } catch (e) {}
         }
 
         function saveAllKeys(keys) {
             allKeys = Array.isArray(keys) ? keys : [];
+        }
+
+        // --- REAL-TIME SERVER-SENT EVENTS (SSE) & POLLING FALLBACK ---
+        let adminEventSource = null;
+        let sseReconnectTimer = null;
+        let fallbackPollingInterval = null;
+
+        function connectAdminEventSource(token) {
+            if (!token) return;
+            if (adminEventSource) {
+                try { adminEventSource.close(); } catch (e) {}
+                adminEventSource = null;
+            }
+            if (sseReconnectTimer) {
+                clearTimeout(sseReconnectTimer);
+                sseReconnectTimer = null;
+            }
+
             try {
-                localStorage.setItem(ALL_KEYS_STORAGE_KEY, JSON.stringify(allKeys));
-            } catch (e) {}
+                adminEventSource = new EventSource(`/api/admin/events?token=${encodeURIComponent(token)}`);
+
+                adminEventSource.onopen = () => {
+                    console.log('[SSE] Connected to real-time events stream');
+                    startPolling(30000); // SSE is active; maintain low-frequency 30s background sync
+                };
+
+                adminEventSource.onmessage = (e) => {
+                    if (!e.data) return;
+                    try {
+                        const event = JSON.parse(e.data);
+                        console.log('[SSE] Live Event:', event.type, event.payload);
+                        handleRealtimeAdminEvent(event);
+                    } catch (err) {
+                        console.error('[SSE] Failed to parse event payload:', err);
+                    }
+                };
+
+                adminEventSource.onerror = (err) => {
+                    console.warn('[SSE] EventSource interrupted, falling back to 5s polling and reconnecting in 5s...', err);
+                    try { adminEventSource.close(); } catch (e) {}
+                    adminEventSource = null;
+                    startPolling(5000); // 5s fallback polling when SSE is disconnected
+                    sseReconnectTimer = setTimeout(() => {
+                        const curToken = getToken();
+                        if (curToken) connectAdminEventSource(curToken);
+                    }, 5000);
+                };
+            } catch (err) {
+                console.error('[SSE] Connection error:', err);
+                startPolling(5000);
+            }
+        }
+
+        function startPolling(ms) {
+            if (fallbackPollingInterval) clearInterval(fallbackPollingInterval);
+            fallbackPollingInterval = setInterval(() => {
+                const token = getToken();
+                if (token) {
+                    loadStatsData();
+                    loadKeysData();
+                }
+            }, ms);
+        }
+
+        function handleRealtimeAdminEvent(event) {
+            if (!event || !event.type) return;
+            // Always refresh stats and keys across connected dashboards without page reloads
+            loadStatsData();
+            loadKeysData();
         }
 
         async function triggerCloudSync() {
@@ -1456,6 +1608,18 @@
                 clearInterval(liveTickerInterval);
                 liveTickerInterval = null;
             }
+            if (adminEventSource) {
+                try { adminEventSource.close(); } catch (e) {}
+                adminEventSource = null;
+            }
+            if (sseReconnectTimer) {
+                clearTimeout(sseReconnectTimer);
+                sseReconnectTimer = null;
+            }
+            if (fallbackPollingInterval) {
+                clearInterval(fallbackPollingInterval);
+                fallbackPollingInterval = null;
+            }
         }
 
         function showDashboard(token = null, username = null) {
@@ -1469,15 +1633,11 @@
             const user = username || getUsername() || 'MADARA-FF';
             document.getElementById('navUserBadge').innerText = user;
 
-            // Render cached data immediately so keys are never missing even after session logout/reload
-            if (latestKeyData) renderLatestKey(latestKeyData);
-            if (allKeys && allKeys.length > 0) {
-                renderKeysList();
-                renderHistoryList();
-            }
-
             loadStatsData();
             loadKeysData();
+
+            // Connect to real-time events stream (SSE) with automatic fallback polling
+            connectAdminEventSource(token || getToken());
 
             // Start live ticker every second for accurate countdowns
             if (liveTickerInterval) clearInterval(liveTickerInterval);
@@ -1655,9 +1815,16 @@
             const expVal = document.getElementById('latestExpiryVal');
             if (expVal) expVal.innerText = isPerm ? 'Permanent (Lifetime)' : (status === 'INACTIVE' ? formatDurationLabel(k.duration_hours) : (k.expires_at ? formatDateTime(k.expires_at) : formatDurationLabel(k.duration_hours)));
 
-            // Revoke button label
+            // Revoke button
             const btnRevoke = document.getElementById('btnToggleRevokeLatest');
-            if (btnRevoke) btnRevoke.innerText = k.status === 'REVOKED' ? 'Reactivate' : 'Revoke';
+            if (btnRevoke) {
+                if (k.status === 'REVOKED') {
+                    btnRevoke.style.display = 'none';
+                } else {
+                    btnRevoke.style.display = 'inline-flex';
+                    btnRevoke.innerText = 'Revoke';
+                }
+            }
 
             updateLatestCountdown();
         }
@@ -1678,16 +1845,19 @@
 
         async function toggleRevokeLatest() {
             if (!latestKeyData) return;
-            const isRevoked = latestKeyData.status === 'REVOKED';
-            const endpoint = isRevoked ? `/api/keys/${latestKeyData.id}/resume` : `/api/keys/${latestKeyData.id}/revoke`;
-            const res = await api(endpoint, { method: 'POST' });
+            if (latestKeyData.status === 'REVOKED') {
+                alert('Revoked keys cannot be reactivated. Please generate a new key if access is needed.');
+                return;
+            }
+            if (!confirm('Are you sure you want to permanently revoke this key? Active devices will immediately lose access.')) return;
+            const res = await api(`/api/keys/${latestKeyData.id}/revoke`, { method: 'POST' });
             if (res.success && res.key) {
                 latestKeyData = res.key;
                 saveLatestKey(latestKeyData);
                 renderLatestKey(latestKeyData);
                 loadStatsData();
                 loadKeysData();
-                showToast(isRevoked ? 'Key reactivated' : 'Key revoked');
+                showToast('Key permanently revoked');
             } else {
                 alert(res.message || 'Action failed');
             }
@@ -1950,12 +2120,13 @@
                             <button class="btn btn-tonal btn-sm" onclick="copyText('${k.key_display}', 'Authorization Key')">Copy</button>
                             ${status === 'PAUSED' ?
                                 `<button class="btn btn-success btn-sm" onclick="resumeKey(${k.id})">Resume</button>` :
-                                `<button class="btn btn-warning btn-sm" onclick="pauseKey(${k.id})">Pause</button>`
+                                (status === 'REVOKED' || status === 'EXPIRED' ? '' : `<button class="btn btn-warning btn-sm" onclick="pauseKey(${k.id})">Pause</button>`)
                             }
                             ${status === 'REVOKED' ?
-                                `<button class="btn btn-success btn-sm" onclick="resumeKey(${k.id})">Reactivate</button>` :
+                                `<span class="status-badge status-badge-revoked" style="font-size: 11px; padding: 4px 8px;">Revoked</span>` :
                                 `<button class="btn btn-danger btn-sm" onclick="revokeKey(${k.id})">Revoke</button>`
                             }
+                            <button class="btn btn-tonal btn-sm" onclick="openExtendModal(${k.id})">Extend</button>
                             <button class="btn btn-outline btn-sm" onclick="openEditModal(${k.id})">Edit</button>
                             <button class="btn btn-outline btn-sm" onclick="openKeyDetailsById(${k.id})">Details</button>
                             <button class="btn btn-outline btn-sm" style="color: var(--status-expired); border-color: rgba(239, 68, 68, 0.4);" onclick="deleteKeyItem(${k.id})">Delete</button>
@@ -1989,6 +2160,7 @@
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 ${formatStatusBadge(status)}
                                 <button class="btn btn-tonal btn-sm" onclick="copyText('${k.key_display}', 'Key')">Copy</button>
+                                <button class="btn btn-tonal btn-sm" onclick="openExtendModal(${k.id})">Extend</button>
                                 <button class="btn btn-outline btn-sm" onclick="openKeyDetailsById(${k.id})">Details</button>
                                 <button class="btn btn-outline btn-sm" style="color: var(--status-expired); border-color: rgba(239, 68, 68, 0.4);" onclick="openDeleteModal(${k.id})">Delete</button>
                             </div>
@@ -1998,7 +2170,7 @@
             }).join('');
         }
 
-        // --- KEY ACTIONS: PAUSE, RESUME, REVOKE, DELETE ---
+        // --- KEY ACTIONS: PAUSE, RESUME, REVOKE, EXTEND, DELETE ---
         async function pauseKey(id) {
             const res = await api(`/api/keys/${id}/pause`, { method: 'POST' });
             if (res.success) {
@@ -2022,14 +2194,73 @@
         }
 
         async function revokeKey(id) {
-            if (!confirm('Are you sure you want to revoke this key? Active devices will immediately lose access.')) return;
+            if (!confirm('Are you sure you want to permanently revoke this key? Active devices will immediately lose access.')) return;
             const res = await api(`/api/keys/${id}/revoke`, { method: 'POST' });
             if (res.success) {
-                showToast('Key revoked');
+                showToast('Key permanently revoked');
                 loadStatsData();
                 loadKeysData();
             } else {
                 alert(res.message || 'Failed to revoke key');
+            }
+        }
+
+        // --- EXTEND EXPIRY MODAL & ACTION ---
+        function openExtendModal(id) {
+            if (!id) return;
+            const keyItem = allKeys.find(k => k.id === id) || (latestKeyData && latestKeyData.id === id ? latestKeyData : null);
+            if (!keyItem) return;
+
+            document.getElementById('extendKeyId').value = id;
+            document.getElementById('extendModalKeyCode').innerText = keyItem.key_display || `Key #${id}`;
+            const status = computeKeyStatus(keyItem);
+            document.getElementById('extendModalStatus').innerHTML = formatStatusBadge(status);
+            document.getElementById('extendModalCurrentExpiry').innerText = keyItem.expires_at ? formatDateTime(keyItem.expires_at) : (keyItem.duration_hours === -1 ? 'Permanent (Lifetime)' : formatDurationLabel(keyItem.duration_hours));
+            document.getElementById('inputExtendHours').value = 24;
+            document.getElementById('extendModalError').style.display = 'none';
+            document.getElementById('extendModalError').innerText = '';
+
+            openModal('modalExtendExpiry');
+        }
+
+        function setExtendHoursVal(h) {
+            document.getElementById('inputExtendHours').value = h;
+        }
+
+        async function submitExtendExpiry() {
+            const id = document.getElementById('extendKeyId').value;
+            const hours = parseInt(document.getElementById('inputExtendHours').value, 10);
+            if (!id || isNaN(hours) || hours <= 0) {
+                alert('Please enter a valid positive number of hours.');
+                return;
+            }
+
+            const btn = document.getElementById('btnConfirmExtend');
+            btn.disabled = true;
+            document.getElementById('btnExtendSpinner').style.display = 'inline';
+            document.getElementById('extendModalError').style.display = 'none';
+
+            try {
+                const res = await api(`/api/keys/${id}/extend`, {
+                    method: 'POST',
+                    body: JSON.stringify({ hours })
+                });
+
+                if (res.success && res.key) {
+                    closeModal('modalExtendExpiry');
+                    showToast(`Key expiry successfully extended by ${hours} hours!`);
+                    loadStatsData();
+                    loadKeysData();
+                } else {
+                    document.getElementById('extendModalError').style.display = 'block';
+                    document.getElementById('extendModalError').innerText = res.message || 'Failed to extend expiry';
+                }
+            } catch (err) {
+                document.getElementById('extendModalError').style.display = 'block';
+                document.getElementById('extendModalError').innerText = err.message || 'Network error';
+            } finally {
+                btn.disabled = false;
+                document.getElementById('btnExtendSpinner').style.display = 'none';
             }
         }
 
@@ -2169,7 +2400,19 @@
 
             document.getElementById('editKeyId').value = id;
             document.getElementById('editKeyString').value = keyItem.key_display || '';
-            document.getElementById('editStatus').value = keyItem.status || 'ACTIVE';
+            const statusSelect = document.getElementById('editStatus');
+            statusSelect.value = keyItem.status || 'ACTIVE';
+
+            // Revoked keys can NEVER be reactivated or changed to any other status
+            const isRevoked = keyItem.status === 'REVOKED';
+            Array.from(statusSelect.options).forEach(opt => {
+                if (isRevoked) {
+                    opt.disabled = opt.value !== 'REVOKED';
+                } else {
+                    opt.disabled = false;
+                }
+            });
+
             document.getElementById('editDurationHours').value = (keyItem.duration_hours !== undefined && keyItem.duration_hours !== null) ? keyItem.duration_hours : -1;
             document.getElementById('editCustomerName').value = keyItem.customer_name || '';
             document.getElementById('editMaxDevices').value = keyItem.max_devices || 1;
@@ -2180,7 +2423,6 @@
 
         async function submitEditKey() {
             const id = document.getElementById('editKeyId').value;
-            const keyString = document.getElementById('editKeyString').value.trim().toUpperCase();
             const status = document.getElementById('editStatus').value;
             const durationHours = parseInt(document.getElementById('editDurationHours').value, 10);
             const customerName = document.getElementById('editCustomerName').value.trim();
@@ -2190,7 +2432,6 @@
             const res = await api(`/api/keys/${id}`, {
                 method: 'PATCH',
                 body: JSON.stringify({
-                    key_display: keyString,
                     status: status,
                     duration_hours: durationHours,
                     customer_name: customerName,
@@ -2201,7 +2442,7 @@
 
             if (res.success) {
                 closeModal('modalEditKey');
-                showToast('Key updated directly on server');
+                showToast('Key metadata updated on server');
                 loadStatsData();
                 loadKeysData();
             } else {
