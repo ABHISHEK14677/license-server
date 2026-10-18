@@ -1,11 +1,11 @@
 {
-  "latest_version": "1.3.3",
-  "version_code": 35,
+  "latest_version": "1.3.4",
+  "version_code": 36,
   "min_version": "1.0.0",
   "title": "Z E X O Update Available",
-  "release_notes": "",
+  "release_notes": "Custom Optimization Hub with Network Optimization & Network Manager v1.3.4",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 6672400,
-  "updated_at": "2026-10-17T04:20:00Z"
+  "file_size_bytes": 6688951,
+  "updated_at": "2026-10-18T10:50:00Z"
 }
