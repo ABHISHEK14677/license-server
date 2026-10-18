@@ -1,25 +1,9 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const { hashPassword, hashKey, getKeyLast4 } = require('./auth');
+const { config } = require('./config');
 
-// Load environment variables from .env if present
-const envPath = path.join(__dirname, '.env');
-if (fs.existsSync(envPath)) {
-    const lines = fs.readFileSync(envPath, 'utf8').split('\n');
-    for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed && !trimmed.startsWith('#')) {
-            const idx = trimmed.indexOf('=');
-            if (idx !== -1) {
-                const k = trimmed.substring(0, idx).trim();
-                const v = trimmed.substring(idx + 1).trim();
-                if (process.env[k] === undefined) process.env[k] = v;
-            }
-        }
-    }
-}
-
-const DATABASE_URL = process.env.DATABASE_URL;
+const DATABASE_URL = config.databaseUrl;
 let isPostgres = false;
 let pgPool = null;
 let sqliteDb = null;
@@ -29,11 +13,20 @@ if (DATABASE_URL && DATABASE_URL.startsWith('postgres')) {
     const { Pool } = require('pg');
     pgPool = new Pool({
         connectionString: DATABASE_URL,
-        ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+        ssl: config.isProduction ? { rejectUnauthorized: false } : false
     });
     console.log('[DB] Using PostgreSQL connection pool');
 } else {
-    const { DatabaseSync } = require('node:sqlite');
+    if (config.isProduction) {
+        console.warn('[DB WARNING] Running in production on local SQLite. Data will not persist across container redeployments without a persistent database. Configure DATABASE_URL.');
+    }
+    let DatabaseSync;
+    try {
+        DatabaseSync = require('node:sqlite').DatabaseSync;
+    } catch (e) {
+        console.error('[DB FATAL] Failed to load node:sqlite. Ensure Node.js is executed with --experimental-sqlite or connect a PostgreSQL instance via DATABASE_URL.');
+        throw new Error(`node:sqlite unavailable: ${e.message}. Run with node --experimental-sqlite or provide DATABASE_URL.`);
+    }
     const DB_PATH = path.join(__dirname, 'licenses.db');
     sqliteDb = new DatabaseSync(DB_PATH);
     console.log('[DB] Using local SQLite database:', DB_PATH);
@@ -350,25 +343,28 @@ async function initDatabase() {
             console.log('[INIT] Default product set to: Z E X O');
         }
 
-        // Ensure admin MADARA-FF exists with configured credentials
-        const adminUser = process.env.ADMIN_USERNAME || 'MADARA-FF';
-        const adminPass = process.env.ADMIN_PASSWORD || 'ABHISHEK!';
-        const adminEmail = process.env.ADMIN_EMAIL || 'madara-ff@rootoptimizer.com';
+        // Ensure default admin exists with configured credentials without overwriting on deployment
+        const adminUser = config.adminUsername;
+        const adminPass = config.adminPassword;
+        const adminEmail = config.adminEmail;
         const existingAdmin = await queryOne('SELECT id, salt, password_hash FROM admins WHERE username = ?', [adminUser]);
 
-        const { salt, hash } = hashPassword(adminPass);
         if (!existingAdmin) {
+            const { salt, hash } = hashPassword(adminPass);
             await query(
                 'INSERT INTO admins (email, username, password_hash, salt, role) VALUES (?, ?, ?, ?, ?)',
                 [adminEmail, adminUser, hash, salt, 'superadmin']
             );
-            console.log(`[INIT] Created secure admin account: "${adminUser}"`);
-        } else {
+            console.log(`[INIT] Created secure initial admin account: "${adminUser}"`);
+        } else if (config.forceAdminPasswordReset) {
+            const { salt, hash } = hashPassword(adminPass);
             await query(
                 'UPDATE admins SET password_hash = ?, salt = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
                 [hash, salt, existingAdmin.id]
             );
-            console.log(`[INIT] Verified/Updated admin account credentials for: "${adminUser}"`);
+            console.log(`[INIT] Force-reset admin credentials for "${adminUser}" per configuration flag.`);
+        } else {
+            console.log(`[INIT] Verified existing admin account credentials for: "${adminUser}" (preserved)`);
         }
 
         // Restore persistent keys and active devices from seed-keys.json
@@ -430,7 +426,6 @@ async function exportSeedKeys() {
         if (dbRows.length === 0) {
             try {
                 fs.writeFileSync(SEED_FILE_PATH, JSON.stringify([], null, 2), 'utf8');
-                syncSeedKeysToGitHub().catch(() => {});
             } catch (e) {}
             return [];
         }
@@ -488,67 +483,11 @@ async function exportSeedKeys() {
         const finalOutput = Array.from(existingSeedMap.values());
         try {
             fs.writeFileSync(SEED_FILE_PATH, JSON.stringify(finalOutput, null, 2), 'utf8');
-            syncSeedKeysToGitHub().catch(() => {});
         } catch (e) {}
         return finalOutput;
     } catch (err) {
         console.error('[SEED] Failed to export seed-keys.json:', err.message);
         return [];
-    }
-}
-
-async function syncSeedKeysToGitHub() {
-    const token = process.env.GITHUB_TOKEN;
-    const repo = process.env.GITHUB_REPO || 'ABHISHEK14677/license-server';
-    const filePath = 'seed-keys.json';
-
-    if (!token || !repo || !fs.existsSync(SEED_FILE_PATH)) return;
-
-    try {
-        const seedKeysData = fs.readFileSync(SEED_FILE_PATH, 'utf8');
-        if (!seedKeysData || seedKeysData.trim() === '[]') return;
-
-        const getRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
-            headers: {
-                'Authorization': `token ${token}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'User-Agent': 'LicenseServer-Sync'
-            }
-        });
-
-        let sha = null;
-        if (getRes.ok) {
-            const getData = await getRes.json();
-            sha = getData.sha;
-            const remoteContent = Buffer.from(getData.content, 'base64').toString('utf8');
-            if (remoteContent.trim() === seedKeysData.trim()) {
-                return;
-            }
-        }
-
-        const putBody = {
-            message: 'Auto-sync: update seed-keys.json persistence baseline',
-            content: Buffer.from(seedKeysData, 'utf8').toString('base64'),
-            branch: 'main'
-        };
-        if (sha) putBody.sha = sha;
-
-        const putRes = await fetch(`https://api.github.com/repos/${repo}/contents/${filePath}`, {
-            method: 'PUT',
-            headers: {
-                'Authorization': `token ${token}`,
-                'Content-Type': 'application/json',
-                'Accept': 'application/vnd.github.v3+json',
-                'User-Agent': 'LicenseServer-Sync'
-            },
-            body: JSON.stringify(putBody)
-        });
-
-        if (putRes.ok) {
-            console.log('[GITHUB-SYNC] Successfully persisted seed-keys.json to GitHub repository');
-        }
-    } catch (e) {
-        console.warn('[GITHUB-SYNC] GitHub persistence sync deferred:', e.message);
     }
 }
 
@@ -1271,7 +1210,6 @@ async function clearAllKeys(deletedBy = 'admin', reason = 'All keys purged by Ad
     const res = await query('DELETE FROM activation_keys');
     try {
         fs.writeFileSync(SEED_FILE_PATH, JSON.stringify([], null, 2), 'utf8');
-        syncSeedKeysToGitHub().catch(() => {});
     } catch (e) {}
     return res.rowCount || 0;
 }
@@ -1522,6 +1460,5 @@ module.exports = {
     getRecentLogs,
     // Persistence
     exportSeedKeys,
-    importSeedKeys,
-    syncSeedKeysToGitHub
+    importSeedKeys
 };

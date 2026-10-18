@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-const { createAdmin, getAdminByUsername } = require('../db');
+const db = require('../db');
 
 const args = process.argv.slice(2);
 if (args.length < 2) {
@@ -9,16 +9,20 @@ if (args.length < 2) {
 
 const [username, password] = args;
 
-try {
-    const existing = getAdminByUsername(username);
-    if (existing) {
-        console.error(`Error: Admin username "${username}" already exists.`);
+(async () => {
+    try {
+        await db.initDatabase();
+        const existing = await db.getAdminByUsername(username);
+        if (existing) {
+            console.error(`Error: Admin username "${username}" already exists.`);
+            process.exit(1);
+        }
+
+        await db.createAdmin(username, password);
+        console.log(`[SUCCESS] Admin user "${username}" created successfully!`);
+        process.exit(0);
+    } catch (err) {
+        console.error(`[ERROR] Failed to create admin:`, err.message);
         process.exit(1);
     }
-
-    createAdmin(username, password);
-    console.log(`[SUCCESS] Admin user "${username}" created successfully!`);
-} catch (err) {
-    console.error(`[ERROR] Failed to create admin:`, err.message);
-    process.exit(1);
-}
+})();

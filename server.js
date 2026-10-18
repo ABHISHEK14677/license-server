@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('node:path');
 const fs = require('node:fs');
+const { config, validateConfig, getSanitizedConfig, safeTimingCompare } = require('./config');
 const {
     generateLicenseKey,
     hashKey,
@@ -14,7 +15,7 @@ const {
 const db = require('./db');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = config.port;
 
 app.use(cors());
 app.use(express.json());
@@ -129,9 +130,9 @@ async function handleAdminSetup(req, res) {
         const { username = 'admin', password = 'admin123', email = 'admin@rootoptimizer.com', secret } = req.body;
         const existingAdmin = await db.getAdminByUsername(username);
 
-        // Allow setup if no admin exists, or if valid ADMIN_SECRET_KEY is provided
-        const requiredSecret = process.env.ADMIN_SECRET_KEY || 'rootoptimizer_secret_2026';
-        if (existingAdmin && secret !== requiredSecret) {
+        // Allow setup if no admin exists, or if valid ADMIN_SECRET is provided
+        const requiredSecret = config.adminSecret;
+        if (existingAdmin && (!secret || !safeTimingCompare(secret, requiredSecret))) {
             return res.status(403).json({
                 success: false,
                 message: 'Admin account already exists. Please log in with your credentials.'
@@ -142,13 +143,13 @@ async function handleAdminSetup(req, res) {
             await db.updateAdminPassword(existingAdmin.id, password);
             return res.json({
                 success: true,
-                message: `Admin account "${username}" password updated successfully!`
+                message: `Admin account "${username}" password updated successfully.`
             });
         } else {
             await db.createAdmin(username, password, email, 'superadmin');
             return res.json({
                 success: true,
-                message: `Admin account "${username}" initialized successfully! Password: "${password}"`
+                message: `Admin account "${username}" initialized successfully.`
             });
         }
     } catch (err) {
@@ -374,12 +375,13 @@ app.post('/api/keys/import', requireAdmin, async (req, res) => {
     }
 });
 
-// Helper: Forward key deletion to Cloud Server immediately
+// Helper: Forward key deletion to Cloud Server immediately (development only)
 async function deleteKeyFromCloud(keyIdentifier) {
+    if (config.isRender || !config.autoSyncCloud) return;
     try {
-        const cloudUrl = process.env.CLOUD_SERVER_URL || 'https://optimizer-stzd.onrender.com';
-        const adminUser = process.env.ADMIN_USERNAME || 'MADARA-FF';
-        const adminPass = process.env.ADMIN_PASSWORD || 'ABHISHEK!';
+        const cloudUrl = config.cloudServerUrl;
+        const adminUser = config.adminUsername;
+        const adminPass = config.adminPassword;
         
         const loginRes = await fetch(`${cloudUrl}/api/auth/admin/login`, {
             method: 'POST',
@@ -412,12 +414,13 @@ async function deleteKeyFromCloud(keyIdentifier) {
     }
 }
 
-// Helper: Forward key edit / update to Cloud Server immediately
+// Helper: Forward key edit / update to Cloud Server immediately (development only)
 async function updateKeyOnCloud(keyIdentifier, updatePayload) {
+    if (config.isRender || !config.autoSyncCloud) return;
     try {
-        const cloudUrl = process.env.CLOUD_SERVER_URL || 'https://optimizer-stzd.onrender.com';
-        const adminUser = process.env.ADMIN_USERNAME || 'MADARA-FF';
-        const adminPass = process.env.ADMIN_PASSWORD || 'ABHISHEK!';
+        const cloudUrl = config.cloudServerUrl;
+        const adminUser = config.adminUsername;
+        const adminPass = config.adminPassword;
         
         const loginRes = await fetch(`${cloudUrl}/api/auth/admin/login`, {
             method: 'POST',
@@ -456,9 +459,12 @@ async function updateKeyOnCloud(keyIdentifier, updatePayload) {
 
 // Cloud Synchronization
 async function syncWithCloudServer() {
-    const cloudUrl = process.env.CLOUD_SERVER_URL || 'https://optimizer-stzd.onrender.com';
-    const adminUser = process.env.ADMIN_USERNAME || 'MADARA-FF';
-    const adminPass = process.env.ADMIN_PASSWORD || 'ABHISHEK!';
+    if (config.isRender) {
+        return { success: true, message: 'Running on Render Cloud; external sync skipped.' };
+    }
+    const cloudUrl = config.cloudServerUrl;
+    const adminUser = config.adminUsername;
+    const adminPass = config.adminPassword;
 
     // Step 1: Login to Cloud Server
     const loginRes = await fetch(`${cloudUrl}/api/auth/admin/login`, {
@@ -817,12 +823,12 @@ async function handleClearAllKeys(req, res) {
         const count = await db.clearAllKeys();
         await db.logAuditEvent('ALL_KEYS_PURGED', { count }, getClientIp(req));
 
-        // Also purge remote keys on Render Cloud if not running directly on Render
-        if (!process.env.RENDER) {
+        // Also purge remote keys on Render Cloud if in development and auto-sync is explicitly enabled
+        if (!config.isRender && config.autoSyncCloud) {
             try {
-                const cloudUrl = process.env.CLOUD_SERVER_URL || 'https://optimizer-stzd.onrender.com';
-                const adminUser = process.env.ADMIN_USERNAME || 'MADARA-FF';
-                const adminPass = process.env.ADMIN_PASSWORD || 'ABHISHEK!';
+                const cloudUrl = config.cloudServerUrl;
+                const adminUser = config.adminUsername;
+                const adminPass = config.adminPassword;
                 const loginRes = await fetch(`${cloudUrl}/api/auth/admin/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -855,11 +861,11 @@ async function handleClearActiveKeys(req, res) {
         const count = await db.deleteActiveKeys('admin', 'Revoked and cleared by Administrator');
         await db.logAuditEvent('ACTIVE_KEYS_DELETED', { count }, getClientIp(req));
 
-        if (!process.env.RENDER) {
+        if (!config.isRender && config.autoSyncCloud) {
             try {
-                const cloudUrl = process.env.CLOUD_SERVER_URL || 'https://optimizer-stzd.onrender.com';
-                const adminUser = process.env.ADMIN_USERNAME || 'MADARA-FF';
-                const adminPass = process.env.ADMIN_PASSWORD || 'ABHISHEK!';
+                const cloudUrl = config.cloudServerUrl;
+                const adminUser = config.adminUsername;
+                const adminPass = config.adminPassword;
                 const loginRes = await fetch(`${cloudUrl}/api/auth/admin/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1468,23 +1474,23 @@ function getAppUpdateConfig() {
     }
 
     return {
-        latest_version: dynamicConfig.latest_version || process.env.APP_LATEST_VERSION || '1.0.5',
-        version_code: parseInt(dynamicConfig.version_code || process.env.APP_VERSION_CODE || '6', 10),
-        min_version: dynamicConfig.min_version || '1.0.0',
+        latest_version: dynamicConfig.latest_version || config.appLatestVersion || '1.3.6',
+        version_code: parseInt(dynamicConfig.version_code || config.appVersionCode || '38', 10),
+        min_version: dynamicConfig.min_version || config.appMinVersion || '1.0.0',
         title: dynamicConfig.title || 'Z E X O Update Available',
         release_notes: (dynamicConfig.release_notes !== undefined) ? dynamicConfig.release_notes : '',
         apk_filename: dynamicConfig.apk_filename || (fs.existsSync(zexoraApk) ? 'Zexora.apk' : 'RootOptimizer.apk'),
-        download_url: dynamicConfig.download_url || process.env.APP_DOWNLOAD_URL || '/api/app/download',
+        download_url: dynamicConfig.download_url || config.appDownloadUrl || '/api/app/download',
         file_size_bytes: fileSize
     };
 }
 
 app.get(['/api/app/update', '/api/app/version'], (req, res) => {
-    const config = getAppUpdateConfig();
+    const appConfig = getAppUpdateConfig();
     const currentCode = parseInt(req.query.version_code || req.query.code || '1', 10);
-    const updateAvailable = currentCode < config.version_code;
+    const updateAvailable = currentCode < appConfig.version_code;
 
-    let directUrl = config.download_url;
+    let directUrl = appConfig.download_url;
     if (directUrl.startsWith('/')) {
         const host = req.get('host');
         const proto = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
@@ -1496,23 +1502,26 @@ app.get(['/api/app/update', '/api/app/version'], (req, res) => {
         update_available: updateAvailable,
         force_update: updateAvailable,
         mandatory: updateAvailable,
-        latest_version: config.latest_version,
-        version_code: config.version_code,
-        min_version: config.min_version,
-        release_notes: config.release_notes,
+        latest_version: appConfig.latest_version,
+        version_code: appConfig.version_code,
+        min_version: appConfig.min_version,
+        release_notes: appConfig.release_notes,
         download_url: directUrl,
-        file_size_bytes: config.file_size_bytes
+        file_size_bytes: appConfig.file_size_bytes
     });
 });
 
 app.post(['/api/app/publish', '/api/admin/app/publish'], express.json(), (req, res) => {
-    const secret = req.headers['x-admin-key'] || req.query.admin_key || req.body.admin_key;
-    const expectedSecret = process.env.ADMIN_SECRET || 'optimizer-admin-secret-2026';
-    if (secret !== expectedSecret && req.headers['authorization'] !== `Bearer ${expectedSecret}`) {
+    let secret = req.headers['x-admin-key'] || req.query.admin_key || req.body?.admin_key;
+    if (!secret && req.headers['authorization']?.startsWith('Bearer ')) {
+        secret = req.headers['authorization'].slice(7).trim();
+    }
+    const expectedSecret = config.adminSecret;
+    if (!secret || !safeTimingCompare(secret, expectedSecret)) {
         return res.status(401).json({ success: false, error: 'Unauthorized' });
     }
 
-    const { latest_version, version_code, release_notes, min_version, download_url } = req.body;
+    const { latest_version, version_code, release_notes, min_version, download_url } = req.body || {};
     const versionFile = path.join(__dirname, 'public', 'downloads', 'version.json');
     let currentConfig = {};
     if (fs.existsSync(versionFile)) {
@@ -1558,13 +1567,29 @@ app.get(['/api/app/download', '/download/app-release.apk', '/download/Zexora.apk
         });
     }
 
-    if (process.env.APP_DOWNLOAD_URL && !process.env.APP_DOWNLOAD_URL.startsWith('/')) {
-        return res.redirect(process.env.APP_DOWNLOAD_URL);
+    if (config.appDownloadUrl && !config.appDownloadUrl.startsWith('/')) {
+        return res.redirect(config.appDownloadUrl);
     }
 
     res.status(404).json({
         success: false,
         message: 'No APK file uploaded to server yet.'
+    });
+});
+
+// -------------------------------------------------------------
+// Protected Configuration Status & Health Check
+// -------------------------------------------------------------
+app.get('/api/config/status', requireAdmin, (req, res) => {
+    const sanitized = getSanitizedConfig(config);
+    const validation = validateConfig(config);
+    res.json({
+        success: true,
+        config: sanitized,
+        validation: {
+            valid: validation.valid,
+            warnings: validation.warnings
+        }
     });
 });
 
@@ -1575,14 +1600,25 @@ app.get(['/', '/admin', '/login'], (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Centralized Production-Safe Error Handler
+app.use((err, req, res, next) => {
+    console.error('[SERVER ERROR]', err.message || err);
+    if (res.headersSent) return next(err);
+    res.status(err.status || 500).json({
+        success: false,
+        error: config.isProduction ? 'INTERNAL_ERROR' : (err.code || 'SERVER_ERROR'),
+        message: config.isProduction ? 'An unexpected server error occurred.' : (err.message || 'Server error')
+    });
+});
+
 // Keep-alive pinger to prevent Render free-tier 15-minute inactivity spin-down
 function startKeepAlive() {
-    const KEEP_ALIVE_INTERVAL = 8 * 60 * 1000; // 8 minutes (well under Render 15-min idle spin-down)
+    if (!config.isRender && !process.env.ENABLE_KEEP_ALIVE) return;
+    const KEEP_ALIVE_INTERVAL = 8 * 60 * 1000; // 8 minutes
     setInterval(async () => {
         try {
-            const cloudUrl = process.env.CLOUD_SERVER_URL || 'https://optimizer-stzd.onrender.com';
-            const pingUrl = process.env.SELF_URL ||
-                (process.env.RENDER ? `${cloudUrl}/api/health` : `http://127.0.0.1:${PORT}/api/health`);
+            const cloudUrl = config.cloudServerUrl;
+            const pingUrl = process.env.SELF_URL || `${cloudUrl}/api/health`;
             const res = await fetch(pingUrl, {
                 headers: { 'User-Agent': 'ZexoKeepAlive/1.0' }
             });
@@ -1590,30 +1626,42 @@ function startKeepAlive() {
                 console.log(`[KEEP-ALIVE] Heartbeat ping successful to ${pingUrl} at ${new Date().toISOString()}`);
             }
         } catch (e) {
-            console.warn('[KEEP-ALIVE] Heartbeat ping error:', e.message);
+            console.warn('[KEEP-ALIVE] Heartbeat ping deferred:', e.message);
         }
     }, KEEP_ALIVE_INTERVAL).unref();
 
     // Initial ping shortly after server start
     setTimeout(async () => {
         try {
-            const cloudUrl = process.env.CLOUD_SERVER_URL || 'https://optimizer-stzd.onrender.com';
-            const pingUrl = process.env.SELF_URL ||
-                (process.env.RENDER ? `${cloudUrl}/api/health` : `http://127.0.0.1:${PORT}/api/health`);
+            const cloudUrl = config.cloudServerUrl;
+            const pingUrl = process.env.SELF_URL || `${cloudUrl}/api/health`;
             await fetch(pingUrl, { headers: { 'User-Agent': 'ZexoKeepAlive/1.0' } });
             console.log(`[KEEP-ALIVE] Initial keep-alive ping dispatched to ${pingUrl}`);
         } catch (e) {}
     }, 15000).unref();
 }
 
-// Initialize database schema and start server if executed directly
+// Pre-flight configuration validation & server startup
 if (require.main === module) {
+    const validation = validateConfig(config);
+    if (!validation.valid) {
+        console.error('[CONFIG FATAL] Deployment stopped: Configuration validation failed:');
+        for (const err of validation.errors) {
+            console.error(`  - ${err}`);
+        }
+        process.exit(1);
+    }
+
+    for (const warn of validation.warnings) {
+        console.warn(`[CONFIG WARNING] ${warn}`);
+    }
+
     db.initDatabase().then(() => {
-        app.listen(PORT, '0.0.0.0', () => {
-            console.log(`[SERVER] Z E X O License Server & Key Generator running on port ${PORT}`);
+        app.listen(config.port, config.host, () => {
+            console.log(`[SERVER] Z E X O License Server running on port ${config.port} (${config.nodeEnv})`);
             startKeepAlive();
-            // Attempt non-blocking background sync with Render Cloud
-            if (!process.env.RENDER && process.env.AUTO_SYNC_CLOUD !== 'false') {
+            // Background sync only if explicitly enabled in local development
+            if (!config.isRender && config.autoSyncCloud) {
                 setTimeout(async () => {
                     try {
                         console.log('[SYNC] Starting background sync with Render cloud...');
@@ -1626,7 +1674,8 @@ if (require.main === module) {
             }
         });
     }).catch(err => {
-        console.error('[SERVER] Failed to start:', err);
+        console.error('[SERVER] Failed to start:', err.message || err);
+        process.exit(1);
     });
 }
 

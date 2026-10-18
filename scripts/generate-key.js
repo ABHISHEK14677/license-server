@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 const { generateLicenseKey } = require('../auth');
-const { createLicense } = require('../db');
+const db = require('../db');
+const { config } = require('../config');
 
 let durationHours = 720; // default 30d
 let maxActivations = 1;
@@ -18,12 +19,13 @@ for (let i = 0; i < args.length; i++) {
         durationHours = 168;
     } else if (arg === '--30d') {
         durationHours = 720;
+    } else if (arg === '--lifetime') {
+        durationHours = -1;
     } else if (arg === '--days' || arg === '-d') {
         const d = parseInt(args[++i], 10);
-        durationHours = d === 1 ? 24 : d === 7 ? 168 : 720;
+        durationHours = d === -1 ? -1 : d * 24;
     } else if (arg === '--hours' || arg === '-h') {
-        const h = parseInt(args[++i], 10);
-        durationHours = h <= 1 ? 1 : h <= 24 ? 24 : h <= 168 ? 168 : 720;
+        durationHours = parseInt(args[++i], 10);
     } else if (arg === '--max' || arg === '--devices' || arg === '-m') {
         maxActivations = parseInt(args[++i], 10);
     } else if (arg === '--notes' || arg === '-n') {
@@ -39,9 +41,9 @@ for (let i = 0; i < args.length; i++) {
             else if (val === '1d') durationHours = 24;
             else if (val === '7d') durationHours = 168;
             else if (val === '30d') durationHours = 720;
+            else if (val === 'lifetime') durationHours = -1;
             else if (!isNaN(parseInt(arg, 10))) {
-                const num = parseInt(arg, 10);
-                durationHours = num <= 1 ? 1 : num <= 24 ? 24 : num <= 168 ? 168 : 720;
+                durationHours = parseInt(arg, 10);
             }
         }
         else if (i === 1 && !isNaN(parseInt(arg, 10))) maxActivations = parseInt(arg, 10);
@@ -52,8 +54,9 @@ for (let i = 0; i < args.length; i++) {
 
 async function main() {
     try {
+        await db.initDatabase();
         const key = generateLicenseKey(prefix);
-        await createLicense({
+        await db.createLicenseKey({
             licenseKey: key,
             durationHours,
             maxActivations,
@@ -61,56 +64,61 @@ async function main() {
             status: 'UNUSED'
         });
 
-
-
-        // 2. Sync to Render cloud server online
-        let cloudStatus = '✓ Synced to Render Cloud (Worldwide Ready)';
-        try {
-            const cloudUrl = process.env.CLOUD_SERVER_URL || 'https://optimizer-stzd.onrender.com';
-            const adminUser = process.env.ADMIN_USERNAME || 'MADARA-FF';
-            const adminPass = process.env.ADMIN_PASSWORD || 'ABHISHEK!';
-            const loginRes = await fetch(`${cloudUrl}/api/auth/admin/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: adminUser, password: adminPass })
-            });
-            const loginData = await loginRes.json();
-            if (loginData.success && loginData.token) {
-                await fetch(`${cloudUrl}/api/keys/import`, {
+        let cloudStatus = 'Local Database (Offline / Standalone)';
+        if (!config.isRender && config.autoSyncCloud) {
+            try {
+                const cloudUrl = config.cloudServerUrl;
+                const adminUser = config.adminUsername;
+                const adminPass = config.adminPassword;
+                const loginRes = await fetch(`${cloudUrl}/api/auth/admin/login`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${loginData.token}`
-                    },
-                    body: JSON.stringify({
-                        keys: [{
-                            key,
-                            duration_hours: durationDays === -1 ? -1 : durationDays * 24,
-                            max_devices: maxActivations,
-                            notes
-                        }]
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: adminUser, password: adminPass })
                 });
-            } else {
-                cloudStatus = `⚠ Cloud response: ${loginData.message || 'Login failed'}`;
+                const loginData = await loginRes.json();
+                if (loginData.success && loginData.token) {
+                    await fetch(`${cloudUrl}/api/keys/import`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${loginData.token}`
+                        },
+                        body: JSON.stringify({
+                            keys: [{
+                                key,
+                                duration_hours: durationHours,
+                                max_devices: maxActivations,
+                                notes
+                            }]
+                        })
+                    });
+                    cloudStatus = '✓ Synced to Render Cloud (Worldwide Ready)';
+                } else {
+                    cloudStatus = `⚠ Cloud response: ${loginData.message || 'Login failed'}`;
+                }
+            } catch (cloudErr) {
+                cloudStatus = `⚠ Cloud sync deferred (${cloudErr.message})`;
             }
-        } catch (cloudErr) {
-            cloudStatus = `⚠ Cloud sync deferred (${cloudErr.message})`;
         }
+
+        const durationDisplay = durationHours === -1 
+            ? 'Lifetime' 
+            : (durationHours >= 24 ? `${durationHours / 24} Days` : `${durationHours} Hours`);
 
         console.log(`=======================================================`);
         console.log(`                NEW Z E X O LICENSE KEY                `);
         console.log(`              Developed by MADARA FF                   `);
         console.log(`=======================================================`);
         console.log(`License Key:     ${key}`);
-        console.log(`Duration:        ${durationDays === -1 ? 'Lifetime' : durationDays + ' Days'}`);
+        console.log(`Duration:        ${durationDisplay}`);
         console.log(`Active Timer:    Starts upon user activation`);
         console.log(`Status:          UNUSED (Timer starts on activation)`);
         console.log(`Max Devices:     ${maxActivations}`);
-        console.log(`Cloud Access:    ${cloudStatus}`);
+        console.log(`Cloud Status:    ${cloudStatus}`);
         console.log(`Notes:           ${notes}`);
         console.log(`Copyright:       © Developed by MADARA FF`);
         console.log(`=======================================================`);
+        process.exit(0);
     } catch (err) {
         console.error(`[ERROR] Failed to generate license:`, err.message);
         process.exit(1);

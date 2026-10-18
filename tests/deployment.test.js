@@ -1,0 +1,244 @@
+const test = require('node:test');
+const assert = require('node:assert');
+const path = require('node:path');
+const fs = require('node:fs');
+const http = require('node:http');
+const { app } = require('../server');
+const db = require('../db');
+const {
+    config,
+    resolveConfig,
+    validateConfig,
+    getSanitizedConfig,
+    safeTimingCompare
+} = require('../config');
+
+// Helper to make local HTTP requests to the test Express app
+function makeRequest(server, options = {}) {
+    return new Promise((resolve, reject) => {
+        const addr = server.address();
+        const req = http.request({
+            host: '127.0.0.1',
+            port: addr.port,
+            path: options.path || '/',
+            method: options.method || 'GET',
+            headers: options.headers || {}
+        }, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+                let parsed = data;
+                try { parsed = JSON.parse(data); } catch {}
+                resolve({ status: res.statusCode, headers: res.headers, body: parsed });
+            });
+        });
+        req.on('error', reject);
+        if (options.body) {
+            req.write(typeof options.body === 'string' ? options.body : JSON.stringify(options.body));
+        }
+        req.end();
+    });
+}
+
+test('Deployment Test Suite (Scenarios A through G)', async (t) => {
+    let server;
+    const testPort = 0; // OS assigns free ephemeral port
+    const originalVersionFile = path.join(__dirname, '..', 'public', 'downloads', 'version.json');
+    let originalVersionBackup = null;
+    if (fs.existsSync(originalVersionFile)) {
+        originalVersionBackup = fs.readFileSync(originalVersionFile, 'utf8');
+    }
+
+    await db.initDatabase();
+
+    await new Promise((resolve) => {
+        server = app.listen(testPort, '127.0.0.1', () => resolve());
+    });
+
+    try {
+        // -------------------------------------------------------------
+        // TEST A: Publish a normal application update
+        // -------------------------------------------------------------
+        await t.test('Test A: Normal update publishing preserves server configuration & database', async () => {
+            const adminSecret = config.adminSecret;
+            const updatePayload = {
+                latest_version: '1.3.7-test',
+                version_code: 39,
+                release_notes: 'Automated test release notes',
+                min_version: '1.0.0'
+            };
+
+            const res = await makeRequest(server, {
+                path: '/api/app/publish',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-admin-key': adminSecret
+                },
+                body: updatePayload
+            });
+
+            assert.strictEqual(res.status, 200, 'Publish endpoint must return 200 OK');
+            assert.strictEqual(res.body.success, true);
+            assert.strictEqual(res.body.config.latest_version, '1.3.7-test');
+            assert.strictEqual(res.body.config.version_code, 39);
+
+            // Confirm version endpoint reflects this update
+            const versionRes = await makeRequest(server, { path: '/api/app/version?code=1' });
+            assert.strictEqual(versionRes.status, 200);
+            assert.strictEqual(versionRes.body.latest_version, '1.3.7-test');
+            assert.strictEqual(versionRes.body.version_code, 39);
+
+            // Confirm existing server credentials remain intact
+            const admin = await db.getAdminByUsername(config.adminUsername);
+            assert.ok(admin, 'Admin account must remain present after publish');
+            assert.strictEqual(admin.username, config.adminUsername);
+        });
+
+        // -------------------------------------------------------------
+        // TEST B: Deploy with required environment variable missing
+        // -------------------------------------------------------------
+        await t.test('Test B: Deployment with missing required secrets fails safely without secret leakage', async () => {
+            // Simulate missing ADMIN_SECRET in production
+            const missingSecretEnv = {
+                NODE_ENV: 'production',
+                ADMIN_PASSWORD: 'ValidProductionPassword123!',
+                ADMIN_SECRET: '' // missing!
+            };
+            const prodConfig = resolveConfig(missingSecretEnv);
+            const validation = validateConfig(prodConfig);
+
+            assert.strictEqual(validation.valid, false, 'Validation must fail when required secret is missing');
+            assert.ok(validation.errors.some(e => e.includes('ADMIN_SECRET')), 'Error must report missing variable name');
+
+            // Verify that no secret value is leaked in error messages
+            const errorReport = JSON.stringify(validation.errors);
+            assert.strictEqual(errorReport.includes('ValidProductionPassword123!'), false, 'Secret values must never appear in errors');
+
+            // Verify rejected unauthorized attempt on publish
+            const unauthorizedRes = await makeRequest(server, {
+                path: '/api/app/publish',
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: { latest_version: '1.9.9' }
+            });
+            assert.strictEqual(unauthorizedRes.status, 401, 'Unauthorized request must be rejected with 401');
+        });
+
+        // -------------------------------------------------------------
+        // TEST C: Publish multiple consecutive updates (Repeatability & Idempotence)
+        // -------------------------------------------------------------
+        await t.test('Test C: Multiple consecutive updates remain stable and repeatable', async () => {
+            const versions = [
+                { version: '1.4.0', code: 40 },
+                { version: '1.4.1', code: 41 },
+                { version: '1.4.2', code: 42 }
+            ];
+
+            for (const v of versions) {
+                const res = await makeRequest(server, {
+                    path: '/api/app/publish',
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-admin-key': config.adminSecret
+                    },
+                    body: { latest_version: v.version, version_code: v.code }
+                });
+                assert.strictEqual(res.status, 200, `Update to ${v.version} must succeed`);
+                assert.strictEqual(res.body.config.latest_version, v.version);
+            }
+
+            // Verify the final version is properly active
+            const finalCheck = await makeRequest(server, { path: '/api/app/version' });
+            assert.strictEqual(finalCheck.body.latest_version, '1.4.2');
+            assert.strictEqual(finalCheck.body.version_code, 42);
+        });
+
+        // -------------------------------------------------------------
+        // TEST D: Simulate an application startup failure & recovery
+        // -------------------------------------------------------------
+        await t.test('Test D: Invalid configuration triggers clean failure and supports recovery', async () => {
+            // Bad config (invalid port)
+            const brokenConfig = resolveConfig({ PORT: 'invalid_port', NODE_ENV: 'production' });
+            const validationBroken = validateConfig(brokenConfig);
+            assert.strictEqual(validationBroken.valid, false);
+            assert.ok(validationBroken.errors.some(e => e.includes('PORT')));
+
+            // Rollback to valid configuration
+            const restoredConfig = resolveConfig({
+                PORT: '5000',
+                NODE_ENV: 'production',
+                ADMIN_SECRET: 'StrongProductionSecret_2026_XYZ',
+                ADMIN_PASSWORD: 'StrongPassword123!'
+            });
+            const validationRestored = validateConfig(restoredConfig);
+            assert.strictEqual(validationRestored.valid, true);
+        });
+
+        // -------------------------------------------------------------
+        // TEST E: Verify production and development configurations remain isolated
+        // -------------------------------------------------------------
+        await t.test('Test E: Production and development configurations remain strictly isolated', async () => {
+            const devConf = resolveConfig({ NODE_ENV: 'development' });
+            const prodConf = resolveConfig({ NODE_ENV: 'production' });
+
+            assert.strictEqual(devConf.isProduction, false);
+            assert.strictEqual(prodConf.isProduction, true);
+
+            // Development allows dev fallback secrets; production strictly forbids them
+            const devValidation = validateConfig(devConf);
+            assert.strictEqual(devValidation.valid, true);
+
+            const prodValidation = validateConfig(prodConf);
+            assert.strictEqual(prodValidation.valid, false, 'Production must reject unset secrets');
+        });
+
+        // -------------------------------------------------------------
+        // TEST F: Check logs and generated build artifacts for exposed credentials
+        // -------------------------------------------------------------
+        await t.test('Test F: Verify no credentials are exposed in sanitized outputs or version data', async () => {
+            const sanitized = getSanitizedConfig(config);
+            const serialized = JSON.stringify(sanitized);
+
+            // Plaintext password/secret must not be present in sanitized output
+            if (config.adminSecret && config.adminSecret.length > 5) {
+                assert.strictEqual(serialized.includes(config.adminSecret), false);
+            }
+            if (config.adminPassword && config.adminPassword.length > 5) {
+                assert.strictEqual(serialized.includes(config.adminPassword), false);
+            }
+
+            // Version config file must not contain credentials
+            const versionData = JSON.parse(fs.readFileSync(originalVersionFile, 'utf8'));
+            const versionKeys = Object.keys(versionData);
+            assert.strictEqual(versionKeys.includes('admin_key'), false);
+            assert.strictEqual(versionKeys.includes('password'), false);
+            assert.strictEqual(versionKeys.includes('secret'), false);
+        });
+
+        // -------------------------------------------------------------
+        // TEST G: Unrelated workflow and server settings remain unchanged after deployment
+        // -------------------------------------------------------------
+        await t.test('Test G: Unrelated server settings remain unchanged across releases', async () => {
+            const healthRes = await makeRequest(server, { path: '/api/health' });
+            assert.strictEqual(healthRes.status, 200);
+            assert.strictEqual(healthRes.body.developedBy, 'MADARA FF');
+            assert.strictEqual(healthRes.body.service, 'Zexora License Authority');
+
+            // Product catalogue in database remains intact
+            const products = await db.getAllProducts();
+            const prod = products.find(p => p.name === 'Z E X O');
+            assert.ok(prod, 'Default product "Z E X O" must remain unchanged in database');
+        });
+
+    } finally {
+        if (server) {
+            await new Promise((resolve) => server.close(resolve));
+        }
+        // Restore original version.json backup
+        if (originalVersionBackup && fs.existsSync(originalVersionFile)) {
+            fs.writeFileSync(originalVersionFile, originalVersionBackup, 'utf8');
+        }
+    }
+});
