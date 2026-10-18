@@ -5,7 +5,7 @@
   "title": "Z E X O Update Available",
   "release_notes": "Restore Default confirmation simplification, automatic reset & toggle reset on key timeout v1.3.7",
   "apk_filename": "RootOptimizer.apk",
-  "download_url": "/api/app/download",
+  "download_url": "https://github.com/ABHISHEK14677/license-server/releases/download/v1.3.7/RootOptimizer.apk",
   "file_size_bytes": 6688951,
   "sha256": "9077845c65ee40e3a82826f37997d7bbba48e7899c6fb85b7d891708a6244d08",
   "updated_at": "2026-10-18T17:41:00Z"

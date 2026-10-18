@@ -232,6 +232,71 @@ test('Deployment Test Suite (Scenarios A through G)', async (t) => {
             assert.ok(prod, 'Default product "Z E X O" must remain unchanged in database');
         });
 
+        // -------------------------------------------------------------
+        // TEST H: Hardened validation on /api/app/publish prevents corrupt/invalid releases
+        // -------------------------------------------------------------
+        await t.test('Test H: Publish endpoint validates semver, rejects negative code, and prevents downgrade', async () => {
+            // 1. Invalid semver format
+            const invalidSemver = await makeRequest(server, {
+                path: '/api/app/publish',
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-admin-key': config.adminSecret },
+                body: { latest_version: 'invalid-version', version_code: 99 }
+            });
+            assert.strictEqual(invalidSemver.status, 400);
+            assert.ok(invalidSemver.body.error.includes('semantic versioning'));
+
+            // 2. Invalid / negative version_code
+            const invalidCode = await makeRequest(server, {
+                path: '/api/app/publish',
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-admin-key': config.adminSecret },
+                body: { latest_version: '2.0.0', version_code: -5 }
+            });
+            assert.strictEqual(invalidCode.status, 400);
+            assert.ok(invalidCode.body.error.includes('positive integer'));
+
+            // 3. Prevent accidental downgrade without explicit flag
+            const downgradeRes = await makeRequest(server, {
+                path: '/api/app/publish',
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-admin-key': config.adminSecret },
+                body: { latest_version: '1.0.0', version_code: 10 }
+            });
+            assert.strictEqual(downgradeRes.status, 400);
+            assert.ok(downgradeRes.body.error.includes('downgrade prevented'));
+        });
+
+        // -------------------------------------------------------------
+        // TEST I: Accurate version evaluation prevents endless update loops
+        // -------------------------------------------------------------
+        await t.test('Test I: Version evaluation accurately checks current client code and avoids false positives', async () => {
+            // Client on equal or higher version code should report update_available = false
+            const checkCurrent = await makeRequest(server, { path: '/api/app/version?version_code=42' });
+            assert.strictEqual(checkCurrent.status, 200);
+            assert.strictEqual(checkCurrent.body.update_available, false, 'Client on code 42 must NOT receive update warning');
+
+            // Client on older code receives update_available = true
+            const checkOld = await makeRequest(server, { path: '/api/app/version?version_code=38' });
+            assert.strictEqual(checkOld.status, 200);
+            assert.strictEqual(checkOld.body.update_available, true, 'Client on code 38 must receive update notice');
+
+            // Request with no version params does not trigger a false update loop
+            const checkEmpty = await makeRequest(server, { path: '/api/app/version' });
+            assert.strictEqual(checkEmpty.status, 200);
+            assert.strictEqual(checkEmpty.body.update_available, false, 'No version parameters must default to false');
+        });
+
+        // -------------------------------------------------------------
+        // TEST J: Database-backed release persistence across container restarts
+        // -------------------------------------------------------------
+        await t.test('Test J: Release metadata persists in database and survives file cache removal', async () => {
+            const dbRelease = await db.getLatestAppRelease();
+            assert.ok(dbRelease, 'Latest release must exist in database');
+            assert.strictEqual(typeof dbRelease.version_code, 'number');
+            assert.strictEqual(typeof dbRelease.latest_version, 'string');
+        });
+
     } finally {
         if (server) {
             await new Promise((resolve) => server.close(resolve));

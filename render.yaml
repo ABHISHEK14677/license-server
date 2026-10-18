@@ -36,7 +36,7 @@ services:
       - key: APP_MIN_VERSION
         value: 1.0.0
       - key: APP_DOWNLOAD_URL
-        value: /api/app/download
+        value: https://github.com/ABHISHEK14677/license-server/releases/download/v1.3.7/RootOptimizer.apk
       # Connect persistent PostgreSQL database
       - key: DATABASE_URL
         fromDatabase:

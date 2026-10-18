@@ -1452,7 +1452,34 @@ app.post('/api/license/validate', handleActivationStatus);
 // -------------------------------------------------------------
 // In-App APK Update Endpoints
 // -------------------------------------------------------------
-function getAppUpdateConfig() {
+function parseSemver(v) {
+    if (!v || typeof v !== 'string') return [0, 0, 0];
+    const cleaned = v.trim().replace(/^v/i, '').split('-')[0];
+    const parts = cleaned.split('.').map(n => parseInt(n, 10) || 0);
+    while (parts.length < 3) parts.push(0);
+    return parts;
+}
+
+function isSemverGreater(v1, v2) {
+    const p1 = parseSemver(v1);
+    const p2 = parseSemver(v2);
+    for (let i = 0; i < 3; i++) {
+        if (p1[i] > p2[i]) return true;
+        if (p1[i] < p2[i]) return false;
+    }
+    return false;
+}
+
+async function getAppUpdateConfig() {
+    let dbRelease = null;
+    try {
+        if (db && typeof db.getLatestAppRelease === 'function') {
+            dbRelease = await db.getLatestAppRelease();
+        }
+    } catch (e) {
+        // Fallback to disk if database is initializing
+    }
+
     const versionFile = path.join(__dirname, 'public', 'downloads', 'version.json');
     let dynamicConfig = {};
     if (fs.existsSync(versionFile)) {
@@ -1466,85 +1493,214 @@ function getAppUpdateConfig() {
     const zexoraApk = path.join(__dirname, 'public', 'downloads', 'Zexora.apk');
     const legacyApk = path.join(__dirname, 'public', 'downloads', 'RootOptimizer.apk');
     const localApkPath = fs.existsSync(zexoraApk) ? zexoraApk : legacyApk;
-    let fileSize = dynamicConfig.file_size_bytes || 8388608;
-    if (fs.existsSync(localApkPath)) {
+    let fileSize = dbRelease?.file_size_bytes || dynamicConfig.file_size_bytes || 0;
+    if (fileSize === 0 && fs.existsSync(localApkPath)) {
         try {
             fileSize = fs.statSync(localApkPath).size;
         } catch (e) {}
     }
 
     return {
-        latest_version: dynamicConfig.latest_version || config.appLatestVersion || '1.3.7',
-        version_code: parseInt(dynamicConfig.version_code || config.appVersionCode || '39', 10),
-        min_version: dynamicConfig.min_version || config.appMinVersion || '1.0.0',
-        title: dynamicConfig.title || 'Z E X O Update Available',
-        release_notes: (dynamicConfig.release_notes !== undefined) ? dynamicConfig.release_notes : '',
-        apk_filename: dynamicConfig.apk_filename || (fs.existsSync(zexoraApk) ? 'Zexora.apk' : 'RootOptimizer.apk'),
-        download_url: dynamicConfig.download_url || config.appDownloadUrl || '/api/app/download',
-        file_size_bytes: fileSize
+        latest_version: dbRelease?.latest_version || dynamicConfig.latest_version || config.appLatestVersion || '1.3.7',
+        version_code: parseInt(dbRelease?.version_code || dynamicConfig.version_code || config.appVersionCode || '39', 10),
+        min_version: dbRelease?.min_version || dynamicConfig.min_version || config.appMinVersion || '1.0.0',
+        title: dbRelease?.title || dynamicConfig.title || 'Z E X O Update Available',
+        release_notes: (dbRelease?.release_notes !== undefined) ? dbRelease.release_notes : ((dynamicConfig.release_notes !== undefined) ? dynamicConfig.release_notes : ''),
+        apk_filename: dbRelease?.apk_filename || dynamicConfig.apk_filename || (fs.existsSync(zexoraApk) ? 'Zexora.apk' : 'RootOptimizer.apk'),
+        download_url: dbRelease?.download_url || dynamicConfig.download_url || config.appDownloadUrl || '/api/app/download',
+        file_size_bytes: fileSize,
+        sha256: dbRelease?.sha256 || dynamicConfig.sha256 || ''
     };
 }
 
-app.get(['/api/app/update', '/api/app/version'], (req, res) => {
-    const appConfig = getAppUpdateConfig();
-    const currentCode = parseInt(req.query.version_code || req.query.code || '1', 10);
-    const updateAvailable = currentCode < appConfig.version_code;
+app.get(['/api/app/update', '/api/app/version'], async (req, res) => {
+    try {
+        const appConfig = await getAppUpdateConfig();
+        const hasCode = req.query.version_code !== undefined || req.query.code !== undefined;
+        let updateAvailable = false;
 
-    let directUrl = appConfig.download_url;
-    if (directUrl.startsWith('/')) {
-        const host = req.get('host');
-        const proto = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
-        directUrl = `${proto}://${host}${directUrl}`;
+        if (hasCode) {
+            const currentCode = parseInt(req.query.version_code || req.query.code, 10);
+            if (!isNaN(currentCode)) {
+                updateAvailable = currentCode < appConfig.version_code;
+            }
+        } else if (req.query.version_name || req.query.version) {
+            const clientVer = (req.query.version_name || req.query.version || '').trim();
+            updateAvailable = isSemverGreater(appConfig.latest_version, clientVer);
+        }
+
+        let directUrl = appConfig.download_url;
+        if (directUrl && directUrl.startsWith('/')) {
+            const host = req.get('host');
+            const proto = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+            directUrl = `${proto}://${host}${directUrl}`;
+        }
+
+        res.json({
+            success: true,
+            update_available: updateAvailable,
+            force_update: updateAvailable,
+            mandatory: updateAvailable,
+            latest_version: appConfig.latest_version,
+            version_code: appConfig.version_code,
+            min_version: appConfig.min_version,
+            release_notes: appConfig.release_notes,
+            download_url: directUrl,
+            file_size_bytes: appConfig.file_size_bytes,
+            sha256: appConfig.sha256
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
     }
-
-    res.json({
-        success: true,
-        update_available: updateAvailable,
-        force_update: updateAvailable,
-        mandatory: updateAvailable,
-        latest_version: appConfig.latest_version,
-        version_code: appConfig.version_code,
-        min_version: appConfig.min_version,
-        release_notes: appConfig.release_notes,
-        download_url: directUrl,
-        file_size_bytes: appConfig.file_size_bytes
-    });
 });
 
-app.post(['/api/app/publish', '/api/admin/app/publish'], express.json(), (req, res) => {
-    let secret = req.headers['x-admin-key'] || req.query.admin_key || req.body?.admin_key;
-    if (!secret && req.headers['authorization']?.startsWith('Bearer ')) {
-        secret = req.headers['authorization'].slice(7).trim();
-    }
-    const expectedSecret = config.adminSecret;
-    if (!secret || !safeTimingCompare(secret, expectedSecret)) {
-        return res.status(401).json({ success: false, error: 'Unauthorized' });
-    }
-
-    const { latest_version, version_code, release_notes, min_version, download_url } = req.body || {};
-    const versionFile = path.join(__dirname, 'public', 'downloads', 'version.json');
-    let currentConfig = {};
-    if (fs.existsSync(versionFile)) {
-        try { currentConfig = JSON.parse(fs.readFileSync(versionFile, 'utf8')); } catch (e) {}
+// Secure, atomic, database-backed APK and release publishing
+app.post(['/api/app/publish', '/api/admin/app/publish'], express.json(), async (req, res) => {
+    // 1. Authenticate: Header only (Authorization: Bearer or x-admin-key)
+    let secret = req.headers['x-admin-key'];
+    let sessionToken = null;
+    if (req.headers['authorization']?.startsWith('Bearer ')) {
+        const token = req.headers['authorization'].slice(7).trim();
+        if (safeTimingCompare(token, config.adminSecret)) {
+            secret = token;
+        } else {
+            sessionToken = token;
+        }
     }
 
+    let isAuthorized = false;
+    if (secret && safeTimingCompare(secret, config.adminSecret)) {
+        isAuthorized = true;
+    } else if (sessionToken) {
+        const adminSession = await db.getAdminSession(sessionToken);
+        if (adminSession) isAuthorized = true;
+    }
+
+    if (!isAuthorized) {
+        return res.status(401).json({
+            success: false,
+            error: 'Unauthorized: valid administrator credentials or active session required'
+        });
+    }
+
+    // 2. Validate payload fields
+    const {
+        latest_version,
+        version_code,
+        release_notes,
+        min_version,
+        download_url,
+        file_size_bytes,
+        sha256,
+        allow_downgrade,
+        force_republish
+    } = req.body || {};
+
+    const semverRegex = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/;
+    if (!latest_version || typeof latest_version !== 'string' || !semverRegex.test(latest_version.trim().replace(/^v/i, ''))) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid latest_version: must follow semantic versioning format (e.g. 1.3.7)'
+        });
+    }
+
+    const parsedCode = parseInt(version_code, 10);
+    if (!version_code || isNaN(parsedCode) || parsedCode <= 0) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid version_code: must be a positive integer greater than 0'
+        });
+    }
+
+    if (min_version && !semverRegex.test(String(min_version).trim().replace(/^v/i, ''))) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid min_version: must follow semantic versioning format (e.g. 1.0.0)'
+        });
+    }
+
+    if (download_url && typeof download_url === 'string') {
+        const trimmedUrl = download_url.trim();
+        if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://') && !trimmedUrl.startsWith('/')) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid download_url: must be an HTTP(S) URL or valid relative API path'
+            });
+        }
+    }
+
+    // 3. Prevent accidental duplicate or downgrade releases
+    const currentConfig = await getAppUpdateConfig();
+    const cleanLatest = latest_version.trim().replace(/^v/i, '');
+
+    if (parsedCode < currentConfig.version_code && !allow_downgrade) {
+        return res.status(400).json({
+            success: false,
+            error: `Accidental downgrade prevented: proposed version_code (${parsedCode}) is lower than currently published version_code (${currentConfig.version_code}). Pass allow_downgrade: true to override.`
+        });
+    }
+
+    if (parsedCode === currentConfig.version_code && cleanLatest === currentConfig.latest_version && !force_republish) {
+        return res.status(409).json({
+            success: false,
+            error: `Release v${cleanLatest} (Code ${parsedCode}) is already published. Pass force_republish: true to re-publish with updated assets.`
+        });
+    }
+
+    // 4. Construct updated release metadata
     const updatedConfig = {
-        ...currentConfig,
-        latest_version: latest_version || currentConfig.latest_version || '1.0.1',
-        version_code: parseInt(version_code || currentConfig.version_code || '2', 10),
-        min_version: min_version || currentConfig.min_version || '1.0.0',
-        release_notes: release_notes || currentConfig.release_notes || '',
-        download_url: download_url || currentConfig.download_url || '/api/app/download',
+        latest_version: cleanLatest,
+        version_code: parsedCode,
+        min_version: (min_version || currentConfig.min_version || '1.0.0').trim().replace(/^v/i, ''),
+        title: req.body?.title || currentConfig.title || 'Z E X O Update Available',
+        release_notes: release_notes !== undefined ? String(release_notes).trim() : currentConfig.release_notes || '',
+        apk_filename: req.body?.apk_filename || currentConfig.apk_filename || 'RootOptimizer.apk',
+        download_url: download_url ? download_url.trim() : (currentConfig.download_url || '/api/app/download'),
+        file_size_bytes: Number(file_size_bytes) || currentConfig.file_size_bytes || 0,
+        sha256: sha256 ? String(sha256).trim().toLowerCase() : (currentConfig.sha256 || ''),
         updated_at: new Date().toISOString()
     };
 
-    fs.mkdirSync(path.dirname(versionFile), { recursive: true });
-    fs.writeFileSync(versionFile, JSON.stringify(updatedConfig, null, 2));
+    try {
+        // 5. Persist to database for multi-node / restart survivability
+        if (db && typeof db.saveAppRelease === 'function') {
+            await db.saveAppRelease(updatedConfig);
+        }
 
-    res.json({ success: true, message: 'Update configuration published successfully', config: updatedConfig });
+        // 6. Atomic write to version.json (write to temp file then atomic rename)
+        const versionFile = path.join(__dirname, 'public', 'downloads', 'version.json');
+        const tmpVersionFile = `${versionFile}.${Date.now()}.tmp`;
+        fs.mkdirSync(path.dirname(versionFile), { recursive: true });
+        fs.writeFileSync(tmpVersionFile, JSON.stringify(updatedConfig, null, 2), 'utf8');
+        fs.renameSync(tmpVersionFile, versionFile);
+
+        // 7. Audit log event
+        await db.logAuditEvent('APP_RELEASE_PUBLISHED', {
+            version: updatedConfig.latest_version,
+            code: updatedConfig.version_code,
+            sha256: updatedConfig.sha256
+        }, getClientIp(req));
+
+        res.json({
+            success: true,
+            message: `Update v${updatedConfig.latest_version} (Code ${updatedConfig.version_code}) published successfully`,
+            config: updatedConfig
+        });
+    } catch (err) {
+        console.error('[PUBLISH ERROR]', err);
+        res.status(500).json({ success: false, error: 'Failed to atomically persist update metadata' });
+    }
 });
 
-app.get(['/api/app/download', '/download/app-release.apk', '/download/Zexora.apk', '/download/RootOptimizer.apk'], (req, res) => {
+app.get(['/api/app/download', '/download/app-release.apk', '/download/Zexora.apk', '/download/RootOptimizer.apk'], async (req, res) => {
+    const appConfig = await getAppUpdateConfig();
+    const directUrl = appConfig.download_url;
+
+    // If release download_url is an external high-availability CDN/release URL, redirect directly
+    if (directUrl && (directUrl.startsWith('https://') || directUrl.startsWith('http://'))) {
+        return res.redirect(directUrl);
+    }
+
     const zexoraApk = path.join(__dirname, 'public', 'downloads', 'Zexora.apk');
     const legacyApk = path.join(__dirname, 'public', 'downloads', 'RootOptimizer.apk');
     const localApkPath = fs.existsSync(zexoraApk) ? zexoraApk : legacyApk;
@@ -1573,7 +1729,7 @@ app.get(['/api/app/download', '/download/app-release.apk', '/download/Zexora.apk
 
     res.status(404).json({
         success: false,
-        message: 'No APK file uploaded to server yet.'
+        message: 'No APK file available for download on this server instance.'
     });
 });
 

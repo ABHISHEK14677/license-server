@@ -186,9 +186,25 @@ async function initDatabase() {
                     deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
 
+                CREATE TABLE IF NOT EXISTS app_releases (
+                    id SERIAL PRIMARY KEY,
+                    latest_version VARCHAR(50) NOT NULL,
+                    version_code INTEGER NOT NULL,
+                    min_version VARCHAR(50) DEFAULT '1.0.0',
+                    title VARCHAR(255) DEFAULT 'Z E X O Update Available',
+                    release_notes TEXT,
+                    apk_filename VARCHAR(255) DEFAULT 'RootOptimizer.apk',
+                    download_url TEXT,
+                    file_size_bytes BIGINT DEFAULT 0,
+                    sha256 VARCHAR(64),
+                    is_active INTEGER DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_keys_hash ON activation_keys(key_hash);
                 CREATE INDEX IF NOT EXISTS idx_keys_status ON activation_keys(status);
                 CREATE INDEX IF NOT EXISTS idx_deleted_keys_hash ON deleted_keys(key_hash);
+                CREATE INDEX IF NOT EXISTS idx_app_releases_code ON app_releases(version_code);
             `);
 
             try {
@@ -298,6 +314,21 @@ async function initDatabase() {
                     deleted_by TEXT DEFAULT 'admin',
                     reason TEXT,
                     deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE TABLE IF NOT EXISTS app_releases (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    latest_version TEXT NOT NULL,
+                    version_code INTEGER NOT NULL,
+                    min_version TEXT DEFAULT '1.0.0',
+                    title TEXT DEFAULT 'Z E X O Update Available',
+                    release_notes TEXT,
+                    apk_filename TEXT DEFAULT 'RootOptimizer.apk',
+                    download_url TEXT,
+                    file_size_bytes INTEGER DEFAULT 0,
+                    sha256 TEXT,
+                    is_active INTEGER DEFAULT 1,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
             `);
 
@@ -1412,6 +1443,53 @@ async function createLicense({
     });
 }
 
+// App Releases & Versioning
+async function saveAppRelease(data) {
+    const {
+        latest_version,
+        version_code,
+        min_version = '1.0.0',
+        title = 'Z E X O Update Available',
+        release_notes = '',
+        apk_filename = 'RootOptimizer.apk',
+        download_url = '/api/app/download',
+        file_size_bytes = 0,
+        sha256 = ''
+    } = data;
+
+    const sql = isPostgres
+        ? `INSERT INTO app_releases (latest_version, version_code, min_version, title, release_notes, apk_filename, download_url, file_size_bytes, sha256)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
+        : `INSERT INTO app_releases (latest_version, version_code, min_version, title, release_notes, apk_filename, download_url, file_size_bytes, sha256)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+    const res = await query(sql, [
+        latest_version,
+        parseInt(version_code, 10),
+        min_version,
+        title,
+        release_notes,
+        apk_filename,
+        download_url,
+        file_size_bytes,
+        sha256
+    ]);
+
+    if (isPostgres && res.rows[0]) {
+        return res.rows[0];
+    }
+    return queryOne('SELECT * FROM app_releases WHERE id = ?', [res.lastID]);
+}
+
+async function getLatestAppRelease() {
+    return queryOne('SELECT * FROM app_releases WHERE is_active = 1 ORDER BY version_code DESC, id DESC LIMIT 1');
+}
+
+async function getAllAppReleases(limit = 10) {
+    const res = await query('SELECT * FROM app_releases ORDER BY version_code DESC, id DESC LIMIT ?', [limit]);
+    return res.rows;
+}
+
 module.exports = {
     query,
     queryOne,
@@ -1454,6 +1532,10 @@ module.exports = {
     recordActivation,
     updateActivationLastSeen,
     deactivateDevice,
+    // App Releases
+    saveAppRelease,
+    getLatestAppRelease,
+    getAllAppReleases,
     // Stats & Logs
     getDashboardStats,
     logAuditEvent,
