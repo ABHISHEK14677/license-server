@@ -109,8 +109,8 @@ function resolveConfig(env = process.env) {
     const isPostgres = Boolean(databaseUrl && databaseUrl.startsWith('postgres'));
 
     // App Versioning & Release
-    const appLatestVersion = env.APP_LATEST_VERSION || '1.3.6';
-    const appVersionCode = parseInt(env.APP_VERSION_CODE || '38', 10);
+    const appLatestVersion = env.APP_LATEST_VERSION || '1.3.7';
+    const appVersionCode = parseInt(env.APP_VERSION_CODE || '39', 10);
     const appMinVersion = env.APP_MIN_VERSION || '1.0.0';
     const appDownloadUrl = env.APP_DOWNLOAD_URL || '/api/app/download';
 

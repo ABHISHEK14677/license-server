@@ -1474,8 +1474,8 @@ function getAppUpdateConfig() {
     }
 
     return {
-        latest_version: dynamicConfig.latest_version || config.appLatestVersion || '1.3.6',
-        version_code: parseInt(dynamicConfig.version_code || config.appVersionCode || '38', 10),
+        latest_version: dynamicConfig.latest_version || config.appLatestVersion || '1.3.7',
+        version_code: parseInt(dynamicConfig.version_code || config.appVersionCode || '39', 10),
         min_version: dynamicConfig.min_version || config.appMinVersion || '1.0.0',
         title: dynamicConfig.title || 'Z E X O Update Available',
         release_notes: (dynamicConfig.release_notes !== undefined) ? dynamicConfig.release_notes : '',
