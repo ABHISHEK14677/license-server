@@ -1,12 +1,12 @@
 {
-  "latest_version": "1.3.6",
-  "version_code": 38,
+  "latest_version": "1.3.7",
+  "version_code": 39,
   "min_version": "1.0.0",
   "title": "Z E X O Update Available",
-  "release_notes": "Custom Optimization Hub & Network Manager layout updates, bug fixes v1.3.6",
+  "release_notes": "Restore Default confirmation simplification, automatic reset & toggle reset on key timeout v1.3.7",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
   "file_size_bytes": 6688951,
-  "sha256": "4ae4847aff6e8eed068ce9dbbc3cf9221fb395222da2db7f4a9f6951e48454b1",
-  "updated_at": "2026-10-18T15:35:00Z"
+  "sha256": "9077845c65ee40e3a82826f37997d7bbba48e7899c6fb85b7d891708a6244d08",
+  "updated_at": "2026-10-18T17:41:00Z"
 }
