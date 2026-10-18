@@ -14,7 +14,7 @@ const rootDir = path.resolve(__dirname, '..');
 try {
     const trackedFiles = execSync('git ls-files', { cwd: rootDir, encoding: 'utf8' }).split('\n').filter(Boolean);
     const forbiddenPatterns = [
-        /^\.env($|\..*)/,
+        /^\.env($|\.(?!example$).*)/,
         /\.db$/,
         /\.pem$/,
         /\.key$/,
