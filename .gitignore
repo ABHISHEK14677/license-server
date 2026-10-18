@@ -22,3 +22,6 @@ licenses.db-shm
 !public/downloads/*.apk
 *.log
 scratch/
+
+# GitHub workflows (uncomment after adding 'workflow' scope to GitHub PAT)
+.github/
