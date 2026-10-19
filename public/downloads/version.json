@@ -1,12 +1,12 @@
 {
-  "latest_version": "1.3.7",
-  "version_code": 39,
+  "latest_version": "1.3.8",
+  "version_code": 40,
   "min_version": "1.0.0",
-  "title": "Z E X O Update Available",
-  "release_notes": "Restore Default confirmation simplification, automatic reset & toggle reset on key timeout v1.3.7",
+  "title": "Z E X O Network Optimization & Separation Update",
+  "release_notes": "Separated Network Manager and Network Optimization: dedicated per-app priority screen, high-priority DSCP QoS engine, async background execution, individual toggles, and dedicated Restore Default confirmation.",
   "apk_filename": "RootOptimizer.apk",
-  "download_url": "https://github.com/ABHISHEK14677/license-server/releases/download/v1.3.7/RootOptimizer.apk",
-  "file_size_bytes": 6688951,
-  "sha256": "9077845c65ee40e3a82826f37997d7bbba48e7899c6fb85b7d891708a6244d08",
-  "updated_at": "2026-10-18T17:41:00Z"
+  "download_url": "https://github.com/ABHISHEK14677/license-server/releases/download/v1.3.8/RootOptimizer.apk",
+  "file_size_bytes": 6693047,
+  "sha256": "28807c5b921649119360e0ed38e27994b0d7e1bc18340e360fbbdd4ca563314f",
+  "updated_at": "2026-10-19T07:33:41.444Z"
 }

@@ -777,7 +777,7 @@
             </div>
 
             <div id="authNavArea" class="user-nav-actions" style="display: none;">
-                <a href="https://discord.gg/CM3KgmuHm" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="border-color: #5865F2; color: #5865F2; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center;" title="Join Discord Community">
+                <a href="https://discord.gg/hBvx4Avpe" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="border-color: #5865F2; color: #5865F2; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center;" title="Join Discord Community">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px;">
                         <path d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a0.09 0.09 0 0 0-.08 0.04c-.21.38-.45.88-.61 1.27a18.3 18.3 0 0 0-5.62 0c-.16-.39-.41-.89-.62-1.27A0.09 0.09 0 0 0 8 4C6.5 4.26 5.06 4.71 3.73 5.33a0.08 0.08 0 0 0-.03.03C1.03 9.36 0.28 13.28.65 17.15a0.08 0.08 0 0 0 .03.06c2 1.47 3.93 2.37 5.83 2.96a0.08 0.08 0 0 0 .09-.03c.45-.61.85-1.27 1.2-1.95a0.08 0.08 0 0 0-.04-.11c-.64-.24-1.24-.55-1.82-.91a0.08 0.08 0 0 1-.01-.13c.12-.09.24-.19.36-.28a0.08 0.08 0 0 1 .08-.01c3.85 1.76 8.01 1.76 11.82 0a0.08 0.08 0 0 1 .08.01c.12.1.24.19.36.29a0.08 0.08 0 0 1-.01.13c-.58.36-1.18.67-1.82.91a0.08 0.08 0 0 0-.04.11c.35.68.75 1.34 1.2 1.95a0.08 0.08 0 0 0 .09.03c1.9-.59 3.83-1.49 5.83-2.96a0.08 0.08 0 0 0 .03-.06c.44-4.45-.74-8.34-3.14-11.79a0.08 0.08 0 0 0-.03-.03zM8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.83-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12 0 1.17-.83 2.12-1.89 2.12zm6.97 0c-1.03 0-1.89-.95-1.89-2.12s.83-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12 0 1.17-.83 2.12-1.89 2.12z"/>
                     </svg>
@@ -866,18 +866,26 @@
             <!-- ========================================== -->
             <div id="tabContentGenerator">
                 <!-- 1. Dashboard Metrics Summary (DashboardStatsCard) -->
-                <div class="stats-grid">
+                <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));">
                     <div class="stat-card" onclick="filterAndSwitch('ALL')">
                         <div class="stat-label">Total Keys</div>
                         <div class="stat-value" id="metricTotalKeys">0</div>
                     </div>
-                    <div class="stat-card" onclick="filterAndSwitch('INACTIVE')">
+                    <div class="stat-card" onclick="filterAndSwitch('NON-ACTIVE')">
                         <div class="stat-label">Non-Active</div>
                         <div class="stat-value" id="metricInactiveKeys" style="color: var(--status-inactive);">0</div>
                     </div>
                     <div class="stat-card" onclick="filterAndSwitch('ACTIVE')">
                         <div class="stat-label">Active</div>
                         <div class="stat-value" id="metricActiveKeys" style="color: var(--status-active);">0</div>
+                    </div>
+                    <div class="stat-card" onclick="filterAndSwitch('PAUSED')">
+                        <div class="stat-label">Paused</div>
+                        <div class="stat-value" id="metricPausedKeys" style="color: var(--status-paused);">0</div>
+                    </div>
+                    <div class="stat-card" onclick="filterAndSwitch('REVOKED')">
+                        <div class="stat-label">Revoked</div>
+                        <div class="stat-value" id="metricRevokedKeys" style="color: var(--status-revoked);">0</div>
                     </div>
                     <div class="stat-card" onclick="filterAndSwitch('EXPIRED')">
                         <div class="stat-label">Expired</div>
@@ -925,7 +933,7 @@
                 <div class="card" style="margin-top: 16px;">
                     <div class="section-header-row">
                         <h2 class="section-title">Latest Key Access</h2>
-                        <span id="latestKeyStatusBadge" class="status-badge status-badge-inactive">INACTIVE</span>
+                        <span id="latestKeyStatusBadge" class="status-badge status-badge-non-active">NON-ACTIVE</span>
                     </div>
 
                     <div id="latestKeyPlaceholder" style="text-align: center; padding: 24px 16px; color: var(--text-muted); font-size: 13px;">
@@ -967,6 +975,8 @@
                             <button class="btn btn-tonal btn-sm" onclick="copyLatestKey()">Copy Key</button>
                             <button class="btn btn-outline btn-sm" onclick="shareLatestKey()">Share</button>
                             <button class="btn btn-tonal btn-sm" onclick="openExtendModal(latestKeyData ? latestKeyData.id : null)">Extend Expiry</button>
+                            <button class="btn btn-outline btn-sm" style="color: #f59e0b; border-color: rgba(245, 158, 11, 0.4);" onclick="openReduceModal(latestKeyData ? latestKeyData.id : null)">Reduce Time</button>
+                            <button class="btn btn-outline btn-sm" onclick="openEditModal(latestKeyData ? latestKeyData.id : null)">Edit</button>
                             <button class="btn btn-danger btn-sm" id="btnToggleRevokeLatest" onclick="toggleRevokeLatest()">Revoke</button>
                         </div>
                     </div>
@@ -1011,7 +1021,7 @@
                 <div class="duration-chips-scroll" style="margin-bottom: 16px;">
                     <button class="chip selected" data-status="ALL" onclick="setStatusFilter('ALL', this)">All</button>
                     <button class="chip" data-status="ACTIVE" onclick="setStatusFilter('ACTIVE', this)">Active</button>
-                    <button class="chip" data-status="INACTIVE" onclick="setStatusFilter('INACTIVE', this)">Inactive</button>
+                    <button class="chip" data-status="NON-ACTIVE" onclick="setStatusFilter('NON-ACTIVE', this)">Non-Active</button>
                     <button class="chip" data-status="PAUSED" onclick="setStatusFilter('PAUSED', this)">Paused</button>
                     <button class="chip" data-status="REVOKED" onclick="setStatusFilter('REVOKED', this)">Revoked</button>
                     <button class="chip" data-status="EXPIRED" onclick="setStatusFilter('EXPIRED', this)">Expired</button>
@@ -1161,21 +1171,23 @@
                 <label class="form-label">Status</label>
                 <select id="editStatus" class="form-input">
                     <option value="ACTIVE">ACTIVE</option>
-                    <option value="UNUSED">UNUSED</option>
-                    <option value="SUSPENDED">SUSPENDED / PAUSED</option>
+                    <option value="UNUSED">NON-ACTIVE</option>
+                    <option value="PAUSED">PAUSED</option>
                     <option value="EXPIRED">EXPIRED</option>
                     <option value="REVOKED">REVOKED</option>
                 </select>
             </div>
             <div class="form-group">
-                <label class="form-label">Validity / Duration</label>
+                <label class="form-label">Validity / Duration (Standard Presets)</label>
                 <select id="editDurationHours" class="form-input">
-                    <option value="-1">Lifetime / Permanent (-1)</option>
                     <option value="1">1 Hour (1h)</option>
                     <option value="24">1 Day (1d)</option>
                     <option value="168">7 Days (7d)</option>
                     <option value="720">30 Days (30d)</option>
                 </select>
+                <div id="editDurationNotice" style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+                    Permanent duration changes are disabled. To shorten remaining validity, use <b>Reduce Time</b>.
+                </div>
             </div>
             <div class="form-group">
                 <label class="form-label">Customer Name</label>
@@ -1189,9 +1201,93 @@
                 <label class="form-label">Notes</label>
                 <textarea id="editNotes" class="form-input" rows="3" placeholder="Add administrative notes..." style="resize: vertical;"></textarea>
             </div>
-            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px;">
-                <button class="btn btn-outline" onclick="closeModal('modalEditKey')">Cancel</button>
-                <button class="btn btn-primary" onclick="submitEditKey()">Save Changes</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+                <button type="button" class="btn btn-outline btn-sm" style="color: #f59e0b; border-color: rgba(245, 158, 11, 0.4);" onclick="openReduceFromEdit()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 4px;">
+                        <circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 8 14"></polyline>
+                    </svg>
+                    Reduce Time
+                </button>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn btn-outline" id="btnCancelEditKey" onclick="closeModal('modalEditKey')">Cancel</button>
+                    <button class="btn btn-primary" id="btnSaveEditKey" onclick="submitEditKey()">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL: REDUCE KEY VALIDITY TIME            -->
+    <!-- ========================================== -->
+    <div id="modalReduceTime" class="modal-overlay" onclick="closeModal('modalReduceTime')">
+        <div class="modal-card" style="max-width: 500px;" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h3 class="modal-title" style="display: flex; align-items: center; gap: 8px; color: #f59e0b;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 8 14"></polyline>
+                    </svg>
+                    Reduce Key Validity Time
+                </h3>
+                <button class="btn btn-outline btn-sm" onclick="closeModal('modalReduceTime')">✕</button>
+            </div>
+            <input type="hidden" id="reduceKeyId">
+
+            <div style="background: var(--bg-surface-variant); border: 1px solid var(--border-color); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px;">
+                <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Key Code</div>
+                <div id="reduceModalKeyCode" class="key-text-mono" style="font-size: 15px; color: #93c5fd; margin-top: 2px;"></div>
+                <div style="display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px;">
+                    <div><span style="color: var(--text-muted);">Current Expiry:</span> <b id="reduceModalCurrentExpiry">-</b></div>
+                    <div><span style="color: var(--text-muted);">Status:</span> <span id="reduceModalStatus">-</span></div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Reduce Validity By</label>
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px;">
+                    <input type="number" id="inputReduceAmount" class="form-input" min="1" step="1" value="12" placeholder="e.g. 12" oninput="calculateReducePreview()">
+                    <select id="selectReduceUnit" class="form-input" onchange="calculateReducePreview()">
+                        <option value="hours" selected>Hours</option>
+                        <option value="days">Days</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+                <button type="button" class="btn btn-outline btn-sm" onclick="setReduceTimeVal(1, 'hours')">-1h</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="setReduceTimeVal(12, 'hours')">-12h</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="setReduceTimeVal(1, 'days')">-1d (24h)</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="setReduceTimeVal(7, 'days')">-7d</button>
+            </div>
+
+            <!-- Live Confirmation Preview Box -->
+            <div id="reducePreviewBox" style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; font-size: 12px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="color: var(--text-muted);">Current Expiration:</span>
+                    <span id="previewCurrentExpiry" style="font-family: 'JetBrains Mono', monospace; font-weight: 600;">-</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="color: var(--text-muted);">Requested Reduction:</span>
+                    <span id="previewReductionAmount" style="color: #f59e0b; font-weight: 700;">-</span>
+                </div>
+                <div style="height: 1px; background: var(--border-color); margin: 6px 0;"></div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 700; color: var(--text-primary);">Resulting Expiration:</span>
+                    <span id="previewResultingExpiry" style="font-family: 'JetBrains Mono', monospace; font-weight: 700; color: #38bdf8;">-</span>
+                </div>
+                <div id="reduceWarningNotice" style="display: none; margin-top: 8px; padding: 6px 8px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 6px; color: #fca5a5; font-size: 11px;">
+                    ⚠️ Warning: The resulting expiration is in the past or now. This key will be marked as <b>EXPIRED</b> immediately and will no longer be usable.
+                </div>
+            </div>
+
+            <div id="reduceModalError" style="display: none; background: rgba(239, 68, 68, 0.2); color: #f87171; padding: 10px; border-radius: 8px; font-size: 12px; margin-bottom: 14px;"></div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                <button class="btn btn-outline" id="btnCancelReduce" onclick="closeModal('modalReduceTime')">Cancel</button>
+                <button class="btn btn-warning" id="btnConfirmReduce" onclick="submitReduceTime()">
+                    <span id="btnReduceSpinner" style="display: none;">⏳ </span>
+                    <span>Confirm Reduction</span>
+                </button>
             </div>
         </div>
     </div>
@@ -1277,11 +1373,11 @@
     <footer>
         <div>Z E X O • Developed by <b>MADARA FF</b></div>
         <div style="margin-top: 6px;">
-            <a href="https://discord.gg/CM3KgmuHm" target="_blank" rel="noopener noreferrer" style="color: #5865F2; text-decoration: none; font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; gap: 5px;">
+            <a href="https://discord.gg/hBvx4Avpe" target="_blank" rel="noopener noreferrer" style="color: #5865F2; text-decoration: none; font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; gap: 5px;">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a0.09 0.09 0 0 0-.08 0.04c-.21.38-.45.88-.61 1.27a18.3 18.3 0 0 0-5.62 0c-.16-.39-.41-.89-.62-1.27A0.09 0.09 0 0 0 8 4C6.5 4.26 5.06 4.71 3.73 5.33a0.08 0.08 0 0 0-.03.03C1.03 9.36 0.28 13.28.65 17.15a0.08 0.08 0 0 0 .03.06c2 1.47 3.93 2.37 5.83 2.96a0.08 0.08 0 0 0 .09-.03c.45-.61.85-1.27 1.2-1.95a0.08 0.08 0 0 0-.04-.11c-.64-.24-1.24-.55-1.82-.91a0.08 0.08 0 0 1-.01-.13c.12-.09.24-.19.36-.28a0.08 0.08 0 0 1 .08-.01c3.85 1.76 8.01 1.76 11.82 0a0.08 0.08 0 0 1 .08.01c.12.1.24.19.36.29a0.08 0.08 0 0 1-.01.13c-.58.36-1.18.67-1.82.91a0.08 0.08 0 0 0-.04.11c.35.68.75 1.34 1.2 1.95a0.08 0.08 0 0 0 .09.03c1.9-.59 3.83-1.49 5.83-2.96a0.08 0.08 0 0 0 .03-.06c.44-4.45-.74-8.34-3.14-11.79a0.08 0.08 0 0 0-.03-.03zM8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.83-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12 0 1.17-.83 2.12-1.89 2.12zm6.97 0c-1.03 0-1.89-.95-1.89-2.12s.83-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12 0 1.17-.83 2.12-1.89 2.12z"/>
                 </svg>
-                Join Discord: https://discord.gg/CM3KgmuHm
+                Join Discord: https://discord.gg/hBvx4Avpe
             </a>
         </div>
         <div style="margin-top: 4px; opacity: 0.6;">© Developed by MADARA FF • All rights reserved</div>
@@ -1666,9 +1762,11 @@
         }
 
         function filterAndSwitch(status) {
-            currentStatusFilter = status;
+            const target = (status === 'INACTIVE') ? 'NON-ACTIVE' : status;
+            currentStatusFilter = target;
             document.querySelectorAll('#tabContentTotalKeys .chip').forEach(c => {
-                c.classList.toggle('selected', c.getAttribute('data-status') === status);
+                const s = c.getAttribute('data-status');
+                c.classList.toggle('selected', s === target || (target === 'NON-ACTIVE' && s === 'INACTIVE'));
             });
             switchTab('TOTAL_KEYS');
         }
@@ -1799,8 +1897,8 @@
             const statusBadge = document.getElementById('latestKeyStatusBadge');
             const status = computeKeyStatus(k);
             if (statusBadge) {
-                statusBadge.className = `status-badge status-badge-${status === 'INACTIVE' ? 'non-active' : status.toLowerCase()}`;
-                statusBadge.innerText = status === 'INACTIVE' ? 'Non-Active' : status;
+                statusBadge.className = `status-badge status-badge-${status === 'NON-ACTIVE' ? 'non-active' : status.toLowerCase()}`;
+                statusBadge.innerText = status === 'NON-ACTIVE' ? 'Non-Active' : status;
             }
 
             // Dates & info
@@ -1811,9 +1909,9 @@
 
             const isPerm = k.duration_hours === -1;
             const expLabel = document.getElementById('latestExpiryLabel');
-            if (expLabel) expLabel.innerText = isPerm ? 'Validity' : (status === 'INACTIVE' ? 'Duration' : 'Expires At');
+            if (expLabel) expLabel.innerText = isPerm ? 'Validity' : (status === 'NON-ACTIVE' ? 'Duration' : 'Expires At');
             const expVal = document.getElementById('latestExpiryVal');
-            if (expVal) expVal.innerText = isPerm ? 'Permanent (Lifetime)' : (status === 'INACTIVE' ? formatDurationLabel(k.duration_hours) : (k.expires_at ? formatDateTime(k.expires_at) : formatDurationLabel(k.duration_hours)));
+            if (expVal) expVal.innerText = isPerm ? 'Permanent (Lifetime)' : (status === 'NON-ACTIVE' ? formatDurationLabel(k.duration_hours) : (k.expires_at ? formatDateTime(k.expires_at) : formatDurationLabel(k.duration_hours)));
 
             // Revoke button
             const btnRevoke = document.getElementById('btnToggleRevokeLatest');
@@ -1855,8 +1953,8 @@
                 latestKeyData = res.key;
                 saveLatestKey(latestKeyData);
                 renderLatestKey(latestKeyData);
+                if (typeof updateKeyLocally === 'function') updateKeyLocally(res.key);
                 loadStatsData();
-                loadKeysData();
                 showToast('Key permanently revoked');
             } else {
                 alert(res.message || 'Action failed');
@@ -1865,20 +1963,21 @@
 
         // --- KEY STATUS COMPUTATION & FORMATTING ---
         function computeKeyStatus(k) {
-            if (!k) return 'INACTIVE';
-            if (k.status === 'REVOKED') return 'REVOKED';
-            if (k.status === 'SUSPENDED' || k.status === 'PAUSED') return 'PAUSED';
-            if (k.status === 'EXPIRED') return 'EXPIRED';
+            if (!k) return 'NON-ACTIVE';
+            const s = (k.status || '').toUpperCase();
+            if (s === 'REVOKED') return 'REVOKED';
+            if (s === 'SUSPENDED' || s === 'PAUSED') return 'PAUSED';
+            if (s === 'EXPIRED') return 'EXPIRED';
             if (k.duration_hours !== -1 && k.expires_at && new Date(k.expires_at).getTime() <= Date.now()) return 'EXPIRED';
-            if (k.status === 'ACTIVE' || (k.active_devices_count && k.active_devices_count > 0)) return 'ACTIVE';
-            if (k.status === 'UNUSED' || !k.activated_at) return 'INACTIVE';
+            if (s === 'ACTIVE') return 'ACTIVE';
+            if (s === 'UNUSED' || s === 'INACTIVE' || s === 'NON-ACTIVE' || s === 'NON_ACTIVE' || !k.activated_at) return 'NON-ACTIVE';
             return 'ACTIVE';
         }
 
         function formatStatusBadge(status) {
-            const isInactive = (status === 'INACTIVE' || status === 'UNUSED');
-            const label = isInactive ? 'Non-Active' : status;
-            const cls = isInactive ? 'status-badge-non-active' : `status-badge-${status.toLowerCase()}`;
+            const isNonActive = (status === 'NON-ACTIVE' || status === 'INACTIVE' || status === 'UNUSED');
+            const label = isNonActive ? 'Non-Active' : (status === 'SUSPENDED' ? 'Paused' : status);
+            const cls = isNonActive ? 'status-badge-non-active' : `status-badge-${status.toLowerCase()}`;
             return `<span class="status-badge ${cls}">${label}</span>`;
         }
 
@@ -1910,7 +2009,7 @@
             const progressWrap = document.getElementById('latestProgressWrap');
             const progressBar = document.getElementById('latestProgressBar');
 
-            if (status === 'INACTIVE') {
+            if (status === 'NON-ACTIVE' || status === 'INACTIVE') {
                 labelEl.innerText = 'ACTIVATION STATUS';
                 countdownEl.innerText = 'Starts on activation';
                 countdownEl.style.color = 'var(--status-inactive)';
@@ -1970,17 +2069,37 @@
                     const s = res.stats;
                     const total = s.total_keys || 0;
                     const active = s.active_keys || 0;
-                    const unused = s.unused_keys || 0;
+                    const unused = (s.non_active_keys !== undefined) ? s.non_active_keys : (s.unused_keys || 0);
+                    const paused = (s.paused_keys !== undefined) ? s.paused_keys : (s.suspended_keys || 0);
+                    const revoked = s.revoked_keys || 0;
                     const expired = s.expired_keys || 0;
 
-                    document.getElementById('metricTotalKeys').innerText = total;
-                    document.getElementById('metricInactiveKeys').innerText = unused;
-                    document.getElementById('metricActiveKeys').innerText = active;
-                    document.getElementById('metricExpiredKeys').innerText = expired;
+                    const elTotal = document.getElementById('metricTotalKeys');
+                    if (elTotal) elTotal.innerText = total;
 
-                    document.getElementById('navTotalCountBadge').innerText = `(${total})`;
-                    document.getElementById('totalKeysCountTitle').innerText = total;
-                    document.getElementById('historyCountTitle').innerText = total;
+                    const elInactive = document.getElementById('metricInactiveKeys');
+                    if (elInactive) elInactive.innerText = unused;
+
+                    const elActive = document.getElementById('metricActiveKeys');
+                    if (elActive) elActive.innerText = active;
+
+                    const elPaused = document.getElementById('metricPausedKeys');
+                    if (elPaused) elPaused.innerText = paused;
+
+                    const elRevoked = document.getElementById('metricRevokedKeys');
+                    if (elRevoked) elRevoked.innerText = revoked;
+
+                    const elExpired = document.getElementById('metricExpiredKeys');
+                    if (elExpired) elExpired.innerText = expired;
+
+                    const elNavBadge = document.getElementById('navTotalCountBadge');
+                    if (elNavBadge) elNavBadge.innerText = `(${total})`;
+
+                    const elTotalTitle = document.getElementById('totalKeysCountTitle');
+                    if (elTotalTitle) elTotalTitle.innerText = total;
+
+                    const elHistTitle = document.getElementById('historyCountTitle');
+                    if (elHistTitle) elHistTitle.innerText = total;
                 }
             } catch (err) {
                 console.error('Stats error:', err);
@@ -2017,7 +2136,7 @@
 
         // --- TOTAL KEYS TAB RENDERING ---
         function setStatusFilter(status, btn) {
-            currentStatusFilter = status;
+            currentStatusFilter = (status === 'INACTIVE') ? 'NON-ACTIVE' : status;
             document.querySelectorAll('#tabContentTotalKeys .chip').forEach(c => c.classList.remove('selected'));
             if (btn) btn.classList.add('selected');
             renderKeysList();
@@ -2030,9 +2149,10 @@
         }
 
         function filterKeys(list) {
+            const normFilter = (currentStatusFilter === 'INACTIVE') ? 'NON-ACTIVE' : currentStatusFilter;
             return list.filter(k => {
                 const status = computeKeyStatus(k);
-                if (currentStatusFilter !== 'ALL' && status !== currentStatusFilter) {
+                if (normFilter !== 'ALL' && status !== normFilter) {
                     return false;
                 }
                 if (searchQuery) {
@@ -2068,7 +2188,7 @@
                 let validityText = '';
                 let dataAttr = '';
 
-                if (status === 'INACTIVE') {
+                if (status === 'NON-ACTIVE' || status === 'INACTIVE') {
                     validityText = `Starts on activation (${formatDurationLabel(k.duration_hours)})`;
                 } else if (status === 'ACTIVE') {
                     if (isPerm) {
@@ -2126,7 +2246,8 @@
                                 `<span class="status-badge status-badge-revoked" style="font-size: 11px; padding: 4px 8px;">Revoked</span>` :
                                 `<button class="btn btn-danger btn-sm" onclick="revokeKey(${k.id})">Revoke</button>`
                             }
-                            <button class="btn btn-tonal btn-sm" onclick="openExtendModal(${k.id})">Extend</button>
+                            ${status !== 'REVOKED' ? `<button class="btn btn-tonal btn-sm" onclick="openExtendModal(${k.id})">Extend</button>` : ''}
+                            ${status !== 'REVOKED' && !isPerm ? `<button class="btn btn-tonal btn-sm" style="color: #f59e0b; border-color: rgba(245, 158, 11, 0.3);" onclick="openReduceModal(${k.id})">Reduce</button>` : ''}
                             <button class="btn btn-outline btn-sm" onclick="openEditModal(${k.id})">Edit</button>
                             <button class="btn btn-outline btn-sm" onclick="openKeyDetailsById(${k.id})">Details</button>
                             <button class="btn btn-outline btn-sm" style="color: var(--status-expired); border-color: rgba(239, 68, 68, 0.4);" onclick="deleteKeyItem(${k.id})">Delete</button>
@@ -2160,7 +2281,8 @@
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 ${formatStatusBadge(status)}
                                 <button class="btn btn-tonal btn-sm" onclick="copyText('${k.key_display}', 'Key')">Copy</button>
-                                <button class="btn btn-tonal btn-sm" onclick="openExtendModal(${k.id})">Extend</button>
+                                ${status !== 'REVOKED' ? `<button class="btn btn-tonal btn-sm" onclick="openExtendModal(${k.id})">Extend</button>` : ''}
+                                ${status !== 'REVOKED' && k.duration_hours !== -1 ? `<button class="btn btn-tonal btn-sm" style="color: #f59e0b; border-color: rgba(245, 158, 11, 0.3);" onclick="openReduceModal(${k.id})">Reduce</button>` : ''}
                                 <button class="btn btn-outline btn-sm" onclick="openKeyDetailsById(${k.id})">Details</button>
                                 <button class="btn btn-outline btn-sm" style="color: var(--status-expired); border-color: rgba(239, 68, 68, 0.4);" onclick="openDeleteModal(${k.id})">Delete</button>
                             </div>
@@ -2170,13 +2292,35 @@
             }).join('');
         }
 
-        // --- KEY ACTIONS: PAUSE, RESUME, REVOKE, EXTEND, DELETE ---
+        // --- IN-MEMORY FAST KEY UPDATE (Eliminates slow 250-key reloads) ---
+        function updateKeyLocally(updatedKey) {
+            if (!updatedKey || !updatedKey.id) return;
+            const idx = allKeys.findIndex(k => String(k.id) === String(updatedKey.id) || k.key_display === updatedKey.key_display);
+            if (idx !== -1) {
+                allKeys[idx] = { ...allKeys[idx], ...updatedKey };
+            } else {
+                allKeys.unshift(updatedKey);
+            }
+            saveAllKeys(allKeys);
+
+            if (latestKeyData && (String(latestKeyData.id) === String(updatedKey.id) || latestKeyData.key_display === updatedKey.key_display)) {
+                latestKeyData = { ...latestKeyData, ...updatedKey };
+                saveLatestKey(latestKeyData);
+                renderLatestKey(latestKeyData);
+            }
+
+            renderKeysList();
+            renderHistoryList();
+            updateLiveCountdowns();
+        }
+
+        // --- KEY ACTIONS: PAUSE, RESUME, REVOKE, EXTEND, REDUCE, DELETE ---
         async function pauseKey(id) {
             const res = await api(`/api/keys/${id}/pause`, { method: 'POST' });
             if (res.success) {
                 showToast('Key paused successfully');
+                if (res.key) updateKeyLocally(res.key);
                 loadStatsData();
-                loadKeysData();
             } else {
                 alert(res.message || 'Failed to pause key');
             }
@@ -2186,8 +2330,8 @@
             const res = await api(`/api/keys/${id}/resume`, { method: 'POST' });
             if (res.success) {
                 showToast('Key resumed successfully');
+                if (res.key) updateKeyLocally(res.key);
                 loadStatsData();
-                loadKeysData();
             } else {
                 alert(res.message || 'Failed to resume key');
             }
@@ -2198,8 +2342,8 @@
             const res = await api(`/api/keys/${id}/revoke`, { method: 'POST' });
             if (res.success) {
                 showToast('Key permanently revoked');
+                if (res.key) updateKeyLocally(res.key);
                 loadStatsData();
-                loadKeysData();
             } else {
                 alert(res.message || 'Failed to revoke key');
             }
@@ -2210,6 +2354,11 @@
             if (!id) return;
             const keyItem = allKeys.find(k => k.id === id) || (latestKeyData && latestKeyData.id === id ? latestKeyData : null);
             if (!keyItem) return;
+
+            if (keyItem.status === 'REVOKED') {
+                alert('Revoked keys cannot be extended. Generate a new key if access is needed.');
+                return;
+            }
 
             document.getElementById('extendKeyId').value = id;
             document.getElementById('extendModalKeyCode').innerText = keyItem.key_display || `Key #${id}`;
@@ -2249,8 +2398,8 @@
                 if (res.success && res.key) {
                     closeModal('modalExtendExpiry');
                     showToast(`Key expiry successfully extended by ${hours} hours!`);
+                    updateKeyLocally(res.key);
                     loadStatsData();
-                    loadKeysData();
                 } else {
                     document.getElementById('extendModalError').style.display = 'block';
                     document.getElementById('extendModalError').innerText = res.message || 'Failed to extend expiry';
@@ -2261,6 +2410,159 @@
             } finally {
                 btn.disabled = false;
                 document.getElementById('btnExtendSpinner').style.display = 'none';
+            }
+        }
+
+        // --- REDUCE KEY VALIDITY TIME MODAL & ACTION ---
+        function openReduceModal(id) {
+            if (!id) return;
+            const keyItem = allKeys.find(k => k.id === id) || (latestKeyData && latestKeyData.id === id ? latestKeyData : null);
+            if (!keyItem) return;
+
+            if (keyItem.status === 'REVOKED') {
+                alert('Revoked keys cannot have their validity reduced.');
+                return;
+            }
+            if (keyItem.duration_hours === -1) {
+                alert('Permanent (lifetime) keys cannot have their validity reduced.');
+                return;
+            }
+
+            document.getElementById('reduceKeyId').value = id;
+            document.getElementById('reduceModalKeyCode').innerText = keyItem.key_display || `Key #${id}`;
+            const status = computeKeyStatus(keyItem);
+            document.getElementById('reduceModalStatus').innerHTML = formatStatusBadge(status);
+
+            let curExpText = '-';
+            if (keyItem.expires_at) {
+                curExpText = formatDateTime(keyItem.expires_at);
+            } else if (keyItem.duration_hours > 0) {
+                curExpText = `${formatDurationLabel(keyItem.duration_hours)} (Starts on activation)`;
+            }
+            document.getElementById('reduceModalCurrentExpiry').innerText = curExpText;
+
+            document.getElementById('inputReduceAmount').value = 12;
+            document.getElementById('selectReduceUnit').value = 'hours';
+            document.getElementById('reduceModalError').style.display = 'none';
+            document.getElementById('reduceModalError').innerText = '';
+
+            calculateReducePreview();
+            openModal('modalReduceTime');
+        }
+
+        function setReduceTimeVal(amount, unit) {
+            document.getElementById('inputReduceAmount').value = amount;
+            document.getElementById('selectReduceUnit').value = unit;
+            calculateReducePreview();
+        }
+
+        function calculateReducePreview() {
+            const id = parseInt(document.getElementById('reduceKeyId').value, 10);
+            const keyItem = allKeys.find(k => k.id === id) || (latestKeyData && latestKeyData.id === id ? latestKeyData : null);
+            const amount = parseFloat(document.getElementById('inputReduceAmount').value);
+            const unit = document.getElementById('selectReduceUnit').value;
+
+            const curExpEl = document.getElementById('previewCurrentExpiry');
+            const redAmtEl = document.getElementById('previewReductionAmount');
+            const resExpEl = document.getElementById('previewResultingExpiry');
+            const warnEl = document.getElementById('reduceWarningNotice');
+
+            if (!keyItem || isNaN(amount) || amount <= 0) {
+                redAmtEl.innerText = '-';
+                resExpEl.innerText = '-';
+                if (warnEl) warnEl.style.display = 'none';
+                return;
+            }
+
+            const hours = unit === 'days' ? Math.round(amount * 24) : Math.round(amount);
+            redAmtEl.innerText = `-${amount} ${unit === 'days' ? (amount === 1 ? 'Day' : 'Days') : (amount === 1 ? 'Hour' : 'Hours')}${unit === 'days' ? ` (${hours}h)` : ''}`;
+
+            if (keyItem.expires_at) {
+                curExpEl.innerText = formatDateTime(keyItem.expires_at);
+                const curEpoch = new Date(keyItem.expires_at).getTime();
+                const newEpoch = curEpoch - (hours * 3600 * 1000);
+
+                if (newEpoch <= Date.now()) {
+                    resExpEl.innerText = `${formatDateTime(new Date(newEpoch).toISOString())} (EXPIRED)`;
+                    resExpEl.style.color = 'var(--status-expired)';
+                    if (warnEl) warnEl.style.display = 'block';
+                } else {
+                    resExpEl.innerText = formatDateTime(new Date(newEpoch).toISOString());
+                    resExpEl.style.color = '#38bdf8';
+                    if (warnEl) warnEl.style.display = 'none';
+                }
+            } else {
+                const initDuration = keyItem.duration_hours || 0;
+                curExpEl.innerText = `${formatDurationLabel(initDuration)} (Unactivated)`;
+                const remHours = Math.max(0, initDuration - hours);
+
+                if (remHours <= 0) {
+                    resExpEl.innerText = '0 Hours (Key will be EXPIRED upon reduction)';
+                    resExpEl.style.color = 'var(--status-expired)';
+                    if (warnEl) warnEl.style.display = 'block';
+                } else {
+                    resExpEl.innerText = `${formatDurationLabel(remHours)} (Starts on activation)`;
+                    resExpEl.style.color = '#38bdf8';
+                    if (warnEl) warnEl.style.display = 'none';
+                }
+            }
+        }
+
+        function openReduceFromEdit() {
+            const id = parseInt(document.getElementById('editKeyId').value, 10);
+            closeModal('modalEditKey');
+            if (id) openReduceModal(id);
+        }
+
+        let isSubmittingReduce = false;
+        async function submitReduceTime() {
+            if (isSubmittingReduce) return;
+            const id = document.getElementById('reduceKeyId').value;
+            const amount = parseFloat(document.getElementById('inputReduceAmount').value);
+            const unit = document.getElementById('selectReduceUnit').value;
+
+            if (!id || isNaN(amount) || amount <= 0) {
+                alert('Please enter a valid positive reduction amount.');
+                return;
+            }
+
+            const confirmMsg = `Are you sure you want to reduce this key's validity by ${amount} ${unit}? This action cannot be undone.`;
+            if (!confirm(confirmMsg)) return;
+
+            isSubmittingReduce = true;
+            const btn = document.getElementById('btnConfirmReduce');
+            const cancelBtn = document.getElementById('btnCancelReduce');
+            const spinner = document.getElementById('btnReduceSpinner');
+            const errorDiv = document.getElementById('reduceModalError');
+
+            btn.disabled = true;
+            cancelBtn.disabled = true;
+            if (spinner) spinner.style.display = 'inline';
+            errorDiv.style.display = 'none';
+
+            try {
+                const res = await api(`/api/keys/${id}/reduce-time`, {
+                    method: 'POST',
+                    body: JSON.stringify({ amount, unit })
+                });
+
+                if (res.success && res.key) {
+                    closeModal('modalReduceTime');
+                    showToast(res.message || `Key validity successfully reduced by ${amount} ${unit}!`);
+                    updateKeyLocally(res.key);
+                    loadStatsData();
+                } else {
+                    errorDiv.style.display = 'block';
+                    errorDiv.innerText = res.message || 'Failed to reduce key validity';
+                }
+            } catch (err) {
+                errorDiv.style.display = 'block';
+                errorDiv.innerText = err.message || 'Network error';
+            } finally {
+                isSubmittingReduce = false;
+                btn.disabled = false;
+                cancelBtn.disabled = false;
+                if (spinner) spinner.style.display = 'none';
             }
         }
 
@@ -2395,16 +2697,18 @@
 
         // --- EDIT KEY MODAL ---
         function openEditModal(id) {
-            const keyItem = allKeys.find(k => k.id === id);
+            if (!id) return;
+            const keyItem = allKeys.find(k => k.id === id) || (latestKeyData && latestKeyData.id === id ? latestKeyData : null);
             if (!keyItem) return;
 
             document.getElementById('editKeyId').value = id;
             document.getElementById('editKeyString').value = keyItem.key_display || '';
             const statusSelect = document.getElementById('editStatus');
-            statusSelect.value = keyItem.status || 'ACTIVE';
+            const currentStatus = keyItem.status || 'ACTIVE';
+            statusSelect.value = (currentStatus === 'NON-ACTIVE' || currentStatus === 'INACTIVE') ? 'UNUSED' : currentStatus;
 
             // Revoked keys can NEVER be reactivated or changed to any other status
-            const isRevoked = keyItem.status === 'REVOKED';
+            const isRevoked = currentStatus === 'REVOKED';
             Array.from(statusSelect.options).forEach(opt => {
                 if (isRevoked) {
                     opt.disabled = opt.value !== 'REVOKED';
@@ -2413,7 +2717,24 @@
                 }
             });
 
-            document.getElementById('editDurationHours').value = (keyItem.duration_hours !== undefined && keyItem.duration_hours !== null) ? keyItem.duration_hours : -1;
+            const durSelect = document.getElementById('editDurationHours');
+            const durNotice = document.getElementById('editDurationNotice');
+            const isPerm = keyItem.duration_hours === -1;
+            const isActivated = !!keyItem.activated_at || !!keyItem.expires_at;
+
+            if (isPerm) {
+                durSelect.disabled = true;
+                if (durNotice) durNotice.innerHTML = 'This is a <b>Permanent (Lifetime)</b> key. Lifetime duration cannot be altered.';
+            } else if (isActivated) {
+                durSelect.disabled = true;
+                durSelect.value = [1, 24, 168, 720].includes(keyItem.duration_hours) ? keyItem.duration_hours : 24;
+                if (durNotice) durNotice.innerHTML = 'Key is already activated. Expiration timestamp is preserved. Use <b>Extend</b> or <b>Reduce Time</b> to adjust validity.';
+            } else {
+                durSelect.disabled = false;
+                durSelect.value = [1, 24, 168, 720].includes(keyItem.duration_hours) ? keyItem.duration_hours : 24;
+                if (durNotice) durNotice.innerHTML = 'Unactivated key: configure initial validity duration (1h, 1d, 7d, 30d).';
+            }
+
             document.getElementById('editCustomerName').value = keyItem.customer_name || '';
             document.getElementById('editMaxDevices').value = keyItem.max_devices || 1;
             document.getElementById('editNotes').value = keyItem.notes || '';
@@ -2421,32 +2742,61 @@
             openModal('modalEditKey');
         }
 
+        let isSubmittingEdit = false;
         async function submitEditKey() {
+            if (isSubmittingEdit) return;
+
             const id = document.getElementById('editKeyId').value;
             const status = document.getElementById('editStatus').value;
-            const durationHours = parseInt(document.getElementById('editDurationHours').value, 10);
             const customerName = document.getElementById('editCustomerName').value.trim();
             const maxDevices = parseInt(document.getElementById('editMaxDevices').value, 10) || 1;
             const notes = document.getElementById('editNotes').value.trim();
+            const durSelect = document.getElementById('editDurationHours');
 
-            const res = await api(`/api/keys/${id}`, {
-                method: 'PATCH',
-                body: JSON.stringify({
-                    status: status,
-                    duration_hours: durationHours,
-                    customer_name: customerName,
-                    max_devices: maxDevices,
-                    notes: notes
-                })
-            });
+            const payload = {
+                status: status,
+                customer_name: customerName,
+                max_devices: maxDevices,
+                notes: notes
+            };
 
-            if (res.success) {
-                closeModal('modalEditKey');
-                showToast('Key metadata updated on server');
-                loadStatsData();
-                loadKeysData();
-            } else {
-                alert(res.message || 'Failed to update key');
+            // Only send duration_hours for unactivated keys where duration selection is enabled
+            if (!durSelect.disabled) {
+                const d = parseInt(durSelect.value, 10);
+                if (!isNaN(d) && d > 0) {
+                    payload.duration_hours = d;
+                }
+            }
+
+            isSubmittingEdit = true;
+            const saveBtn = document.getElementById('btnSaveEditKey');
+            const cancelBtn = document.getElementById('btnCancelEditKey');
+            const originalText = saveBtn.innerText;
+            saveBtn.disabled = true;
+            cancelBtn.disabled = true;
+            saveBtn.innerText = 'Saving...';
+
+            try {
+                const res = await api(`/api/keys/${id}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.success && res.key) {
+                    closeModal('modalEditKey');
+                    showToast('Key updated successfully');
+                    updateKeyLocally(res.key);
+                    loadStatsData();
+                } else {
+                    alert(res.message || 'Failed to update key');
+                }
+            } catch (err) {
+                alert('Network/Server Error: ' + err.message);
+            } finally {
+                isSubmittingEdit = false;
+                saveBtn.disabled = false;
+                cancelBtn.disabled = false;
+                saveBtn.innerText = originalText;
             }
         }
 

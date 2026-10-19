@@ -50,6 +50,9 @@ test('Deployment Test Suite (Scenarios A through G)', async (t) => {
     }
 
     await db.initDatabase();
+    try {
+        await db.query("DELETE FROM app_releases WHERE release_notes LIKE '%test%' OR latest_version LIKE '1.4.%' OR latest_version = '1.3.7-test'");
+    } catch {}
 
     await new Promise((resolve) => {
         server = app.listen(testPort, '127.0.0.1', () => resolve());
@@ -65,7 +68,8 @@ test('Deployment Test Suite (Scenarios A through G)', async (t) => {
                 latest_version: '1.3.7-test',
                 version_code: 39,
                 release_notes: 'Automated test release notes',
-                min_version: '1.0.0'
+                min_version: '1.0.0',
+                allow_downgrade: true
             };
 
             const res = await makeRequest(server, {
@@ -305,5 +309,8 @@ test('Deployment Test Suite (Scenarios A through G)', async (t) => {
         if (originalVersionBackup && fs.existsSync(originalVersionFile)) {
             fs.writeFileSync(originalVersionFile, originalVersionBackup, 'utf8');
         }
+        try {
+            await db.query("DELETE FROM app_releases WHERE release_notes LIKE '%test%' OR latest_version LIKE '1.4.%' OR latest_version = '1.3.7-test'");
+        } catch {}
     }
 });

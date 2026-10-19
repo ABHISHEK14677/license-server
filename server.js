@@ -627,15 +627,29 @@ async function handleUpdateKey(req, res) {
             activated_at, activatedAt
         } = req.body;
 
+        // Prevent changing revoked key status to anything else through ordinary editing
+        if (key.status === 'REVOKED' && status && status.toUpperCase() !== 'REVOKED') {
+            return res.status(400).json({
+                success: false,
+                message: 'A revoked key cannot be reactivated through ordinary editing. Reissuing access must follow the authorized workflow or generate a new key.'
+            });
+        }
+
         const rawDuration = duration_hours !== undefined ? duration_hours : durationHours;
         let finalDuration = undefined;
         if (rawDuration !== undefined && rawDuration !== null) {
             finalDuration = parseInt(rawDuration, 10);
-            const ALLOWED_DURATIONS = [-1, 1, 24, 168, 720];
+            if (finalDuration === -1) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Permanent time-changing or lifetime extension is not permitted in key editing.'
+                });
+            }
+            const ALLOWED_DURATIONS = [1, 24, 168, 720];
             if (!ALLOWED_DURATIONS.includes(finalDuration)) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Invalid duration. Only 1h (1 hour), 1d (24 hours), 7d (7 days), 30d (30 days), and Lifetime (-1) are allowed.'
+                    message: 'Invalid duration. Only 1h (1 hour), 1d (24 hours), 7d (7 days), and 30d (30 days) are allowed.'
                 });
             }
         }
@@ -652,8 +666,8 @@ async function handleUpdateKey(req, res) {
         await db.logAuditEvent('KEY_UPDATED', { key_id: key.id, key_display: updated ? updated.key_display : key.key_display, changes: req.body }, getClientIp(req));
         broadcastAdminEvent('KEY_UPDATED', { key: updated });
 
-        // Sync with Render Cloud if running in local environment
-        if (!process.env.RENDER) {
+        // Sync with Render Cloud if running in local environment and cloud sync is enabled
+        if (!process.env.RENDER && config.autoSyncCloud) {
             updateKeyOnCloud(updated ? (updated.key_display || updated.id) : key.id, req.body).catch(() => {});
         }
 
@@ -695,6 +709,105 @@ async function handleExtendKey(req, res) {
     }
 }
 app.post('/api/keys/:id/extend', requireAdmin, handleExtendKey);
+
+// Reduce key remaining validity (Shortens validity; never extends it)
+async function handleReduceKeyTime(req, res) {
+    try {
+        const id = req.params.id;
+        const key = await db.getKeyByIdOrString(id);
+        if (!key) return res.status(404).json({ success: false, message: 'Key not found' });
+        if (key.status === 'REVOKED') {
+            return res.status(400).json({ success: false, message: 'Revoked keys cannot be modified. Generate a new key if access is needed.' });
+        }
+
+        const { amount, unit = 'hours', hours, days, reduction_hours } = req.body;
+        let rawAmount = amount;
+        let rawUnit = (unit || 'hours').toLowerCase();
+
+        if (rawAmount === undefined || rawAmount === null) {
+            if (hours !== undefined) {
+                rawAmount = hours;
+                rawUnit = 'hours';
+            } else if (days !== undefined) {
+                rawAmount = days;
+                rawUnit = 'days';
+            } else if (reduction_hours !== undefined) {
+                rawAmount = reduction_hours;
+                rawUnit = 'hours';
+            }
+        }
+
+        const parsedAmount = Number(rawAmount);
+        if (rawAmount === undefined || rawAmount === null || isNaN(parsedAmount) || !isFinite(parsedAmount) || parsedAmount <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid reduction amount. Must be a positive number greater than zero.'
+            });
+        }
+
+        const validUnits = ['hours', 'hour', 'h', 'days', 'day', 'd'];
+        if (!validUnits.includes(rawUnit)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid unit. Supported units are "hours" and "days".'
+            });
+        }
+
+        const isDays = (rawUnit === 'days' || rawUnit === 'day' || rawUnit === 'd');
+        const reductionHours = isDays ? parsedAmount * 24 : parsedAmount;
+
+        if (reductionHours <= 0 || reductionHours > 876000) {
+            return res.status(400).json({
+                success: false,
+                message: 'Reduction amount out of supported range.'
+            });
+        }
+
+        if (key.duration_hours === -1) {
+            return res.status(400).json({
+                success: false,
+                message: 'Permanent (lifetime) keys do not have a finite validity period to reduce.'
+            });
+        }
+
+        const result = await db.reduceKeyTime(key.id, reductionHours, req.admin?.username || 'admin');
+        const updated = result.updated;
+
+        await db.logAuditEvent('KEY_TIME_REDUCED', {
+            admin: req.admin?.username || 'admin',
+            key_id: key.id,
+            key_display: key.key_display,
+            previous_expires_at: result.previousExpiresAt,
+            new_expires_at: result.newExpiresAt,
+            reduction_hours: reductionHours,
+            unit: rawUnit,
+            amount: parsedAmount,
+            timestamp: new Date().toISOString()
+        }, getClientIp(req));
+
+        broadcastAdminEvent('KEY_UPDATED', { key: updated });
+
+        if (!process.env.RENDER && config.autoSyncCloud) {
+            updateKeyOnCloud(updated ? (updated.key_display || updated.id) : key.id, {
+                expires_at: result.newExpiresAt,
+                duration_hours: result.newDurationHours,
+                status: result.status
+            }).catch(() => {});
+        }
+
+        res.json({
+            success: true,
+            message: `Key validity reduced by ${parsedAmount} ${rawUnit}`,
+            key: updated,
+            previous_expires_at: result.previousExpiresAt,
+            new_expires_at: result.newExpiresAt
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+}
+app.post('/api/keys/:id/reduce-time', requireAdmin, handleReduceKeyTime);
+app.post('/api/keys/:id/reduce', requireAdmin, handleReduceKeyTime);
 
 // Revoke key
 app.post('/api/keys/:id/revoke', requireAdmin, async (req, res) => {

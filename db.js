@@ -29,10 +29,30 @@ if (DATABASE_URL && DATABASE_URL.startsWith('postgres')) {
     }
     const DB_PATH = path.join(__dirname, 'licenses.db');
     sqliteDb = new DatabaseSync(DB_PATH);
+    try {
+        sqliteDb.exec('PRAGMA journal_mode = WAL;');
+        sqliteDb.exec('PRAGMA busy_timeout = 10000;');
+    } catch {}
     console.log('[DB] Using local SQLite database:', DB_PATH);
 }
 
 const SEED_FILE_PATH = path.join(__dirname, 'seed-keys.json');
+
+async function execSqliteWithRetry(fn, maxRetries = 30) {
+    let retries = maxRetries;
+    while (true) {
+        try {
+            return fn();
+        } catch (err) {
+            if ((err.errcode === 5 || (err.message && err.message.includes('locked'))) && retries > 0) {
+                retries--;
+                await new Promise(r => setTimeout(r, 20 + Math.floor(Math.random() * 30)));
+                continue;
+            }
+            throw err;
+        }
+    }
+}
 
 // Helper query function that abstracts Postgres ($1, $2) vs SQLite (?, ?)
 async function query(sql, params = []) {
@@ -47,26 +67,28 @@ async function query(sql, params = []) {
         };
     } else {
         const trimmed = sql.trim().toUpperCase();
-        if (trimmed.startsWith('SELECT') || trimmed.startsWith('WITH')) {
-            const stmt = sqliteDb.prepare(sql);
-            const rows = stmt.all(...params);
-            return { rows, rowCount: rows.length };
-        } else if (trimmed.startsWith('INSERT')) {
-            const stmt = sqliteDb.prepare(sql);
-            const info = stmt.run(...params);
-            return {
-                rows: [],
-                rowCount: info.changes,
-                lastID: Number(info.lastInsertRowid)
-            };
-        } else {
-            const stmt = sqliteDb.prepare(sql);
-            const info = stmt.run(...params);
-            return {
-                rows: [],
-                rowCount: info.changes
-            };
-        }
+        return await execSqliteWithRetry(() => {
+            if (trimmed.startsWith('SELECT') || trimmed.startsWith('WITH')) {
+                const stmt = sqliteDb.prepare(sql);
+                const rows = stmt.all(...params);
+                return { rows, rowCount: rows.length };
+            } else if (trimmed.startsWith('INSERT')) {
+                const stmt = sqliteDb.prepare(sql);
+                const info = stmt.run(...params);
+                return {
+                    rows: [],
+                    rowCount: info.changes,
+                    lastID: Number(info.lastInsertRowid)
+                };
+            } else {
+                const stmt = sqliteDb.prepare(sql);
+                const info = stmt.run(...params);
+                return {
+                    rows: [],
+                    rowCount: info.changes
+                };
+            }
+        });
     }
 }
 
@@ -76,14 +98,16 @@ async function queryOne(sql, params = []) {
 }
 
 // Migration helper for SQLite
-function ensureSqliteColumn(table, column, colType) {
+async function ensureSqliteColumn(table, column, colType) {
     try {
-        const cols = sqliteDb.prepare(`PRAGMA table_info(${table})`).all();
-        const exists = cols.some(c => c.name === column);
-        if (!exists) {
-            sqliteDb.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${colType};`);
-            console.log(`[DB MIGRATION] Added column ${column} to table ${table}`);
-        }
+        await execSqliteWithRetry(() => {
+            const cols = sqliteDb.prepare(`PRAGMA table_info(${table})`).all();
+            const exists = cols.some(c => c.name === column);
+            if (!exists) {
+                sqliteDb.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${colType};`);
+                console.log(`[DB MIGRATION] Added column ${column} to table ${table}`);
+            }
+        });
     } catch (e) {
         // Table might not exist yet
     }
@@ -203,6 +227,10 @@ async function initDatabase() {
 
                 CREATE INDEX IF NOT EXISTS idx_keys_hash ON activation_keys(key_hash);
                 CREATE INDEX IF NOT EXISTS idx_keys_status ON activation_keys(status);
+                CREATE INDEX IF NOT EXISTS idx_keys_display ON activation_keys(key_display);
+                CREATE INDEX IF NOT EXISTS idx_activations_key_id ON activations(key_id);
+                CREATE INDEX IF NOT EXISTS idx_activations_device_id ON activations(device_id);
+                CREATE INDEX IF NOT EXISTS idx_activations_status ON activations(status);
                 CREATE INDEX IF NOT EXISTS idx_deleted_keys_hash ON deleted_keys(key_hash);
                 CREATE INDEX IF NOT EXISTS idx_app_releases_code ON app_releases(version_code);
             `);
@@ -218,7 +246,7 @@ async function initDatabase() {
                 // Columns may already exist
             }
         } else {
-            sqliteDb.exec(`
+            await execSqliteWithRetry(() => sqliteDb.exec(`
                 PRAGMA foreign_keys = ON;
 
                 CREATE TABLE IF NOT EXISTS admins (
@@ -330,22 +358,35 @@ async function initDatabase() {
                     is_active INTEGER DEFAULT 1,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 );
-            `);
+
+                CREATE INDEX IF NOT EXISTS idx_keys_hash ON activation_keys(key_hash);
+                CREATE INDEX IF NOT EXISTS idx_keys_status ON activation_keys(status);
+                CREATE INDEX IF NOT EXISTS idx_keys_display ON activation_keys(key_display);
+                CREATE INDEX IF NOT EXISTS idx_activations_key_id ON activations(key_id);
+                CREATE INDEX IF NOT EXISTS idx_activations_device_id ON activations(device_id);
+                CREATE INDEX IF NOT EXISTS idx_activations_status ON activations(status);
+                CREATE INDEX IF NOT EXISTS idx_deleted_keys_hash ON deleted_keys(key_hash);
+                CREATE INDEX IF NOT EXISTS idx_app_releases_code ON app_releases(version_code);
+            `));
 
             // Apply migrations to existing tables
-            ensureSqliteColumn('admins', 'email', 'TEXT');
-            ensureSqliteColumn('admins', 'role', "TEXT DEFAULT 'admin'");
-            ensureSqliteColumn('admins', 'updated_at', 'DATETIME');
+            await ensureSqliteColumn('admins', 'email', 'TEXT');
+            await ensureSqliteColumn('admins', 'role', "TEXT DEFAULT 'admin'");
+            await ensureSqliteColumn('admins', 'updated_at', 'DATETIME');
 
-            ensureSqliteColumn('activations', 'key_id', 'INTEGER');
-            ensureSqliteColumn('activations', 'license_id', 'INTEGER');
-            ensureSqliteColumn('activations', 'customer_id', 'INTEGER');
-            ensureSqliteColumn('activations', 'expires_at', 'DATETIME');
-            ensureSqliteColumn('activations', 'status', "TEXT DEFAULT 'ACTIVE'");
-            ensureSqliteColumn('activations', 'last_verified_at', 'DATETIME');
-            ensureSqliteColumn('activations', 'last_seen_at', 'DATETIME');
-            ensureSqliteColumn('activations', 'session_token', 'TEXT');
-            ensureSqliteColumn('activations', 'is_active', "INTEGER DEFAULT 1");
+            await ensureSqliteColumn('activations', 'key_id', 'INTEGER');
+            await ensureSqliteColumn('activations', 'license_id', 'INTEGER');
+            await ensureSqliteColumn('activations', 'customer_id', 'INTEGER');
+            await ensureSqliteColumn('activations', 'expires_at', 'DATETIME');
+            await ensureSqliteColumn('activations', 'status', "TEXT DEFAULT 'ACTIVE'");
+            await ensureSqliteColumn('activations', 'last_verified_at', 'DATETIME');
+            await ensureSqliteColumn('activations', 'last_seen_at', 'DATETIME');
+            await ensureSqliteColumn('activations', 'session_token', 'TEXT');
+            await ensureSqliteColumn('activations', 'is_active', "INTEGER DEFAULT 1");
+
+            await ensureSqliteColumn('audit_logs', 'action', 'TEXT');
+            await ensureSqliteColumn('audit_logs', 'event_type', 'TEXT');
+            await ensureSqliteColumn('audit_logs', 'timestamp', 'DATETIME');
 
             // Clean up legacy activations with null key_id
             try {
@@ -814,9 +855,11 @@ async function getAllKeys({ search = '', status = '', limit = 100 } = {}) {
     if (status && status !== 'ALL') {
         const s = status.toUpperCase();
         if (s === 'ACTIVE') {
-            sql += ` AND (k.status = 'ACTIVE' OR (SELECT COUNT(*) FROM activations a WHERE a.key_id = k.id AND (a.status = 'ACTIVE' OR a.is_active = 1)) > 0)`;
-        } else if (s === 'UNUSED' || s === 'INACTIVE') {
-            sql += ` AND (k.status = 'UNUSED' AND (SELECT COUNT(*) FROM activations a WHERE a.key_id = k.id AND (a.status = 'ACTIVE' OR a.is_active = 1)) = 0)`;
+            sql += ` AND (k.status = 'ACTIVE' OR (SELECT COUNT(*) FROM activations a WHERE a.key_id = k.id AND (a.status = 'ACTIVE' OR a.is_active = 1)) > 0) AND k.status NOT IN ('REVOKED', 'SUSPENDED', 'PAUSED', 'EXPIRED')`;
+        } else if (s === 'UNUSED' || s === 'INACTIVE' || s === 'NON-ACTIVE' || s === 'NON_ACTIVE') {
+            sql += ` AND (k.status IN ('UNUSED', 'INACTIVE', 'NON-ACTIVE', 'NON_ACTIVE') AND (SELECT COUNT(*) FROM activations a WHERE a.key_id = k.id AND (a.status = 'ACTIVE' OR a.is_active = 1)) = 0)`;
+        } else if (s === 'PAUSED' || s === 'SUSPENDED') {
+            sql += ` AND k.status IN ('PAUSED', 'SUSPENDED')`;
         } else {
             sql += ` AND k.status = ?`;
             params.push(s);
@@ -834,18 +877,24 @@ async function getAllKeys({ search = '', status = '', limit = 100 } = {}) {
 
     const res = await query(sql, params);
 
-    // Auto-update expired keys or active status if activated
+    // Efficient atomic batch update for any expired active keys
+    const nowIso = new Date().toISOString();
+    try {
+        await query("UPDATE activation_keys SET status = 'EXPIRED' WHERE status = 'ACTIVE' AND duration_hours != -1 AND expires_at IS NOT NULL AND expires_at <= ?", [nowIso]);
+    } catch (e) {
+        // Non-fatal
+    }
+
+    // Reflect status in-memory for returned rows
     const now = Date.now();
     for (const key of res.rows) {
-        if (key.status === 'ACTIVE' && key.expires_at) {
+        if (key.status === 'ACTIVE' && key.duration_hours !== -1 && key.expires_at) {
             const expTime = new Date(key.expires_at).getTime();
-            if (now > expTime) {
+            if (now >= expTime) {
                 key.status = 'EXPIRED';
-                await query('UPDATE activation_keys SET status = ? WHERE id = ?', ['EXPIRED', key.id]);
             }
-        } else if (key.status === 'UNUSED' && (key.activated_at || key.active_devices_count > 0)) {
+        } else if ((key.status === 'UNUSED' || key.status === 'INACTIVE' || key.status === 'NON-ACTIVE') && (key.activated_at || key.active_devices_count > 0)) {
             key.status = 'ACTIVE';
-            await query("UPDATE activation_keys SET status = 'ACTIVE' WHERE id = ?", [key.id]);
         }
     }
 
@@ -899,6 +948,12 @@ async function updateKeyDetails(id, { notes, customerName, maxDevices, status, k
     const currentKey = await getKeyById(id);
     if (!currentKey) return null;
 
+    // Prevent changing a revoked key back to active or any other status
+    const normStatus = (status !== undefined && status !== null) ? status.toUpperCase() : undefined;
+    if (currentKey.status === 'REVOKED' && normStatus && normStatus !== 'REVOKED') {
+        throw new Error('A revoked key cannot be reactivated through ordinary editing. Reissuing access must follow the authorized workflow or generate a new key.');
+    }
+
     const fields = [];
     const params = [];
 
@@ -917,8 +972,17 @@ async function updateKeyDetails(id, { notes, customerName, maxDevices, status, k
         params.push(parseInt(maxDevices, 10) || 1);
     }
 
-    const normStatus = (status !== undefined && status !== null) ? status.toUpperCase() : undefined;
     let targetStatus = normStatus || currentKey.status;
+    if (targetStatus === 'INACTIVE' || targetStatus === 'NON-ACTIVE' || targetStatus === 'NON_ACTIVE') {
+        targetStatus = 'UNUSED';
+    }
+
+    if (durationHours !== undefined && durationHours !== null) {
+        const d = parseInt(durationHours, 10);
+        if (d === -1 && currentKey.duration_hours !== -1) {
+            throw new Error('Permanent time-changing or lifetime extension is not permitted in key editing.');
+        }
+    }
 
     let targetDuration = (durationHours !== undefined && durationHours !== null)
         ? parseInt(durationHours, 10)
@@ -939,43 +1003,40 @@ async function updateKeyDetails(id, { notes, customerName, maxDevices, status, k
         params.push(targetActivatedAt);
     }
 
-    // Determine target expires_at
+    // Determine target expires_at: PRESERVE existing expiration time unless explicitly modified
     let targetExpiresAt = undefined;
-    let explicitExpiryGiven = false;
+    let shouldUpdateExpiryField = false;
 
     if (expiresAt !== undefined) {
-        explicitExpiryGiven = true;
+        shouldUpdateExpiryField = true;
         targetExpiresAt = expiresAt ? new Date(expiresAt).toISOString() : null;
     } else if (normStatus === 'EXPIRED') {
+        shouldUpdateExpiryField = true;
         targetExpiresAt = new Date(Date.now() - 1000).toISOString();
-    } else if (normStatus === 'UNUSED') {
+    } else if (normStatus === 'UNUSED' || normStatus === 'NON-ACTIVE' || normStatus === 'INACTIVE') {
+        shouldUpdateExpiryField = true;
         targetActivatedAt = null;
         targetExpiresAt = null;
         fields.push('activated_at = NULL');
-    } else if (targetDuration === -1) {
-        targetExpiresAt = null;
-    } else if (targetDuration > 0 && targetActivatedAt) {
-        const baseActTime = new Date(targetActivatedAt).getTime();
-        let calcExpiry = baseActTime + targetDuration * 3600 * 1000;
-
-        // If calculation from original activation date has passed, and admin is setting or keeping status ACTIVE
-        if (calcExpiry <= Date.now() && normStatus === 'ACTIVE' && currentKey.status === 'EXPIRED') {
-            calcExpiry = Date.now() + targetDuration * 3600 * 1000;
-            targetActivatedAt = new Date().toISOString();
-            fields.push('activated_at = ?');
-            params.push(targetActivatedAt);
+    } else if (durationHours !== undefined && durationHours !== currentKey.duration_hours && !currentKey.expires_at) {
+        // Only calculate expires_at from duration if key does not already have an active expiration timestamp
+        shouldUpdateExpiryField = true;
+        if (targetDuration === -1) {
+            targetExpiresAt = null;
+        } else if (targetDuration > 0 && targetActivatedAt) {
+            const baseActTime = new Date(targetActivatedAt).getTime();
+            let calcExpiry = baseActTime + targetDuration * 3600 * 1000;
+            targetExpiresAt = new Date(calcExpiry).toISOString();
+            if (calcExpiry <= Date.now() && !normStatus) {
+                targetStatus = 'EXPIRED';
+            }
         }
-
-        targetExpiresAt = new Date(calcExpiry).toISOString();
-
-        if (calcExpiry <= Date.now() && !normStatus) {
-            targetStatus = 'EXPIRED';
-        } else if (calcExpiry > Date.now() && currentKey.status === 'EXPIRED' && !normStatus) {
-            targetStatus = 'ACTIVE';
-        }
+    } else {
+        // Retain original expiration timestamp unchanged
+        targetExpiresAt = currentKey.expires_at;
     }
 
-    if (targetExpiresAt !== undefined || explicitExpiryGiven || normStatus === 'EXPIRED' || normStatus === 'UNUSED' || targetDuration === -1) {
+    if (shouldUpdateExpiryField) {
         fields.push('expires_at = ?');
         params.push(targetExpiresAt);
     }
@@ -997,24 +1058,26 @@ async function updateKeyDetails(id, { notes, customerName, maxDevices, status, k
         await query("UPDATE activations SET status = 'SUSPENDED' WHERE key_id = ?", [id]);
     } else if (targetStatus === 'EXPIRED') {
         const exp = targetExpiresAt || new Date(Date.now() - 1000).toISOString();
-        await query("UPDATE activations SET status = 'EXPIRED', expires_at = ? WHERE key_id = ?", [exp, id]);
+        await query("UPDATE activations SET status = 'EXPIRED', expires_at = ?, is_active = 0 WHERE key_id = ?", [exp, id]);
     } else if (targetStatus === 'UNUSED') {
         await query("UPDATE activations SET status = 'INACTIVE', is_active = 0, expires_at = NULL WHERE key_id = ?", [id]);
     } else if (targetStatus === 'ACTIVE') {
         await query("UPDATE activations SET status = 'ACTIVE', is_active = 1, expires_at = ? WHERE key_id = ?", [targetExpiresAt, id]);
-    } else if (targetExpiresAt !== undefined) {
+    } else if (shouldUpdateExpiryField && targetExpiresAt !== undefined) {
         await query("UPDATE activations SET expires_at = ? WHERE key_id = ?", [targetExpiresAt, id]);
     }
 
     const updated = await getKeyById(id);
-    await exportSeedKeys();
+    // Export seed keys asynchronously to eliminate latency
+    exportSeedKeys().catch(e => console.warn('[SEED] Async export warning:', e.message));
     return updated;
 }
 
 async function updateKeyStatus(id, newStatus) {
     const current = await getKeyById(id);
     if (!current) return null;
-    const s = (newStatus || '').toUpperCase();
+    let s = (newStatus || '').toUpperCase();
+    if (s === 'INACTIVE' || s === 'NON-ACTIVE' || s === 'NON_ACTIVE') s = 'UNUSED';
     if (current.status === 'REVOKED' && s !== 'REVOKED') {
         throw new Error('A revoked key must never be reactivated; generate a new key if access is needed again.');
     }
@@ -1025,7 +1088,7 @@ async function updateKeyStatus(id, newStatus) {
         await query("UPDATE activations SET status = 'SUSPENDED', is_active = 0 WHERE key_id = ?", [id]);
     } else if (s === 'EXPIRED') {
         const exp = new Date(Date.now() - 1000).toISOString();
-        await query("UPDATE activations SET status = 'EXPIRED', expires_at = ? WHERE key_id = ?", [exp, id]);
+        await query("UPDATE activations SET status = 'EXPIRED', expires_at = ?, is_active = 0 WHERE key_id = ?", [exp, id]);
         await query("UPDATE activation_keys SET expires_at = ? WHERE id = ?", [exp, id]);
     } else if (s === 'ACTIVE') {
         await query("UPDATE activations SET status = 'ACTIVE', is_active = 1 WHERE key_id = ?", [id]);
@@ -1034,7 +1097,7 @@ async function updateKeyStatus(id, newStatus) {
         await query("UPDATE activation_keys SET activated_at = NULL, expires_at = NULL WHERE id = ?", [id]);
     }
     const updated = await getKeyById(id);
-    await exportSeedKeys();
+    exportSeedKeys().catch(e => console.warn('[SEED] Async export warning:', e.message));
     return updated;
 }
 
@@ -1066,7 +1129,7 @@ async function extendKeyExpiry(id, hours) {
     } else {
         const newDur = (key.duration_hours || 0) + extHours;
         await query('UPDATE activation_keys SET duration_hours = ? WHERE id = ?', [newDur, id]);
-        await exportSeedKeys();
+        exportSeedKeys().catch(e => console.warn('[SEED] Async export warning:', e.message));
         return await getKeyById(id);
     }
 
@@ -1085,8 +1148,120 @@ async function extendKeyExpiry(id, hours) {
         WHERE key_id = ? AND status != 'REVOKED'
     `, [newExpiresAtIso, id]);
 
-    await exportSeedKeys();
+    exportSeedKeys().catch(e => console.warn('[SEED] Async export warning:', e.message));
     return await getKeyById(id);
+}
+
+/**
+ * Reduce a key's remaining validity duration atomically on the server.
+ * Shortens remaining validity; never increases it.
+ */
+async function reduceKeyTime(id, reductionHours, adminUsername = 'admin') {
+    const key = await getKeyById(id);
+    if (!key) return null;
+
+    if (key.status === 'REVOKED') {
+        throw new Error('Revoked keys cannot have time reduced or modified. Generate a new key if access is needed.');
+    }
+
+    if (key.duration_hours === -1) {
+        throw new Error('Permanent (lifetime) keys do not have a finite validity period to reduce.');
+    }
+
+    const numHours = Number(reductionHours);
+    if (isNaN(numHours) || !isFinite(numHours) || numHours <= 0) {
+        throw new Error('Reduction hours must be a positive number greater than zero.');
+    }
+
+    if (numHours > 876000) {
+        throw new Error('Reduction amount is too large.');
+    }
+
+    const previousExpiresAt = key.expires_at;
+    const previousDurationHours = key.duration_hours;
+    const now = Date.now();
+    let newExpiresAtIso = null;
+    let newDurationHours = key.duration_hours;
+    let targetStatus = key.status;
+
+    if (key.expires_at) {
+        const curExp = new Date(key.expires_at).getTime();
+        const reductionMs = Math.round(numHours * 3600 * 1000);
+        const newExpMs = curExp - reductionMs;
+        newExpiresAtIso = new Date(newExpMs).toISOString();
+
+        if (newDurationHours > 0) {
+            newDurationHours = Math.max(0, Math.round(newDurationHours - numHours));
+        }
+
+        if (newExpMs <= now) {
+            // Resulting expiration is in the past or now: mark as EXPIRED
+            targetStatus = 'EXPIRED';
+            await query(`
+                UPDATE activation_keys 
+                SET expires_at = ?, duration_hours = ?, status = 'EXPIRED'
+                WHERE id = ?
+            `, [newExpiresAtIso, newDurationHours, id]);
+
+            await query(`
+                UPDATE activations 
+                SET expires_at = ?, status = 'EXPIRED', is_active = 0 
+                WHERE key_id = ?
+            `, [newExpiresAtIso, id]);
+        } else {
+            await query(`
+                UPDATE activation_keys 
+                SET expires_at = ?, duration_hours = ?
+                WHERE id = ?
+            `, [newExpiresAtIso, newDurationHours, id]);
+
+            await query(`
+                UPDATE activations 
+                SET expires_at = ?
+                WHERE key_id = ?
+            `, [newExpiresAtIso, id]);
+        }
+    } else {
+        // Key has not yet been activated (timer starts on first device activation)
+        const curDur = key.duration_hours || 0;
+        const newDur = Math.round(curDur - numHours);
+
+        if (newDur <= 0) {
+            newDurationHours = 0;
+            targetStatus = 'EXPIRED';
+            const nowIso = new Date(now).toISOString();
+            newExpiresAtIso = nowIso;
+            await query(`
+                UPDATE activation_keys 
+                SET duration_hours = 0, expires_at = ?, status = 'EXPIRED'
+                WHERE id = ?
+            `, [nowIso, id]);
+
+            await query(`
+                UPDATE activations 
+                SET expires_at = ?, status = 'EXPIRED', is_active = 0 
+                WHERE key_id = ?
+            `, [nowIso, id]);
+        } else {
+            newDurationHours = newDur;
+            await query(`
+                UPDATE activation_keys 
+                SET duration_hours = ?
+                WHERE id = ?
+            `, [newDur, id]);
+        }
+    }
+
+    exportSeedKeys().catch(e => console.warn('[SEED] Async export warning:', e.message));
+    const updated = await getKeyById(id);
+    return {
+        updated,
+        previousExpiresAt,
+        newExpiresAt: updated.expires_at,
+        previousDurationHours,
+        newDurationHours: updated.duration_hours,
+        status: updated.status
+    };
 }
 
 async function isKeyDeleted(keyHash) {
@@ -1320,7 +1495,7 @@ async function recordActivation({ keyId, customerId, deviceId, expiresAt, sessio
         INSERT INTO activations (key_id, license_id, customer_id, device_id, expires_at, status, session_token)
         VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?)
     `, [keyId, keyId, customerId, deviceId, expiresStr, sessionToken]);
-    await exportSeedKeys();
+    exportSeedKeys().catch(e => console.warn('[SEED] Async export warning:', e.message));
     return res;
 }
 
@@ -1332,7 +1507,7 @@ async function updateActivationLastSeen(activationId, sessionToken = null) {
             SET last_verified_at = CURRENT_TIMESTAMP, last_seen_at = CURRENT_TIMESTAMP, session_token = ?
             WHERE id = ?
         `, [sessionToken, activationId]);
-        await exportSeedKeys();
+        exportSeedKeys().catch(e => console.warn('[SEED] Async export warning:', e.message));
     } else {
         res = await query(`
             UPDATE activations 
@@ -1349,7 +1524,7 @@ async function deactivateDevice(keyId, deviceId) {
         SET status = 'INACTIVE', is_active = 0 
         WHERE (key_id = ? OR license_id = ?) AND device_id = ?
     `, [keyId, keyId, deviceId]);
-    await exportSeedKeys();
+    exportSeedKeys().catch(e => console.warn('[SEED] Async export warning:', e.message));
     return res;
 }
 
@@ -1357,12 +1532,12 @@ async function deactivateDevice(keyId, deviceId) {
 // Dashboard Statistics
 // -------------------------------------------------------------
 async function getDashboardStats() {
-    // Auto-heal status for any activated keys
+    // Auto-heal status for any activated keys that are currently UNUSED
     try {
         await query(`
             UPDATE activation_keys 
             SET status = 'ACTIVE' 
-            WHERE status = 'UNUSED' AND (
+            WHERE status IN ('UNUSED', 'INACTIVE', 'NON-ACTIVE', 'NON_ACTIVE') AND (
                 activated_at IS NOT NULL 
                 OR id IN (SELECT key_id FROM activations WHERE key_id IS NOT NULL AND (status = 'ACTIVE' OR is_active = 1))
             )
@@ -1372,21 +1547,26 @@ async function getDashboardStats() {
     }
 
     const totalKeysRes = await queryOne('SELECT COUNT(*) as count FROM activation_keys');
-    const activeKeysRes = await queryOne("SELECT COUNT(DISTINCT id) as count FROM activation_keys WHERE status = 'ACTIVE' OR id IN (SELECT key_id FROM activations WHERE key_id IS NOT NULL AND (status = 'ACTIVE' OR is_active = 1))");
-    const unusedKeysRes = await queryOne("SELECT COUNT(*) as count FROM activation_keys WHERE status = 'UNUSED' AND NOT EXISTS (SELECT 1 FROM activations WHERE activations.key_id = activation_keys.id AND (activations.status = 'ACTIVE' OR activations.is_active = 1))");
+    const activeKeysRes = await queryOne("SELECT COUNT(DISTINCT id) as count FROM activation_keys WHERE (status = 'ACTIVE' OR (status IN ('UNUSED', 'INACTIVE', 'NON-ACTIVE', 'NON_ACTIVE') AND id IN (SELECT key_id FROM activations WHERE key_id IS NOT NULL AND (status = 'ACTIVE' OR is_active = 1)))) AND status NOT IN ('REVOKED', 'SUSPENDED', 'PAUSED', 'EXPIRED')");
+    const unusedKeysRes = await queryOne("SELECT COUNT(*) as count FROM activation_keys WHERE status IN ('UNUSED', 'INACTIVE', 'NON-ACTIVE', 'NON_ACTIVE') AND NOT EXISTS (SELECT 1 FROM activations WHERE activations.key_id = activation_keys.id AND (activations.status = 'ACTIVE' OR activations.is_active = 1))");
     const expiredKeysRes = await queryOne("SELECT COUNT(*) as count FROM activation_keys WHERE status = 'EXPIRED'");
     const revokedKeysRes = await queryOne("SELECT COUNT(*) as count FROM activation_keys WHERE status = 'REVOKED'");
-    const suspendedKeysRes = await queryOne("SELECT COUNT(*) as count FROM activation_keys WHERE status = 'SUSPENDED'");
+    const suspendedKeysRes = await queryOne("SELECT COUNT(*) as count FROM activation_keys WHERE status IN ('SUSPENDED', 'PAUSED')");
     const customersRes = await queryOne('SELECT COUNT(*) as count FROM customers');
     const devicesRes = await queryOne("SELECT COUNT(*) as count FROM activations WHERE status = 'ACTIVE' OR is_active = 1");
+
+    const nonActiveCount = Number(unusedKeysRes?.count || 0);
+    const pausedCount = Number(suspendedKeysRes?.count || 0);
 
     return {
         total_keys: Number(totalKeysRes?.count || 0),
         active_keys: Number(activeKeysRes?.count || 0),
-        unused_keys: Number(unusedKeysRes?.count || 0),
+        unused_keys: nonActiveCount,
+        non_active_keys: nonActiveCount,
         expired_keys: Number(expiredKeysRes?.count || 0),
         revoked_keys: Number(revokedKeysRes?.count || 0),
-        suspended_keys: Number(suspendedKeysRes?.count || 0),
+        suspended_keys: pausedCount,
+        paused_keys: pausedCount,
         active_customers: Number(customersRes?.count || 0),
         activated_devices: Number(devicesRes?.count || 0)
     };
@@ -1398,19 +1578,37 @@ async function getDashboardStats() {
 async function logAuditEvent(eventType, details = {}, ip = '127.0.0.1') {
     try {
         const detailsStr = typeof details === 'string' ? details : JSON.stringify(details);
-        await query('INSERT INTO audit_logs (event_type, details, ip_address) VALUES (?, ?, ?)', [
-            eventType,
-            detailsStr,
-            ip
-        ]);
+        if (isPostgres) {
+            await query('INSERT INTO audit_logs (event_type, details, ip_address) VALUES (?, ?, ?)', [
+                eventType,
+                detailsStr,
+                ip
+            ]);
+        } else {
+            await query('INSERT INTO audit_logs (action, event_type, details, ip_address) VALUES (?, ?, ?, ?)', [
+                eventType,
+                eventType,
+                detailsStr,
+                ip
+            ]);
+        }
     } catch (e) {
         console.error('[AUDIT] Failed to write log:', e.message);
     }
 }
 
 async function getRecentLogs(limit = 50) {
-    const res = await query('SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT ?', [limit]);
-    return res.rows;
+    try {
+        const res = await query('SELECT * FROM audit_logs ORDER BY id DESC LIMIT ?', [limit]);
+        return res.rows.map(r => ({
+            ...r,
+            action: r.action || r.event_type,
+            event_type: r.event_type || r.action,
+            details: typeof r.details === 'string' ? (() => { try { return JSON.parse(r.details); } catch { return r.details; } })() : r.details
+        }));
+    } catch {
+        return [];
+    }
 }
 
 async function createLicense({
@@ -1516,6 +1714,7 @@ module.exports = {
     updateKeyStatus,
     updateKeyDetails,
     extendKeyExpiry,
+    reduceKeyTime,
     deleteKey,
     isKeyDeleted,
     getAllDeletedKeys,
@@ -1540,6 +1739,7 @@ module.exports = {
     getDashboardStats,
     logAuditEvent,
     getRecentLogs,
+    getAuditLogs: getRecentLogs,
     // Persistence
     exportSeedKeys,
     importSeedKeys
