@@ -1,12 +1,12 @@
 {
-  "latest_version": "1.3.9",
-  "version_code": 41,
+  "latest_version": "1.4.1",
+  "version_code": 43,
   "min_version": "1.0.0",
-  "title": "Z E X O Dashboard & Optimization UI Update",
-  "release_notes": "UI Refinements: Compact FPS display with dynamic target display, clean battery package items, standardized RAM optimization toggle, RAM Diagnostics moved to left sidebar navigation, inline expandable Custom Optimization Hub, and updated Network Manager icon.",
+  "title": "Z E X O Network Manager & Optimization Update",
+  "release_notes": "Fixed Network Manager title to correctly show Network Manager; separated Network Optimization with app prioritization list and search; preserved exact sidebar navigation order; error-free with zero data/key loss.",
   "apk_filename": "RootOptimizer.apk",
-  "download_url": "https://github.com/ABHISHEK14677/license-server/releases/download/v1.3.9/RootOptimizer.apk",
-  "file_size_bytes": 6693211,
-  "sha256": "6407c0bdfa6007897b5fc5b99316d4f54776a66dd1c360755a027be687aaf295",
-  "updated_at": "2026-10-19T07:55:00.000Z"
+  "download_url": "https://github.com/ABHISHEK14677/license-server/releases/download/v1.4.1/RootOptimizer.apk",
+  "file_size_bytes": 6688951,
+  "sha256": "b3dc615c905556ca9ea068a8e3ecdf916c1e0bd68864439de288a08f8e0d4225",
+  "updated_at": "2026-10-19T09:50:00.000Z"
 }
