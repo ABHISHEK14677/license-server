@@ -3,10 +3,10 @@
   "version_code": 44,
   "min_version": "1.0.0",
   "title": "Z E X O RAM, FPS & Network Modify Update",
-  "release_notes": "RAM Optimization: All Apps / Protected filters & clean top-right toggle; FPS Optimization: streamlined cards; Network Modify reordered & enhanced; updated Discord link to https://discord.gg/z8HCwPPDZZ.",
+  "release_notes": "RAM Optimization: All Apps / Protected filters & clean top-right toggle; FPS Optimization: streamlined cards; Network Modify reordered, custom tune icon & enhanced; updated Discord link to https://discord.gg/z8HCwPPDZZ.",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "https://github.com/ABHISHEK14677/license-server/releases/download/v1.4.2/RootOptimizer.apk",
-  "file_size_bytes": 6688951,
-  "sha256": "f0e7d300584f2b9bf8de0de0064b1ea023d10becb0a9111f4d21905d0d5db711",
-  "updated_at": "2026-10-19T11:45:00.000Z"
+  "file_size_bytes": 6689031,
+  "sha256": "e66b01891f9f41095a0601645834d74bf0fe2bd31c5ea87d0c2ed4a43b1bb57c",
+  "updated_at": "2026-10-19T11:58:00.000Z"
 }
