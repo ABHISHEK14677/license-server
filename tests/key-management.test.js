@@ -92,10 +92,11 @@ test('Key Management & UI Test Suite', async (t) => {
         const content = fs.readFileSync(indexHtmlPath, 'utf8');
 
         // Verify new link is present
-        assert.ok(content.includes('https://discord.gg/hBvx4Avpe'), 'public/index.html must contain new discord link');
+        assert.ok(content.includes('https://discord.gg/z8HCwPPDZZ'), 'public/index.html must contain new discord link');
 
-        // Verify old link is NOT present
-        assert.strictEqual(content.includes('CM3KgmuHm'), false, 'public/index.html must not contain old discord invite link');
+        // Verify old links are NOT present
+        assert.strictEqual(content.includes('CM3KgmuHm'), false, 'public/index.html must not contain old discord invite link CM3KgmuHm');
+        assert.strictEqual(content.includes('hBvx4Avpe'), false, 'public/index.html must not contain old discord invite link hBvx4Avpe');
     });
 
     await t.test('2. UI Key View Statuses & Non-Active renaming', async () => {
