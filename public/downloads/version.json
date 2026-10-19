@@ -1,12 +1,12 @@
 {
-  "latest_version": "1.4.2",
-  "version_code": 44,
+  "latest_version": "1.4.3",
+  "version_code": 45,
   "min_version": "1.0.0",
-  "title": "Z E X O RAM, FPS & Network Modify Update",
-  "release_notes": "RAM Optimization: All Apps / Protected filters & clean top-right toggle; FPS Optimization: streamlined cards; Network Modify reordered, custom tune icon & enhanced; updated Discord link to https://discord.gg/z8HCwPPDZZ.",
+  "title": "Z E X O Global Restore Default & Clean RAM Optimization",
+  "release_notes": "RAM Optimization: Clean UI with title and live protected badge only (chips & subtitle removed); Centralized Restore Default: single unified reset located exclusively in the left navigation drawer across all modules; App-data and timeout auto-restore; Tested and verified on physical hardware with Free Fire MAX.",
   "apk_filename": "RootOptimizer.apk",
-  "download_url": "https://github.com/ABHISHEK14677/license-server/releases/download/v1.4.2/RootOptimizer.apk",
-  "file_size_bytes": 6689031,
-  "sha256": "e66b01891f9f41095a0601645834d74bf0fe2bd31c5ea87d0c2ed4a43b1bb57c",
-  "updated_at": "2026-10-19T11:58:00.000Z"
+  "download_url": "https://github.com/ABHISHEK14677/license-server/releases/download/v1.4.3/RootOptimizer.apk",
+  "file_size_bytes": 6701544,
+  "sha256": "6639d22ed0102e5ef71b80940d7900364354285abcdd8fa9d073ce5b627da4a8",
+  "updated_at": "2026-10-19T14:18:00.000Z"
 }
