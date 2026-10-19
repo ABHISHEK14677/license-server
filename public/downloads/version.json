@@ -2,11 +2,11 @@
   "latest_version": "1.4.3",
   "version_code": 45,
   "min_version": "1.0.0",
-  "title": "Z E X O Global Restore Default & Clean RAM Optimization",
-  "release_notes": "RAM Optimization: Renamed Protected to Active; Fixed keyboard auto-dismiss when searching apps and navigating to other panels; Suppressed all explanatory reason dialogs across all panels when toggling switches ON/OFF.",
+  "title": "Z E X O Toast Notifications & Global Restore Default",
+  "release_notes": "All notifications converted to Toast messages; Restore Default updated to confirm 'All system settings restored to default'; RAM Optimization Active label and background keyboard dismissal.",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "https://github.com/ABHISHEK14677/license-server/releases/download/v1.4.3/RootOptimizer.apk",
   "file_size_bytes": 6701544,
-  "sha256": "ead8831f16cd424644c00df260340bb44afc42dd9eac6f79ba9884571056259e",
-  "updated_at": "2026-10-19T20:45:00.000Z"
+  "sha256": "0cca6a92259b9528d7b71912815ff115864766eb246343e5e420c1d452aa1b51",
+  "updated_at": "2026-10-19T21:18:00.000Z"
 }
