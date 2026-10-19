@@ -3,10 +3,10 @@
   "version_code": 45,
   "min_version": "1.0.0",
   "title": "Z E X O Global Restore Default & Clean RAM Optimization",
-  "release_notes": "RAM Optimization: Clean UI with title and live protected badge only (chips & subtitle removed); Centralized Restore Default: single unified reset located exclusively in the left navigation drawer across all modules; App-data and timeout auto-restore; Tested and verified on physical hardware with Free Fire MAX.",
+  "release_notes": "RAM Optimization: Clean UI with title and live protected badge only (chips & subtitle removed); Centralized Restore Default: single unified reset located exclusively in the left navigation drawer across all modules; App-data and timeout auto-restore; Fixed Free Fire and Free Fire MAX restore defaults with verified 0 PROTECTED reset on physical hardware.",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "https://github.com/ABHISHEK14677/license-server/releases/download/v1.4.3/RootOptimizer.apk",
   "file_size_bytes": 6701544,
-  "sha256": "6639d22ed0102e5ef71b80940d7900364354285abcdd8fa9d073ce5b627da4a8",
-  "updated_at": "2026-10-19T14:18:00.000Z"
+  "sha256": "dee7c4b03e69e1b7da67a397567f994ce2edd424c7c2b0a6fd604636564b4bc9",
+  "updated_at": "2026-10-19T14:45:00.000Z"
 }
