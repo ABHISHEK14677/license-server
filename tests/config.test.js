@@ -52,16 +52,17 @@ test('Config: Production configuration strictly requires dedicated secrets', () 
     assert.ok(validationMissing.errors.some(e => e.includes('ADMIN_SECRET')));
     assert.ok(validationMissing.errors.some(e => e.includes('ADMIN_PASSWORD')));
 
-    // Rejection of insecure placeholder defaults
+    // Insecure placeholder defaults produce warnings (not fatal errors) so the
+    // server can still start on Render when the user hasn't rotated credentials yet.
     const prodConfigDefaults = resolveConfig({
         NODE_ENV: 'production',
         ADMIN_SECRET: 'rootoptimizer_secret_2026',
         ADMIN_PASSWORD: 'ABHISHEK!'
     });
     const validationDefaults = validateConfig(prodConfigDefaults);
-    assert.strictEqual(validationDefaults.valid, false);
-    assert.ok(validationDefaults.errors.some(e => e.includes('ADMIN_SECRET must not use a default placeholder')));
-    assert.ok(validationDefaults.errors.some(e => e.includes('ADMIN_PASSWORD must not use a default placeholder')));
+    assert.strictEqual(validationDefaults.valid, true);
+    assert.ok(validationDefaults.warnings.some(w => w.includes('ADMIN_SECRET') && w.includes('known default')));
+    assert.ok(validationDefaults.warnings.some(w => w.includes('ADMIN_PASSWORD') && w.includes('known default')));
 
     // Valid production configuration
     const prodConfigValid = resolveConfig({

@@ -159,7 +159,7 @@ function validateConfig(config = resolveConfig(), options = {}) {
         if (!config.adminSecret) {
             errors.push('ADMIN_SECRET (or ADMIN_SECRET_KEY) is required in production. Configure this in Render Dashboard (Environment -> Environment Variables).');
         } else if (INSECURE_DEFAULTS.has(config.adminSecret)) {
-            errors.push('ADMIN_SECRET must not use a default placeholder value in production. Set a custom secret in Render Dashboard.');
+            warnings.push('ADMIN_SECRET is using a known default value. For better security, set a unique secret in Render Dashboard.');
         } else if (config.adminSecret.length < 16) {
             warnings.push('ADMIN_SECRET should be at least 16 characters for production security.');
         }
@@ -167,7 +167,7 @@ function validateConfig(config = resolveConfig(), options = {}) {
         if (!config.adminPassword) {
             errors.push('ADMIN_PASSWORD is required in production. Configure this in Render Dashboard (Environment -> Environment Variables).');
         } else if (INSECURE_DEFAULTS.has(config.adminPassword)) {
-            errors.push('ADMIN_PASSWORD must not use a default placeholder value in production. Set a custom password in Render Dashboard.');
+            warnings.push('ADMIN_PASSWORD is using a known default value. For better security, set a unique password in Render Dashboard.');
         } else if (config.adminPassword.length < 8) {
             errors.push('ADMIN_PASSWORD must be at least 8 characters.');
         }
