@@ -16,6 +16,8 @@ licenses.db
 licenses.db-journal
 licenses.db-wal
 licenses.db-shm
+tests/*.db*
+
 
 # Build artifacts
 *.apk

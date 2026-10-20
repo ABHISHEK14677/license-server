@@ -510,7 +510,8 @@ async function syncWithCloudServer() {
     let importedLocally = 0;
     let purgedFromCloud = 0;
 
-    // Step 3: Purge any locally deleted keys from Cloud Server
+    // Step 3: Safeguard remote keys - never automatically purge cloud keys during background sync
+    // Deletions on production must only happen via explicit authenticated administrative DELETE requests.
     const localDeleted = await db.getAllDeletedKeys();
     const localDeletedHashes = new Set(localDeleted.map(d => d.key_hash));
     const localDeletedDisplays = new Set(localDeleted.filter(d => d.key_display).map(d => d.key_display.trim().toUpperCase()));
@@ -518,23 +519,8 @@ async function syncWithCloudServer() {
     if (cloudKeysData.success && Array.isArray(cloudKeysData.keys)) {
         const remainingCloudKeys = [];
         for (const ck of cloudKeysData.keys) {
-            const ckDisplay = (ck.key_display || '').trim().toUpperCase();
-            const ckHash = ck.key_hash || hashKey(ckDisplay);
-            if (localDeletedHashes.has(ckHash) || localDeletedDisplays.has(ckDisplay)) {
-                // Key is deleted locally - delete from Cloud as well!
-                try {
-                    await fetch(`${cloudUrl}/api/keys/${ck.id}`, {
-                        method: 'DELETE',
-                        headers: { 'Authorization': `Bearer ${cloudToken}` }
-                    });
-                    purgedFromCloud++;
-                    console.log(`[SYNC] Purged deleted key from cloud: ${ckDisplay} (ID ${ck.id})`);
-                } catch (delErr) {
-                    console.warn(`[SYNC] Failed to delete key ${ck.id} from cloud:`, delErr.message);
-                }
-            } else {
-                remainingCloudKeys.push(ck);
-            }
+            // Keep active and valid keys intact; do not issue destructive automated DELETE requests
+            remainingCloudKeys.push(ck);
         }
 
         // Try to fetch remote deleted keys from Cloud Server (if endpoint exists)
@@ -1682,8 +1668,17 @@ app.get(['/api/app/update', '/api/app/version'], async (req, res) => {
     }
 });
 
+let isPublishing = false;
+
 // Secure, atomic, database-backed APK and release publishing
 app.post(['/api/app/publish', '/api/admin/app/publish'], express.json(), async (req, res) => {
+    if (isPublishing) {
+        return res.status(429).json({
+            success: false,
+            error: 'Publish operation already in progress. Please retry shortly.'
+        });
+    }
+
     // 1. Authenticate: Header only (Authorization: Bearer or x-admin-key)
     let secret = req.headers['x-admin-key'];
     let sessionToken = null;
@@ -1711,142 +1706,175 @@ app.post(['/api/app/publish', '/api/admin/app/publish'], express.json(), async (
         });
     }
 
-    // 2. Validate payload fields
-    const {
-        latest_version,
-        version_code,
-        release_notes,
-        min_version,
-        download_url,
-        file_size_bytes,
-        sha256,
-        allow_downgrade,
-        force_republish
-    } = req.body || {};
+    isPublishing = true;
+    try {
+        // 2. Validate payload fields
+        const {
+            latest_version,
+            version_code,
+            release_notes,
+            min_version,
+            download_url,
+            file_size_bytes,
+            sha256,
+            allow_downgrade,
+            force_republish
+        } = req.body || {};
 
-    const semverRegex = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/;
-    if (!latest_version || typeof latest_version !== 'string' || !semverRegex.test(latest_version.trim().replace(/^v/i, ''))) {
-        return res.status(400).json({
-            success: false,
-            error: 'Invalid latest_version: must follow semantic versioning format (e.g. 1.3.7)'
-        });
-    }
-
-    const parsedCode = parseInt(version_code, 10);
-    if (!version_code || isNaN(parsedCode) || parsedCode <= 0) {
-        return res.status(400).json({
-            success: false,
-            error: 'Invalid version_code: must be a positive integer greater than 0'
-        });
-    }
-
-    if (min_version && !semverRegex.test(String(min_version).trim().replace(/^v/i, ''))) {
-        return res.status(400).json({
-            success: false,
-            error: 'Invalid min_version: must follow semantic versioning format (e.g. 1.0.0)'
-        });
-    }
-
-    if (download_url && typeof download_url === 'string') {
-        const trimmedUrl = download_url.trim();
-        if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://') && !trimmedUrl.startsWith('/')) {
+        const semverRegex = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/;
+        if (!latest_version || typeof latest_version !== 'string' || !semverRegex.test(latest_version.trim().replace(/^v/i, ''))) {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid download_url: must be an HTTP(S) URL or valid relative API path'
+                error: 'Invalid latest_version: must follow semantic versioning format (e.g. 1.3.7)'
             });
         }
-    }
-
-    // 3. Prevent accidental duplicate or downgrade releases
-    const currentConfig = await getAppUpdateConfig();
-    const cleanLatest = latest_version.trim().replace(/^v/i, '');
-
-    if (parsedCode < currentConfig.version_code && !allow_downgrade) {
-        return res.status(400).json({
-            success: false,
-            error: `Accidental downgrade prevented: proposed version_code (${parsedCode}) is lower than currently published version_code (${currentConfig.version_code}). Pass allow_downgrade: true to override.`
-        });
-    }
-
-    if (parsedCode === currentConfig.version_code && cleanLatest === currentConfig.latest_version && !force_republish) {
-        return res.status(409).json({
-            success: false,
-            error: `Release v${cleanLatest} (Code ${parsedCode}) is already published. Pass force_republish: true to re-publish with updated assets.`
-        });
-    }
-
-    // 4. Artifact validation & verification (PHASE 11.3)
-    let resolvedFileSize = Number(file_size_bytes) || 0;
-    let resolvedSha256 = sha256 ? String(sha256).trim().toLowerCase() : '';
-
-    if (resolvedSha256 && !/^[a-f0-9]{64}$/.test(resolvedSha256)) {
-        return res.status(400).json({
-            success: false,
-            error: 'Invalid sha256: must be a 64-character hexadecimal checksum'
-        });
-    }
-
-    const targetUrl = download_url ? download_url.trim() : (currentConfig.download_url || '/api/app/download');
-    const isLocalDownload = targetUrl.startsWith('/') || targetUrl.includes('/api/app/download');
-
-    if (isLocalDownload) {
-        const zexoraApk = path.join(__dirname, 'public', 'downloads', 'Zexora.apk');
-        const legacyApk = path.join(__dirname, 'public', 'downloads', 'RootOptimizer.apk');
-        const localApkPath = fs.existsSync(zexoraApk) ? zexoraApk : legacyApk;
-
-        if (fs.existsSync(localApkPath)) {
-            const stats = fs.statSync(localApkPath);
-            if (stats.size === 0) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Corrupt artifact: local APK file exists but is empty (0 bytes)'
-                });
-            }
-
-            // Verify ZIP magic bytes (0x50 0x4B 0x03 0x04)
-            const fd = fs.openSync(localApkPath, 'r');
-            const magicBuf = Buffer.alloc(4);
-            fs.readSync(fd, magicBuf, 0, 4, 0);
-            fs.closeSync(fd);
-            const isZip = magicBuf[0] === 0x50 && magicBuf[1] === 0x4B && magicBuf[2] === 0x03 && magicBuf[3] === 0x04;
-            if (!isZip) {
-                return res.status(400).json({
-                    success: false,
-                    error: 'Invalid artifact: local file is not a valid APK ZIP archive'
-                });
-            }
-
-            // Compute artifact SHA-256
-            const fileBuf = fs.readFileSync(localApkPath);
-            const computedSha = crypto.createHash('sha256').update(fileBuf).digest('hex').toLowerCase();
-
-            if (resolvedSha256 && resolvedSha256 !== computedSha) {
-                return res.status(400).json({
-                    success: false,
-                    error: `Checksum mismatch: provided sha256 (${resolvedSha256}) does not match local artifact (${computedSha})`
-                });
-            }
-
-            resolvedSha256 = computedSha;
-            resolvedFileSize = stats.size;
+        if (latest_version.trim().length > 50) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid latest_version: exceeds maximum length of 50 characters'
+            });
         }
-    }
 
-    // 5. Construct updated release metadata
-    const updatedConfig = {
-        latest_version: cleanLatest,
-        version_code: parsedCode,
-        min_version: (min_version || currentConfig.min_version || '1.0.0').trim().replace(/^v/i, ''),
-        title: req.body?.title || currentConfig.title || 'Z E X O Update Available',
-        release_notes: release_notes !== undefined ? String(release_notes).trim() : currentConfig.release_notes || '',
-        apk_filename: req.body?.apk_filename || currentConfig.apk_filename || 'RootOptimizer.apk',
-        download_url: targetUrl,
-        file_size_bytes: resolvedFileSize || currentConfig.file_size_bytes || 0,
-        sha256: resolvedSha256 || currentConfig.sha256 || '',
-        updated_at: new Date().toISOString()
-    };
+        const parsedCode = parseInt(version_code, 10);
+        if (!version_code || isNaN(parsedCode) || parsedCode <= 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid version_code: must be a positive integer greater than 0'
+            });
+        }
 
-    try {
+        if (min_version && !semverRegex.test(String(min_version).trim().replace(/^v/i, ''))) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid min_version: must follow semantic versioning format (e.g. 1.0.0)'
+            });
+        }
+        if (min_version && String(min_version).trim().length > 50) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid min_version: exceeds maximum length of 50 characters'
+            });
+        }
+
+        if (release_notes && String(release_notes).length > 4000) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid release_notes: exceeds maximum length of 4000 characters'
+            });
+        }
+
+        if (download_url && typeof download_url === 'string') {
+            const trimmedUrl = download_url.trim();
+            if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://') && !trimmedUrl.startsWith('/')) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid download_url: must be an HTTP(S) URL or valid relative API path'
+                });
+            }
+        }
+
+        // 3. Prevent accidental duplicate or downgrade releases
+        const currentConfig = await getAppUpdateConfig();
+        const cleanLatest = latest_version.trim().replace(/^v/i, '');
+
+        if (parsedCode < currentConfig.version_code && !allow_downgrade) {
+            return res.status(400).json({
+                success: false,
+                error: `Accidental downgrade prevented: proposed version_code (${parsedCode}) is lower than currently published version_code (${currentConfig.version_code}). Pass allow_downgrade: true to override.`
+            });
+        }
+
+        if (parsedCode === currentConfig.version_code && cleanLatest === currentConfig.latest_version && !force_republish) {
+            return res.status(409).json({
+                success: false,
+                error: `Release v${cleanLatest} (Code ${parsedCode}) is already published. Pass force_republish: true to re-publish with updated assets.`
+            });
+        }
+
+        // 4. Artifact validation & verification (PHASE 11.3)
+        let resolvedFileSize = Number(file_size_bytes) || 0;
+        let resolvedSha256 = sha256 ? String(sha256).trim().toLowerCase() : '';
+
+        if (resolvedSha256 && !/^[a-f0-9]{64}$/.test(resolvedSha256)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid sha256: must be a 64-character hexadecimal checksum'
+            });
+        }
+
+        const targetUrl = download_url ? download_url.trim() : (currentConfig.download_url || '/api/app/download');
+        const isLocalDownload = targetUrl.startsWith('/') || targetUrl.includes('/api/app/download');
+
+        if (isLocalDownload) {
+            const requestedApk = req.body?.apk_filename ? String(req.body.apk_filename).trim() : null;
+            let localApkPath = null;
+            if (requestedApk && fs.existsSync(path.join(__dirname, 'public', 'downloads', requestedApk))) {
+                localApkPath = path.join(__dirname, 'public', 'downloads', requestedApk);
+            } else {
+                const zexoraApk = path.join(__dirname, 'public', 'downloads', 'Zexora.apk');
+                const legacyApk = path.join(__dirname, 'public', 'downloads', 'RootOptimizer.apk');
+                localApkPath = fs.existsSync(zexoraApk) ? zexoraApk : legacyApk;
+            }
+
+            if (fs.existsSync(localApkPath)) {
+                const stats = fs.statSync(localApkPath);
+                if (stats.size === 0) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Corrupt artifact: local APK file exists but is empty (0 bytes)'
+                    });
+                }
+
+                // Verify ZIP magic bytes (0x50 0x4B 0x03 0x04)
+                const fd = fs.openSync(localApkPath, 'r');
+                const magicBuf = Buffer.alloc(4);
+                fs.readSync(fd, magicBuf, 0, 4, 0);
+                fs.closeSync(fd);
+                const isZip = magicBuf[0] === 0x50 && magicBuf[1] === 0x4B && magicBuf[2] === 0x03 && magicBuf[3] === 0x04;
+                if (!isZip) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Invalid artifact: local file is not a valid APK ZIP archive'
+                    });
+                }
+
+                // Compute artifact SHA-256 and verify APK structure
+                const fileBuf = fs.readFileSync(localApkPath);
+                if (!fileBuf.includes('AndroidManifest.xml') || !fileBuf.includes('classes.dex')) {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Invalid artifact: APK archive must contain AndroidManifest.xml and classes.dex'
+                    });
+                }
+
+                const computedSha = crypto.createHash('sha256').update(fileBuf).digest('hex').toLowerCase();
+
+                if (resolvedSha256 && resolvedSha256 !== computedSha) {
+                    return res.status(400).json({
+                        success: false,
+                        error: `Checksum mismatch: provided sha256 (${resolvedSha256}) does not match local artifact (${computedSha})`
+                    });
+                }
+
+                resolvedSha256 = computedSha;
+                resolvedFileSize = stats.size;
+            }
+        }
+
+        // 5. Construct updated release metadata
+        const updatedConfig = {
+            latest_version: cleanLatest,
+            version_code: parsedCode,
+            min_version: (min_version || currentConfig.min_version || '1.0.0').trim().replace(/^v/i, ''),
+            title: req.body?.title || currentConfig.title || 'Z E X O Update Available',
+            release_notes: release_notes !== undefined ? String(release_notes).trim() : currentConfig.release_notes || '',
+            apk_filename: req.body?.apk_filename || currentConfig.apk_filename || 'RootOptimizer.apk',
+            download_url: targetUrl,
+            file_size_bytes: resolvedFileSize || currentConfig.file_size_bytes || 0,
+            sha256: resolvedSha256 || currentConfig.sha256 || '',
+            updated_at: new Date().toISOString()
+        };
+
         // 6. Persist to database for multi-node / restart survivability
         if (db && typeof db.saveAppRelease === 'function') {
             await db.saveAppRelease(updatedConfig);
@@ -1874,6 +1902,8 @@ app.post(['/api/app/publish', '/api/admin/app/publish'], express.json(), async (
     } catch (err) {
         console.error('[PUBLISH ERROR]', err);
         res.status(500).json({ success: false, error: 'Failed to atomically persist update metadata: ' + err.message });
+    } finally {
+        isPublishing = false;
     }
 });
 
@@ -1881,8 +1911,11 @@ app.get(['/api/app/download', '/download/app-release.apk', '/download/Zexora.apk
     const appConfig = await getAppUpdateConfig();
     const directUrl = appConfig.download_url;
 
-    // If release download_url is an external high-availability CDN/release URL, redirect directly
-    if (directUrl && (directUrl.startsWith('https://') || directUrl.startsWith('http://'))) {
+    const isExplicitLocalRoute = req.path.startsWith('/download/');
+    const hasRangeHeader = Boolean(req.headers.range);
+
+    // If release download_url is an external high-availability CDN/release URL and client is not requesting bytes range or local route
+    if (!isExplicitLocalRoute && !hasRangeHeader && directUrl && (directUrl.startsWith('https://') || directUrl.startsWith('http://'))) {
         return res.redirect(directUrl);
     }
 
@@ -1892,11 +1925,41 @@ app.get(['/api/app/download', '/download/app-release.apk', '/download/Zexora.apk
     const downloadName = fs.existsSync(zexoraApk) ? 'Zexora.apk' : 'RootOptimizer.apk';
 
     if (fs.existsSync(localApkPath)) {
-        return res.download(localApkPath, downloadName, {
-            headers: {
-                'Content-Type': 'application/vnd.android.package-archive'
+        const stat = fs.statSync(localApkPath);
+        const fileSize = stat.size;
+        const etag = `"${appConfig.sha256 || stat.mtimeMs.toString(16)}-${fileSize.toString(16)}"`;
+
+        res.setHeader('Accept-Ranges', 'bytes');
+        res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+        res.setHeader('ETag', etag);
+        if (appConfig.sha256) {
+            res.setHeader('X-Artifact-SHA256', appConfig.sha256);
+        }
+
+        const range = req.headers.range;
+        if (range) {
+            const parts = range.replace(/bytes=/, '').split('-');
+            const start = parseInt(parts[0], 10);
+            const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+
+            if (isNaN(start) || isNaN(end) || start >= fileSize || end >= fileSize || start > end) {
+                res.setHeader('Content-Range', `bytes */${fileSize}`);
+                return res.status(416).end();
             }
-        });
+
+            const chunksize = (end - start) + 1;
+            const fileStream = fs.createReadStream(localApkPath, { start, end });
+            res.writeHead(206, {
+                'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+                'Content-Length': chunksize,
+                'Content-Type': 'application/vnd.android.package-archive'
+            });
+            return fileStream.pipe(res);
+        }
+
+        res.setHeader('Content-Length', fileSize);
+        res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+        return fs.createReadStream(localApkPath).pipe(res);
     }
 
     const builtZexoraApk = path.join(__dirname, '..', 'RootOptimizer', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');

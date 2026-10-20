@@ -644,21 +644,17 @@ async function importSeedKeys(customList = null) {
             const khash = hashKey(keyString);
             const last4 = getKeyLast4(keyString);
 
-            // If key is explicitly marked ACTIVE in seed or custom import, unblacklist any stale deletion
-            if (item.status === 'ACTIVE') {
-                await query('DELETE FROM deleted_keys WHERE key_hash = ?', [khash]);
-            }
-
-            // Skip keys that have been explicitly deleted by administrator
-            if (await isKeyDeleted(khash)) {
-                console.log(`[SEED] Ignoring deleted key: ${keyString}`);
-                // Ensure it is purged from activation_keys if previously existed
-                await query('DELETE FROM activation_keys WHERE key_hash = ?', [khash]);
-                continue;
-            }
-
             let existing = await queryOne('SELECT * FROM activation_keys WHERE key_hash = ?', [khash]);
             let keyId = null;
+
+            // If key is explicitly marked ACTIVE in seed, custom import, or already ACTIVE in DB, unblacklist any stale deletion
+            if (item.status === 'ACTIVE' || (existing && existing.status === 'ACTIVE')) {
+                await query('DELETE FROM deleted_keys WHERE key_hash = ?', [khash]);
+            } else if (await isKeyDeleted(khash)) {
+                // Only skip if the key has been explicitly deleted by administrator and is not active
+                console.log(`[SEED] Ignoring deleted non-active key: ${keyString}`);
+                continue;
+            }
 
             let itemDuration = (item.duration_hours !== undefined && item.duration_hours !== null) ? parseInt(item.duration_hours, 10) : 24;
             if (isNaN(itemDuration) || itemDuration <= 0) {

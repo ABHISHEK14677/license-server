@@ -157,23 +157,23 @@ function validateConfig(config = resolveConfig(), options = {}) {
     // Production-grade requirements
     if (isProduction || strict) {
         if (!config.adminSecret) {
-            errors.push('ADMIN_SECRET (or ADMIN_SECRET_KEY) is required in production.');
+            errors.push('ADMIN_SECRET (or ADMIN_SECRET_KEY) is required in production. Configure this in Render Dashboard (Environment -> Environment Variables).');
         } else if (INSECURE_DEFAULTS.has(config.adminSecret)) {
-            errors.push('ADMIN_SECRET must not use a default placeholder value in production.');
+            errors.push('ADMIN_SECRET must not use a default placeholder value in production. Set a custom secret in Render Dashboard.');
         } else if (config.adminSecret.length < 16) {
             warnings.push('ADMIN_SECRET should be at least 16 characters for production security.');
         }
 
         if (!config.adminPassword) {
-            errors.push('ADMIN_PASSWORD is required in production.');
+            errors.push('ADMIN_PASSWORD is required in production. Configure this in Render Dashboard (Environment -> Environment Variables).');
         } else if (INSECURE_DEFAULTS.has(config.adminPassword)) {
-            errors.push('ADMIN_PASSWORD must not use a default placeholder value in production.');
+            errors.push('ADMIN_PASSWORD must not use a default placeholder value in production. Set a custom password in Render Dashboard.');
         } else if (config.adminPassword.length < 8) {
             errors.push('ADMIN_PASSWORD must be at least 8 characters.');
         }
 
         if (!config.databaseUrl) {
-            warnings.push('DATABASE_URL is not set. Render ephemeral containers will lose SQLite data across redeployments. A PostgreSQL DATABASE_URL is strongly recommended.');
+            warnings.push('DATABASE_URL is not set. Render ephemeral containers will lose SQLite data across redeployments. A PostgreSQL DATABASE_URL is strongly recommended. Connect zexo-db in render.yaml.');
         }
     } else {
         // Development warnings
