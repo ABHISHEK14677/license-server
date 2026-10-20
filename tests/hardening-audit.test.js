@@ -132,7 +132,8 @@ test('Hardening Audit Test Suite (Phases 1-11)', async (t) => {
                 version_code: 45,
                 release_notes: 'Preservation verification release',
                 download_url: '/api/app/download',
-                force_republish: true
+                force_republish: true,
+                allow_downgrade: true
             }
         });
 

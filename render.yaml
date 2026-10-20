@@ -32,13 +32,13 @@ services:
       - key: ADMIN_SECRET_KEY
         sync: false
       - key: APP_LATEST_VERSION
-        value: 1.4.3
+        value: 1.4.4
       - key: APP_VERSION_CODE
-        value: 45
+        value: 46
       - key: APP_MIN_VERSION
         value: 1.0.0
       - key: APP_DOWNLOAD_URL
-        value: https://github.com/ABHISHEK14677/license-server/releases/download/v1.4.3/RootOptimizer.apk
+        value: https://github.com/ABHISHEK14677/license-server/releases/download/v1.4.4/RootOptimizer.apk
       # Connect persistent PostgreSQL database
       - key: DATABASE_URL
         fromDatabase:

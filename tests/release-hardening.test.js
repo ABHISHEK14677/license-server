@@ -93,7 +93,8 @@ test('Release & Update Reliability Test Suite (PHASE 11 Verification)', async (t
                 version_code: 45,
                 min_version: '1.0.0',
                 release_notes: 'Initial test baseline',
-                force_republish: true
+                force_republish: true,
+                allow_downgrade: true
             }
         });
         assert.strictEqual(res.status, 200);
