@@ -1084,11 +1084,11 @@
                 <button class="btn btn-outline btn-sm" onclick="closeModal('modalCustomHours')">✕</button>
             </div>
             <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">
-                Enter key validity duration in hours. For permanent lifetime keys, enter -1.
+                Enter key validity duration in hours.
             </p>
             <div class="form-group">
                 <label class="form-label">Duration in Hours</label>
-                <input type="number" id="inputCustomHours" class="form-input" placeholder="e.g. 48 for 2 days" value="48" min="-1">
+                <input type="number" id="inputCustomHours" class="form-input" placeholder="e.g. 48 for 2 days" value="48" min="1">
             </div>
 
             <div style="display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap;">
@@ -1096,7 +1096,6 @@
                 <button class="btn btn-outline btn-sm" onclick="setCustomHoursVal(72)">72h (3d)</button>
                 <button class="btn btn-outline btn-sm" onclick="setCustomHoursVal(336)">336h (14d)</button>
                 <button class="btn btn-outline btn-sm" onclick="setCustomHoursVal(2160)">2160h (90d)</button>
-                <button class="btn btn-outline btn-sm" onclick="setCustomHoursVal(-1)">∞ Lifetime</button>
             </div>
 
             <div style="display: flex; justify-content: flex-end; gap: 8px;">
@@ -1186,7 +1185,7 @@
                     <option value="720">30 Days (30d)</option>
                 </select>
                 <div id="editDurationNotice" style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
-                    Permanent duration changes are disabled. To shorten remaining validity, use <b>Reduce Time</b>.
+                    Keys have fixed time-limited durations. To shorten remaining validity, use <b>Reduce Time</b>.
                 </div>
             </div>
             <div class="form-group">
@@ -1777,7 +1776,6 @@
             if (hours === 24) return '1 Day (1d)';
             if (hours === 168) return '7 Days (7d)';
             if (hours === 720) return '30 Days (30d)';
-            if (hours === -1 || hours >= 876000) return 'Permanent (Lifetime)';
             if (hours % 24 === 0) return `${hours / 24} Days`;
             return `${hours} Hours`;
         }
@@ -1803,15 +1801,15 @@
 
         function confirmCustomHours() {
             const val = parseInt(document.getElementById('inputCustomHours').value, 10);
-            if (isNaN(val) || (val !== -1 && val <= 0)) {
-                alert('Please enter a valid number of hours (or -1 for permanent lifetime).');
+            if (isNaN(val) || val <= 0) {
+                alert('Please enter a valid positive number of hours.');
                 return;
             }
             selectedHours = val;
             const chipCustom = document.getElementById('chipCustom');
             document.querySelectorAll('.duration-chips-scroll .chip').forEach(c => c.classList.remove('selected'));
             chipCustom.classList.add('selected');
-            chipCustom.innerText = val === -1 ? 'Custom (∞ Lifetime)' : `Custom (${val}h)`;
+            chipCustom.innerText = `Custom (${val}h)`;
 
             const label = formatDurationLabel(val);
             document.getElementById('selectedDurationLabel').innerText = label;
@@ -1907,11 +1905,10 @@
             const maxDev = document.getElementById('latestMaxDevicesVal');
             if (maxDev) maxDev.innerText = `${k.max_devices || 1} device(s)`;
 
-            const isPerm = k.duration_hours === -1;
             const expLabel = document.getElementById('latestExpiryLabel');
-            if (expLabel) expLabel.innerText = isPerm ? 'Validity' : (status === 'NON-ACTIVE' ? 'Duration' : 'Expires At');
+            if (expLabel) expLabel.innerText = status === 'NON-ACTIVE' ? 'Duration' : 'Expires At';
             const expVal = document.getElementById('latestExpiryVal');
-            if (expVal) expVal.innerText = isPerm ? 'Permanent (Lifetime)' : (status === 'NON-ACTIVE' ? formatDurationLabel(k.duration_hours) : (k.expires_at ? formatDateTime(k.expires_at) : formatDurationLabel(k.duration_hours)));
+            if (expVal) expVal.innerText = status === 'NON-ACTIVE' ? formatDurationLabel(k.duration_hours) : (k.expires_at ? formatDateTime(k.expires_at) : formatDurationLabel(k.duration_hours));
 
             // Revoke button
             const btnRevoke = document.getElementById('btnToggleRevokeLatest');
@@ -1968,7 +1965,7 @@
             if (s === 'REVOKED') return 'REVOKED';
             if (s === 'SUSPENDED' || s === 'PAUSED') return 'PAUSED';
             if (s === 'EXPIRED') return 'EXPIRED';
-            if (k.duration_hours !== -1 && k.expires_at && new Date(k.expires_at).getTime() <= Date.now()) return 'EXPIRED';
+            if (k.expires_at && new Date(k.expires_at).getTime() <= Date.now()) return 'EXPIRED';
             if (s === 'ACTIVE') return 'ACTIVE';
             if (s === 'UNUSED' || s === 'INACTIVE' || s === 'NON-ACTIVE' || s === 'NON_ACTIVE' || !k.activated_at) return 'NON-ACTIVE';
             return 'ACTIVE';
@@ -2016,11 +2013,7 @@
                 progressWrap.style.display = 'none';
             } else if (status === 'ACTIVE') {
                 labelEl.innerText = 'REMAINING VALIDITY';
-                if (latestKeyData.duration_hours === -1) {
-                    countdownEl.innerText = 'Permanent (Lifetime)';
-                    countdownEl.style.color = 'var(--status-active)';
-                    progressWrap.style.display = 'none';
-                } else if (latestKeyData.expires_at) {
+                if (latestKeyData.expires_at) {
                     const expTime = new Date(latestKeyData.expires_at).getTime();
                     countdownEl.innerText = formatCountdown(expTime);
                     countdownEl.style.color = 'var(--status-active)';
@@ -2031,6 +2024,10 @@
                     const remaining = Math.max(0, expTime - Date.now());
                     const pct = Math.min(100, Math.max(0, (remaining / total) * 100));
                     progressBar.style.width = `${pct}%`;
+                } else {
+                    countdownEl.innerText = formatDurationLabel(latestKeyData.duration_hours);
+                    countdownEl.style.color = 'var(--status-active)';
+                    progressWrap.style.display = 'none';
                 }
             } else if (status === 'PAUSED') {
                 labelEl.innerText = 'STATUS';
@@ -2184,19 +2181,18 @@
 
             container.innerHTML = filtered.map(k => {
                 const status = computeKeyStatus(k);
-                const isPerm = k.duration_hours === -1;
                 let validityText = '';
                 let dataAttr = '';
 
                 if (status === 'NON-ACTIVE' || status === 'INACTIVE') {
                     validityText = `Starts on activation (${formatDurationLabel(k.duration_hours)})`;
                 } else if (status === 'ACTIVE') {
-                    if (isPerm) {
-                        validityText = 'Permanent (Lifetime)';
-                    } else if (k.expires_at) {
+                    if (k.expires_at) {
                         const expEpoch = new Date(k.expires_at).getTime();
                         validityText = formatCountdown(expEpoch);
                         dataAttr = `data-expiry-countdown="${expEpoch}"`;
+                    } else {
+                        validityText = formatDurationLabel(k.duration_hours);
                     }
                 } else if (status === 'PAUSED') {
                     validityText = 'Key Paused';
@@ -2364,7 +2360,7 @@
             document.getElementById('extendModalKeyCode').innerText = keyItem.key_display || `Key #${id}`;
             const status = computeKeyStatus(keyItem);
             document.getElementById('extendModalStatus').innerHTML = formatStatusBadge(status);
-            document.getElementById('extendModalCurrentExpiry').innerText = keyItem.expires_at ? formatDateTime(keyItem.expires_at) : (keyItem.duration_hours === -1 ? 'Permanent (Lifetime)' : formatDurationLabel(keyItem.duration_hours));
+            document.getElementById('extendModalCurrentExpiry').innerText = keyItem.expires_at ? formatDateTime(keyItem.expires_at) : formatDurationLabel(keyItem.duration_hours);
             document.getElementById('inputExtendHours').value = 24;
             document.getElementById('extendModalError').style.display = 'none';
             document.getElementById('extendModalError').innerText = '';
@@ -2421,10 +2417,6 @@
 
             if (keyItem.status === 'REVOKED') {
                 alert('Revoked keys cannot have their validity reduced.');
-                return;
-            }
-            if (keyItem.duration_hours === -1) {
-                alert('Permanent (lifetime) keys cannot have their validity reduced.');
                 return;
             }
 
@@ -2719,13 +2711,9 @@
 
             const durSelect = document.getElementById('editDurationHours');
             const durNotice = document.getElementById('editDurationNotice');
-            const isPerm = keyItem.duration_hours === -1;
             const isActivated = !!keyItem.activated_at || !!keyItem.expires_at;
 
-            if (isPerm) {
-                durSelect.disabled = true;
-                if (durNotice) durNotice.innerHTML = 'This is a <b>Permanent (Lifetime)</b> key. Lifetime duration cannot be altered.';
-            } else if (isActivated) {
+            if (isActivated) {
                 durSelect.disabled = true;
                 durSelect.value = [1, 24, 168, 720].includes(keyItem.duration_hours) ? keyItem.duration_hours : 24;
                 if (durNotice) durNotice.innerHTML = 'Key is already activated. Expiration timestamp is preserved. Use <b>Extend</b> or <b>Reduce Time</b> to adjust validity.';

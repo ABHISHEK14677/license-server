@@ -37,6 +37,8 @@ const KEEP_SET = new Set(V143_ACTIVE_KEYS.map(k => k.key.trim().toUpperCase()));
 
         // Step 2: Restore the 6 keys as ACTIVE & PERMANENT
         console.log('\n[2/5] Creating / Restoring the 6 active v1.4.3 keys in local database...');
+        const nowMs = Date.now();
+        const expIso = new Date(nowMs + 24 * 3600 * 1000).toISOString();
         for (const item of V143_ACTIVE_KEYS) {
             const kUpper = item.key.trim().toUpperCase();
             const khash = hashKey(kUpper);
@@ -51,21 +53,21 @@ const KEEP_SET = new Set(V143_ACTIVE_KEYS.map(k => k.key.trim().toUpperCase()));
                     INSERT INTO activation_keys (
                         key_hash, key_last4, key_display, product_id, status, duration_hours,
                         created_at, activated_at, expires_at, max_devices, customer_name, notes
-                    ) VALUES (?, ?, ?, ?, 'ACTIVE', -1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, NULL, 5, ?, ?)
-                `, [khash, last4, kUpper, prodId, item.customer, item.notes]);
-                console.log(`  [CREATED ACTIVE] ${kUpper} -> Customer: ${item.customer}`);
+                    ) VALUES (?, ?, ?, ?, 'ACTIVE', 24, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, 5, ?, ?)
+                `, [khash, last4, kUpper, prodId, expIso, item.customer, item.notes]);
+                console.log(`  [CREATED ACTIVE 24H] ${kUpper} -> Customer: ${item.customer}`);
             } else {
                 await db.query(`
                     UPDATE activation_keys
                     SET status = 'ACTIVE',
-                        duration_hours = -1,
-                        expires_at = NULL,
+                        duration_hours = 24,
+                        expires_at = ?,
                         max_devices = 5,
                         customer_name = ?,
                         notes = ?
                     WHERE id = ?
-                `, [item.customer, item.notes, existing.id]);
-                console.log(`  [UPDATED ACTIVE] ${kUpper} -> Customer: ${item.customer}`);
+                `, [expIso, item.customer, item.notes, existing.id]);
+                console.log(`  [UPDATED ACTIVE 24H] ${kUpper} -> Customer: ${item.customer}`);
             }
         }
 

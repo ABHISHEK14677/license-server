@@ -350,7 +350,7 @@ async function handleKeyGeneration(req, res) {
                 key: rawKey,
                 product: product.name,
                 duration_hours: effectiveHours,
-                is_permanent: effectiveHours === -1,
+                is_permanent: false,
                 created_at: keyRecord.created_at,
                 expires_at: keyRecord.expires_at,
                 status: 'UNUSED',
@@ -662,10 +662,10 @@ async function handleUpdateKey(req, res) {
         let finalDuration = undefined;
         if (rawDuration !== undefined && rawDuration !== null) {
             finalDuration = parseInt(rawDuration, 10);
-            if (finalDuration === -1) {
+            if (finalDuration <= 0 || finalDuration === -1) {
                 return res.status(400).json({
                     success: false,
-                    message: 'Permanent time-changing or lifetime extension is not permitted in key editing.'
+                    message: 'Permanent keys are not permitted. Every key must have a valid time-limited duration.'
                 });
             }
             const ALLOWED_DURATIONS = [1, 24, 168, 720];
@@ -789,7 +789,7 @@ async function handleReduceKeyTime(req, res) {
         if (key.duration_hours === -1) {
             return res.status(400).json({
                 success: false,
-                message: 'Permanent (lifetime) keys do not have a finite validity period to reduce.'
+                message: 'Permanent keys do not have a finite validity period to reduce.'
             });
         }
 
@@ -1185,7 +1185,6 @@ async function handleCustomerActivate(req, res) {
                 WHERE (a.key_id = ? OR a.license_id = ?) AND d.device_identifier = ?
             `, [keyRecord.id, keyRecord.id, deviceId]);
         }
-        const isPermanent = keyRecord.duration_hours === -1;
         if (existingActivation) {
             if (existingActivation.status === 'SUSPENDED' || existingActivation.status === 'PAUSED') {
                 return res.status(403).json({ success: false, error: 'KEY_PAUSED', message: 'Access has been paused by user, contact seller' });
@@ -1203,21 +1202,19 @@ async function handleCustomerActivate(req, res) {
             }
 
             let effectiveExpiresAt = keyRecord.expires_at || existingActivation.expires_at;
-            let remainingSeconds = -1;
-            if (!isPermanent) {
-                if (!effectiveExpiresAt && keyRecord.duration_hours > 0) {
-                    const actTime = keyRecord.activated_at ? new Date(keyRecord.activated_at).getTime() : now;
-                    effectiveExpiresAt = new Date(actTime + keyRecord.duration_hours * 3600 * 1000).toISOString();
-                    await db.query("UPDATE activation_keys SET expires_at = ? WHERE id = ?", [effectiveExpiresAt, keyRecord.id]);
-                }
-                if (effectiveExpiresAt) {
-                    remainingSeconds = Math.max(0, Math.floor((new Date(effectiveExpiresAt).getTime() - Date.now()) / 1000));
-                }
-            } else {
-                effectiveExpiresAt = null;
+            let remainingSeconds = 0;
+            const hours = (keyRecord.duration_hours && keyRecord.duration_hours > 0) ? keyRecord.duration_hours : 24;
+            if (!effectiveExpiresAt) {
+                const actTime = keyRecord.activated_at ? new Date(keyRecord.activated_at).getTime() : now;
+                effectiveExpiresAt = new Date(actTime + hours * 3600 * 1000).toISOString();
+                await db.query("UPDATE activation_keys SET expires_at = ? WHERE id = ?", [effectiveExpiresAt, keyRecord.id]);
             }
-
-            const effectiveDurationDays = isPermanent ? -1 : Math.max(1, Math.round((keyRecord.duration_hours || 720) / 24));
+            if (new Date(effectiveExpiresAt).getTime() <= now) {
+                await db.updateKeyStatus(keyRecord.id, 'EXPIRED');
+                return res.status(403).json({ success: false, valid: false, error: 'KEY_EXPIRED', message: 'Activation key has expired' });
+            }
+            remainingSeconds = Math.max(0, Math.floor((new Date(effectiveExpiresAt).getTime() - Date.now()) / 1000));
+            const effectiveDurationDays = Math.max(1, Math.round(hours / 24));
 
             return res.json({
                 success: true,
@@ -1229,8 +1226,8 @@ async function handleCustomerActivate(req, res) {
                 activated_at: keyRecord.activated_at || existingActivation.activated_at,
                 expires_at: effectiveExpiresAt,
                 remaining_seconds: remainingSeconds,
-                is_permanent: isPermanent,
-                duration_hours: keyRecord.duration_hours,
+                is_permanent: false,
+                duration_hours: hours,
                 session_token: token,
                 device_registered: true,
                 license: {
@@ -1241,7 +1238,7 @@ async function handleCustomerActivate(req, res) {
                     activated_at: keyRecord.activated_at || existingActivation.activated_at,
                     expires_at: effectiveExpiresAt,
                     remaining_seconds: remainingSeconds,
-                    is_permanent: isPermanent,
+                    is_permanent: false,
                     duration_days: effectiveDurationDays,
                     max_activations: keyRecord.max_devices
                 }
@@ -1261,20 +1258,16 @@ async function handleCustomerActivate(req, res) {
 
         // 9. Calculate expiration date on activation:
         // Timer activates ONLY AFTER activated by the user!
-        const durationHours = (keyRecord.duration_hours !== undefined && keyRecord.duration_hours !== null) ? keyRecord.duration_hours : 720;
-        let finalExpiresAt = null;
-        let remainingSeconds = -1;
-
-        if (!isPermanent) {
-            const hours = durationHours > 0 ? durationHours : 720;
-            if (!keyRecord.expires_at) {
-                finalExpiresAt = new Date(now + hours * 60 * 60 * 1000).toISOString();
-            } else {
-                finalExpiresAt = keyRecord.expires_at;
-            }
-            remainingSeconds = Math.max(0, Math.floor((new Date(finalExpiresAt).getTime() - now) / 1000));
+        const durationHours = (keyRecord.duration_hours && keyRecord.duration_hours > 0) ? keyRecord.duration_hours : 24;
+        let finalExpiresAt = keyRecord.expires_at;
+        if (!finalExpiresAt) {
+            finalExpiresAt = new Date(now + durationHours * 3600 * 1000).toISOString();
         }
-
+        if (new Date(finalExpiresAt).getTime() <= now) {
+            await db.updateKeyStatus(keyRecord.id, 'EXPIRED');
+            return res.status(403).json({ success: false, valid: false, error: 'KEY_EXPIRED', message: 'Activation key has expired' });
+        }
+        const remainingSeconds = Math.max(0, Math.floor((new Date(finalExpiresAt).getTime() - now) / 1000));
         const activatedAtIso = keyRecord.activated_at || new Date(now).toISOString();
 
         // 10. Update key status to ACTIVE and save activation
@@ -1296,7 +1289,7 @@ async function handleCustomerActivate(req, res) {
 
         await db.logAuditEvent('DEVICE_ACTIVATED', { key: formattedKey, device_id: deviceId, model: deviceModel }, ip);
 
-        const returnDurationDays = isPermanent ? -1 : Math.max(1, Math.round((durationHours || 720) / 24));
+        const returnDurationDays = Math.max(1, Math.round(durationHours / 24));
 
         // 11. Return activation success
         return res.json({
@@ -1309,7 +1302,7 @@ async function handleCustomerActivate(req, res) {
             activated_at: activatedAtIso,
             expires_at: finalExpiresAt,
             remaining_seconds: remainingSeconds,
-            is_permanent: isPermanent,
+            is_permanent: false,
             duration_hours: durationHours,
             session_token: sessionToken,
             device_registered: true,
@@ -1321,7 +1314,7 @@ async function handleCustomerActivate(req, res) {
                 activated_at: activatedAtIso,
                 expires_at: finalExpiresAt,
                 remaining_seconds: remainingSeconds,
-                is_permanent: isPermanent,
+                is_permanent: false,
                 duration_days: returnDurationDays,
                 max_activations: keyRecord.max_devices
             }
@@ -1446,8 +1439,7 @@ async function handleActivationStatus(req, res) {
             });
         }
 
-        const isPermanent = keyRecord.duration_hours === -1;
-        if (!isPermanent && keyRecord.expires_at && new Date(keyRecord.expires_at).getTime() <= Date.now()) {
+        if (keyRecord.expires_at && new Date(keyRecord.expires_at).getTime() <= Date.now()) {
             await db.updateKeyStatus(keyRecord.id, 'EXPIRED');
             return res.status(403).json({
                 success: false,
@@ -1538,16 +1530,16 @@ async function handleActivationStatus(req, res) {
             keyRecord.activated_at = nowIso;
         }
 
-        // Ensure non-permanent key has expires_at set and verified
-        if (!isPermanent && !keyRecord.expires_at) {
-            const hours = (keyRecord.duration_hours && keyRecord.duration_hours > 0) ? keyRecord.duration_hours : 720;
+        // Ensure key has expires_at set and verified
+        if (!keyRecord.expires_at) {
+            const hours = (keyRecord.duration_hours && keyRecord.duration_hours > 0) ? keyRecord.duration_hours : 24;
             const actEpoch = keyRecord.activated_at ? new Date(keyRecord.activated_at).getTime() : Date.now();
             const expIso = new Date(actEpoch + hours * 3600 * 1000).toISOString();
             await db.query("UPDATE activation_keys SET expires_at = ? WHERE id = ?", [expIso, keyRecord.id]);
             keyRecord.expires_at = expIso;
         }
 
-        if (!isPermanent && keyRecord.expires_at && new Date(keyRecord.expires_at).getTime() <= Date.now()) {
+        if (keyRecord.expires_at && new Date(keyRecord.expires_at).getTime() <= Date.now()) {
             await db.updateKeyStatus(keyRecord.id, 'EXPIRED');
             return res.status(403).json({
                 success: false,
@@ -1560,8 +1552,8 @@ async function handleActivationStatus(req, res) {
 
         await db.updateActivationLastSeen(activation.id, sessionToken || activation.session_token);
 
-        const remainingSeconds = isPermanent ? -1 : (keyRecord.expires_at ? Math.max(0, Math.floor((new Date(keyRecord.expires_at).getTime() - Date.now()) / 1000)) : null);
-        const effectiveDurationDays = isPermanent ? -1 : Math.max(1, Math.round((keyRecord.duration_hours || 720) / 24));
+        const remainingSeconds = keyRecord.expires_at ? Math.max(0, Math.floor((new Date(keyRecord.expires_at).getTime() - Date.now()) / 1000)) : 0;
+        const effectiveDurationDays = Math.max(1, Math.round((keyRecord.duration_hours || 24) / 24));
 
         res.json({
             success: true,
@@ -1575,7 +1567,7 @@ async function handleActivationStatus(req, res) {
             activated_at: keyRecord.activated_at,
             expires_at: keyRecord.expires_at,
             remaining_seconds: remainingSeconds,
-            is_permanent: isPermanent,
+            is_permanent: false,
             duration_days: effectiveDurationDays
         });
     } catch (err) {

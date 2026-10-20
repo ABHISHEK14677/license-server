@@ -660,7 +660,15 @@ async function importSeedKeys(customList = null) {
             let existing = await queryOne('SELECT * FROM activation_keys WHERE key_hash = ?', [khash]);
             let keyId = null;
 
-            const itemDuration = (item.duration_hours !== undefined && item.duration_hours !== null) ? parseInt(item.duration_hours, 10) : 720;
+            let itemDuration = (item.duration_hours !== undefined && item.duration_hours !== null) ? parseInt(item.duration_hours, 10) : 24;
+            if (isNaN(itemDuration) || itemDuration <= 0) {
+                itemDuration = 24;
+            }
+            let itemExpiresAt = item.expires_at || null;
+            if (!itemExpiresAt && (item.status === 'ACTIVE' || item.activated_at)) {
+                const actEpoch = item.activated_at ? new Date(item.activated_at).getTime() : Date.now();
+                itemExpiresAt = new Date(actEpoch + itemDuration * 3600 * 1000).toISOString();
+            }
 
             if (!existing) {
                 const insertRes = await query(`
@@ -677,7 +685,7 @@ async function importSeedKeys(customList = null) {
                     itemDuration,
                     item.created_at || new Date().toISOString(),
                     item.activated_at || null,
-                    item.expires_at || null,
+                    itemExpiresAt,
                     item.max_devices || 1,
                     item.customer_name || null,
                     item.notes || ''
@@ -693,7 +701,11 @@ async function importSeedKeys(customList = null) {
                     ? 'ACTIVE' 
                     : (item.status || existing.status);
                 const targetActivatedAt = existing.activated_at || item.activated_at || null;
-                const targetExpiresAt = existing.expires_at || item.expires_at || null;
+                let targetExpiresAt = item.expires_at || existing.expires_at || null;
+                if (!targetExpiresAt && targetStatus === 'ACTIVE') {
+                    const actEpoch = targetActivatedAt ? new Date(targetActivatedAt).getTime() : Date.now();
+                    targetExpiresAt = new Date(actEpoch + itemDuration * 3600 * 1000).toISOString();
+                }
 
                 if (targetStatus !== existing.status || targetActivatedAt !== existing.activated_at || targetExpiresAt !== existing.expires_at || (item.duration_hours !== undefined && item.duration_hours !== existing.duration_hours)) {
                     await query(`
@@ -705,7 +717,7 @@ async function importSeedKeys(customList = null) {
                             customer_name = COALESCE(customer_name, ?),
                             notes = COALESCE(notes, ?)
                         WHERE id = ?
-                    `, [targetStatus, item.duration_hours !== undefined ? parseInt(item.duration_hours, 10) : existing.duration_hours, targetActivatedAt, targetExpiresAt, item.customer_name || null, item.notes || null, keyId]);
+                    `, [targetStatus, itemDuration, targetActivatedAt, targetExpiresAt, item.customer_name || null, item.notes || null, keyId]);
                     count++;
                 }
             }
@@ -859,7 +871,11 @@ async function createActivationKey(params = {}) {
     const keyLast4 = getKeyLast4(effectiveKey);
     const keyDisplay = effectiveKey;
     const resolvedProductId = productId !== undefined ? productId : (product_id !== undefined ? product_id : null);
-    const resolvedDuration = durationHours !== undefined ? durationHours : (duration_hours !== undefined ? duration_hours : 720);
+    const parsedDuration = parseInt(durationHours !== undefined ? durationHours : (duration_hours !== undefined ? duration_hours : 24), 10);
+    if (isNaN(parsedDuration) || parsedDuration <= 0) {
+        throw new Error('Key generation requires a positive finite duration in hours. Permanent keys are not permitted.');
+    }
+    const resolvedDuration = parsedDuration;
     const resolvedMaxDevices = maxDevices !== undefined ? maxDevices : (max_devices !== undefined ? max_devices : 1);
     const resolvedCustomer = customerName || customer_name || null;
 
@@ -1054,8 +1070,8 @@ async function updateKeyDetails(id, { notes, customerName, maxDevices, status, k
 
     if (durationHours !== undefined && durationHours !== null) {
         const d = parseInt(durationHours, 10);
-        if (d === -1 && currentKey.duration_hours !== -1) {
-            throw new Error('Permanent time-changing or lifetime extension is not permitted in key editing.');
+        if (d <= 0 || d === -1) {
+            throw new Error('Permanent time-changing or lifetime extension is not permitted in key editing. Keys must have a positive finite duration.');
         }
     }
 

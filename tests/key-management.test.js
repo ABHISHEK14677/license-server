@@ -243,7 +243,28 @@ test('Key Management & UI Test Suite', async (t) => {
         });
         assert.strictEqual(reactivateRes.status, 400, 'Reactivating a revoked key via edit must be rejected with 400');
 
+        // 4d. Permanent key generation attempt must be rejected (400)
+        const rejectGenPermRes = await makeRequest(server, {
+            path: '/api/keys/generate',
+            method: 'POST',
+            headers: testAdminHeader(),
+            body: { duration_hours: -1, count: 1 }
+        });
+        assert.strictEqual(rejectGenPermRes.status, 400, 'Generating a permanent key (-1) must be rejected with 400');
+
+        // 4e. Valid temporary key generation produces time-limited key with is_permanent: false
+        const validGenRes = await makeRequest(server, {
+            path: '/api/keys/generate',
+            method: 'POST',
+            headers: testAdminHeader(),
+            body: { duration_hours: 24, count: 1 }
+        });
+        assert.strictEqual(validGenRes.status, 200, 'Generating a 24h key must succeed');
+        assert.strictEqual(validGenRes.body.duration_hours, 24);
+        assert.strictEqual(validGenRes.body.is_permanent, false, 'Generated key must have is_permanent: false');
+
         await db.deleteKey(testKey.id, 'test');
+        if (validGenRes.body.id) await db.deleteKey(validGenRes.body.id, 'test');
     });
 
     await t.test('5. Reduce Time Feature: shortening validity with validation, past-date expiration, and audit logging', async () => {
