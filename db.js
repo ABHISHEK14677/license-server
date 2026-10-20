@@ -491,6 +491,36 @@ async function initDatabase() {
 
         // Restore persistent keys and active devices from seed-keys.json
         await importSeedKeys();
+
+        // Automatically synchronize latest app release from version.json / config if version_code is higher than existing in DB
+        if (!config.isTest) {
+            try {
+                const versionFile = path.join(__dirname, 'public', 'downloads', 'version.json');
+                let vData = null;
+                if (fs.existsSync(versionFile)) {
+                    vData = JSON.parse(fs.readFileSync(versionFile, 'utf8'));
+                }
+                const targetCode = parseInt(vData?.version_code || config.appVersionCode || '46', 10);
+                const targetVersion = vData?.latest_version || config.appLatestVersion || '1.4.4';
+                const latestInDb = await getLatestAppRelease();
+                if (!latestInDb || targetCode > latestInDb.version_code) {
+                    await saveAppRelease({
+                        latest_version: targetVersion,
+                        version_code: targetCode,
+                        min_version: vData?.min_version || config.appMinVersion || '1.0.0',
+                        title: vData?.title || 'Z E X O Universal Application & Device Performance Update',
+                        release_notes: vData?.release_notes || 'Universal application optimization across all 7 fields; dynamic 120 FPS hardware display pacing; universal process priority and network management; full centralized restore defaults.',
+                        apk_filename: vData?.apk_filename || 'RootOptimizer.apk',
+                        download_url: vData?.download_url || config.appDownloadUrl || '/api/app/download',
+                        file_size_bytes: vData?.file_size_bytes || 6701544,
+                        sha256: vData?.sha256 || 'f6fe08772b66ab189e367b99533b1e43330db9d27096935c346464802f607a29'
+                    });
+                    console.log(`[INIT] Auto-synchronized release v${targetVersion} (Code ${targetCode}) into database`);
+                }
+            } catch (e) {
+                console.error('[INIT] Error auto-synchronizing release:', e.message);
+            }
+        }
     } catch (err) {
         console.error('[INIT] Database initialization error:', err.message);
     }
