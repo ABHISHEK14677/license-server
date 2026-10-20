@@ -3,6 +3,14 @@ const assert = require('node:assert');
 const path = require('node:path');
 const fs = require('node:fs');
 const http = require('node:http');
+
+// Isolate test database and seed files so production state is NEVER modified
+const testDbPath = path.join(__dirname, 'test-deployment.db');
+const testSeedPath = path.join(__dirname, 'test-deployment-seed.json');
+process.env.SQLITE_DB_PATH = testDbPath;
+process.env.SEED_FILE_PATH = testSeedPath;
+process.env.NODE_ENV = 'test';
+
 const { app } = require('../server');
 const db = require('../db');
 const {
@@ -50,9 +58,6 @@ test('Deployment Test Suite (Scenarios A through G)', async (t) => {
     }
 
     await db.initDatabase();
-    try {
-        await db.query("DELETE FROM app_releases WHERE release_notes LIKE '%test%' OR latest_version LIKE '1.4.%' OR latest_version = '1.3.7-test'");
-    } catch {}
 
     await new Promise((resolve) => {
         server = app.listen(testPort, '127.0.0.1', () => resolve());
@@ -301,6 +306,88 @@ test('Deployment Test Suite (Scenarios A through G)', async (t) => {
             assert.strictEqual(typeof dbRelease.latest_version, 'string');
         });
 
+        // -------------------------------------------------------------
+        // TEST K: Checksum verification rejects corrupted / mismatched releases
+        // -------------------------------------------------------------
+        await t.test('Test K: Publishing rejects mismatched SHA-256 checksums', async () => {
+            const mismatchRes = await makeRequest(server, {
+                path: '/api/app/publish',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-admin-key': config.adminSecret
+                },
+                body: {
+                    latest_version: '1.9.0',
+                    version_code: 90,
+                    download_url: '/api/app/download',
+                    sha256: '0000000000000000000000000000000000000000000000000000000000000000'
+                }
+            });
+            assert.strictEqual(mismatchRes.status, 400);
+            assert.ok(mismatchRes.body.error.includes('Checksum mismatch') || mismatchRes.body.error.includes('checksum'));
+        });
+
+        // -------------------------------------------------------------
+        // TEST L: Checksum format validation rejects non-hex or invalid lengths
+        // -------------------------------------------------------------
+        await t.test('Test L: Publishing rejects malformed SHA-256 format', async () => {
+            const badFormatRes = await makeRequest(server, {
+                path: '/api/app/publish',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-admin-key': config.adminSecret
+                },
+                body: {
+                    latest_version: '1.9.1',
+                    version_code: 91,
+                    sha256: 'not-a-valid-sha256'
+                }
+            });
+            assert.strictEqual(badFormatRes.status, 400);
+            assert.ok(badFormatRes.body.error.includes('Invalid sha256'));
+        });
+
+        // -------------------------------------------------------------
+        // TEST M: Admin setup endpoint rejects unauthenticated attacker account creation
+        // -------------------------------------------------------------
+        await t.test('Test M: Admin setup endpoint rejects unauthorized registration attempts', async () => {
+            const unauthorizedSetup = await makeRequest(server, {
+                path: '/api/auth/admin/setup',
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: {
+                    username: 'unauthorized_attacker',
+                    password: 'AttackerPassword123!',
+                    secret: 'wrong_secret'
+                }
+            });
+            assert.strictEqual(unauthorizedSetup.status, 403);
+            assert.ok(unauthorizedSetup.body.message.includes('Valid administrator secret required'));
+
+            // Verify attacker was not created
+            const attacker = await db.getAdminByUsername('unauthorized_attacker');
+            assert.strictEqual(attacker, null);
+        });
+
+        // -------------------------------------------------------------
+        // TEST N: Simulated restart preserves admin credentials without regenerating secrets
+        // -------------------------------------------------------------
+        await t.test('Test N: Simulated application restarts preserve admin credentials without regeneration', async () => {
+            const adminBefore = await db.getAdminByUsername(config.adminUsername);
+            assert.ok(adminBefore, 'Admin exists before restart');
+            const saltBefore = adminBefore.salt;
+            const hashBefore = adminBefore.password_hash;
+
+            // Re-initialize database as happens on server reboot
+            await db.initDatabase();
+
+            const adminAfter = await db.getAdminByUsername(config.adminUsername);
+            assert.strictEqual(adminAfter.salt, saltBefore, 'Salt must not change across restart');
+            assert.strictEqual(adminAfter.password_hash, hashBefore, 'Password hash must not change across restart');
+        });
+
     } finally {
         if (server) {
             await new Promise((resolve) => server.close(resolve));
@@ -309,8 +396,20 @@ test('Deployment Test Suite (Scenarios A through G)', async (t) => {
         if (originalVersionBackup && fs.existsSync(originalVersionFile)) {
             fs.writeFileSync(originalVersionFile, originalVersionBackup, 'utf8');
         }
-        try {
-            await db.query("DELETE FROM app_releases WHERE release_notes LIKE '%test%' OR latest_version LIKE '1.4.%' OR latest_version = '1.3.7-test'");
-        } catch {}
+        // Close test DB and clean up isolated test artifacts
+        if (typeof db.closeDatabase === 'function') {
+            db.closeDatabase();
+        }
+        const cleanupFiles = [
+            testDbPath,
+            `${testDbPath}-wal`,
+            `${testDbPath}-shm`,
+            testSeedPath
+        ];
+        for (const f of cleanupFiles) {
+            try {
+                if (fs.existsSync(f)) fs.unlinkSync(f);
+            } catch {}
+        }
     }
 });

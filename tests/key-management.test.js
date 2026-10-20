@@ -3,6 +3,14 @@ const assert = require('node:assert');
 const path = require('node:path');
 const fs = require('node:fs');
 const http = require('node:http');
+
+// Isolate test database and seed files so production state is NEVER modified
+const testDbPath = path.join(__dirname, 'test-key-mgmt.db');
+const testSeedPath = path.join(__dirname, 'test-key-mgmt-seed.json');
+process.env.SQLITE_DB_PATH = testDbPath;
+process.env.SEED_FILE_PATH = testSeedPath;
+process.env.NODE_ENV = 'test';
+
 const { app } = require('../server');
 const db = require('../db');
 const { config } = require('../config');
@@ -51,10 +59,20 @@ test('Key Management & UI Test Suite', async (t) => {
         if (server && server.listening) {
             server.close();
         }
-        try {
-            await db.query("DELETE FROM activations WHERE device_id = 'test_device_999'");
-            await db.query("DELETE FROM activation_keys WHERE customer_name LIKE '%Test%'");
-        } catch {}
+        if (typeof db.closeDatabase === 'function') {
+            db.closeDatabase();
+        }
+        const cleanupFiles = [
+            testDbPath,
+            `${testDbPath}-wal`,
+            `${testDbPath}-shm`,
+            testSeedPath
+        ];
+        for (const f of cleanupFiles) {
+            try {
+                if (fs.existsSync(f)) fs.unlinkSync(f);
+            } catch {}
+        }
     });
 
     // Obtain admin token

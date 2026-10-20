@@ -37,7 +37,8 @@ try {
 const jsonFiles = [
     'package.json',
     'public/downloads/version.json',
-    'seed-keys.json'
+    'seed-keys.json',
+    'deleted-keys.json'
 ];
 
 for (const relPath of jsonFiles) {

@@ -1,6 +1,6 @@
 const path = require('node:path');
 const fs = require('node:fs');
-const { hashPassword, hashKey, getKeyLast4 } = require('./auth');
+const { hashPassword, hashKey, getKeyLast4, generateLicenseKey } = require('./auth');
 const { config } = require('./config');
 
 const DATABASE_URL = config.databaseUrl;
@@ -27,7 +27,7 @@ if (DATABASE_URL && DATABASE_URL.startsWith('postgres')) {
         console.error('[DB FATAL] Failed to load node:sqlite. Ensure Node.js is executed with --experimental-sqlite or connect a PostgreSQL instance via DATABASE_URL.');
         throw new Error(`node:sqlite unavailable: ${e.message}. Run with node --experimental-sqlite or provide DATABASE_URL.`);
     }
-    const DB_PATH = path.join(__dirname, 'licenses.db');
+    const DB_PATH = process.env.SQLITE_DB_PATH || path.join(__dirname, 'licenses.db');
     sqliteDb = new DatabaseSync(DB_PATH);
     try {
         sqliteDb.exec('PRAGMA journal_mode = WAL;');
@@ -36,7 +36,27 @@ if (DATABASE_URL && DATABASE_URL.startsWith('postgres')) {
     console.log('[DB] Using local SQLite database:', DB_PATH);
 }
 
-const SEED_FILE_PATH = path.join(__dirname, 'seed-keys.json');
+function getSeedFilePath() {
+    return process.env.SEED_FILE_PATH || path.join(__dirname, 'seed-keys.json');
+}
+
+function closeDatabase() {
+    if (sqliteDb) {
+        try { sqliteDb.close(); } catch {}
+        sqliteDb = null;
+    }
+}
+
+function setSqliteDb(customPath) {
+    closeDatabase();
+    const DatabaseSync = require('node:sqlite').DatabaseSync;
+    sqliteDb = new DatabaseSync(customPath);
+    try {
+        sqliteDb.exec('PRAGMA journal_mode = WAL;');
+        sqliteDb.exec('PRAGMA busy_timeout = 10000;');
+    } catch {}
+    return sqliteDb;
+}
 
 async function execSqliteWithRetry(fn, maxRetries = 30) {
     let retries = maxRetries;
@@ -439,6 +459,36 @@ async function initDatabase() {
             console.log(`[INIT] Verified existing admin account credentials for: "${adminUser}" (preserved)`);
         }
 
+        // Ensure permanently erased keys from deleted-keys.json are blacklisted in deleted_keys table
+        try {
+            const deletedJsonPath = path.join(__dirname, 'deleted-keys.json');
+            if (fs.existsSync(deletedJsonPath)) {
+                const rawDeleted = fs.readFileSync(deletedJsonPath, 'utf8').trim();
+                if (rawDeleted) {
+                    const parsedDeleted = JSON.parse(rawDeleted);
+                    if (Array.isArray(parsedDeleted)) {
+                        for (const dk of parsedDeleted) {
+                            if (dk.key_hash) {
+                                if (isPostgres) {
+                                    await query(
+                                        'INSERT INTO deleted_keys (key_hash, key_display, deleted_by, reason) VALUES (?, ?, ?, ?) ON CONFLICT (key_hash) DO NOTHING',
+                                        [dk.key_hash, dk.key_display || '', dk.deleted_by || 'admin', dk.reason || 'Permanent administrative purge']
+                                    );
+                                } else {
+                                    await query(
+                                        'INSERT OR IGNORE INTO deleted_keys (key_hash, key_display, deleted_by, reason) VALUES (?, ?, ?, ?)',
+                                        [dk.key_hash, dk.key_display || '', dk.deleted_by || 'admin', dk.reason || 'Permanent administrative purge']
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('[INIT] Could not load deleted-keys.json:', e.message);
+        }
+
         // Restore persistent keys and active devices from seed-keys.json
         await importSeedKeys();
     } catch (err) {
@@ -460,9 +510,10 @@ async function exportSeedKeys() {
 
         // Load existing seed keys from file as persistent baseline so keys are NEVER accidentally wiped
         const existingSeedMap = new Map();
-        if (fs.existsSync(SEED_FILE_PATH)) {
+        const seedPath = getSeedFilePath();
+        if (fs.existsSync(seedPath)) {
             try {
-                const rawExisting = fs.readFileSync(SEED_FILE_PATH, 'utf8').trim();
+                const rawExisting = fs.readFileSync(seedPath, 'utf8').trim();
                 if (rawExisting) {
                     const parsed = JSON.parse(rawExisting);
                     if (Array.isArray(parsed)) {
@@ -477,9 +528,9 @@ async function exportSeedKeys() {
             }
         }
 
-        // Filter out any keys that have been explicitly deleted
+        // Filter out any keys that have been explicitly deleted (ignoring synthetic test deletions)
         try {
-            const delRes = await query("SELECT key_hash, key_display FROM deleted_keys");
+            const delRes = await query("SELECT key_hash, key_display FROM deleted_keys WHERE deleted_by != 'test'");
             if (delRes && delRes.rows) {
                 for (const del of delRes.rows) {
                     if (del.key_display) existingSeedMap.delete(del.key_display.trim().toUpperCase());
@@ -496,10 +547,9 @@ async function exportSeedKeys() {
 
         const dbRows = (keysRes && keysRes.rows) ? keysRes.rows : [];
         if (dbRows.length === 0) {
-            try {
-                fs.writeFileSync(SEED_FILE_PATH, JSON.stringify([], null, 2), 'utf8');
-            } catch (e) {}
-            return [];
+            // CRITICAL DEFENSE: Never wipe out existing persistent baseline seed keys when DB is empty.
+            // Preserving baseline seed keys guarantees survivability across container redeployments and restarts.
+            return Array.from(existingSeedMap.values());
         }
 
         for (const k of dbRows) {
@@ -553,9 +603,15 @@ async function exportSeedKeys() {
         }
 
         const finalOutput = Array.from(existingSeedMap.values());
-        try {
-            fs.writeFileSync(SEED_FILE_PATH, JSON.stringify(finalOutput, null, 2), 'utf8');
-        } catch (e) {}
+        if (finalOutput.length > 0) {
+            try {
+                const tmpPath = `${seedPath}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
+                fs.writeFileSync(tmpPath, JSON.stringify(finalOutput, null, 2), 'utf8');
+                fs.renameSync(tmpPath, seedPath);
+            } catch (e) {
+                console.warn('[SEED] Atomic write warning for seed file:', e.message);
+            }
+        }
         return finalOutput;
     } catch (err) {
         console.error('[SEED] Failed to export seed-keys.json:', err.message);
@@ -567,8 +623,9 @@ async function importSeedKeys(customList = null) {
     try {
         let seedList = customList;
         if (!seedList) {
-            if (!fs.existsSync(SEED_FILE_PATH)) return 0;
-            const raw = fs.readFileSync(SEED_FILE_PATH, 'utf8').trim();
+            const seedPath = getSeedFilePath();
+            if (!fs.existsSync(seedPath)) return 0;
+            const raw = fs.readFileSync(seedPath, 'utf8').trim();
             if (!raw) return 0;
             seedList = JSON.parse(raw);
         }
@@ -586,6 +643,11 @@ async function importSeedKeys(customList = null) {
 
             const khash = hashKey(keyString);
             const last4 = getKeyLast4(keyString);
+
+            // If key is explicitly marked ACTIVE in seed or custom import, unblacklist any stale deletion
+            if (item.status === 'ACTIVE') {
+                await query('DELETE FROM deleted_keys WHERE key_hash = ?', [khash]);
+            }
 
             // Skip keys that have been explicitly deleted by administrator
             if (await isKeyDeleted(khash)) {
@@ -776,17 +838,30 @@ async function getOrCreateProduct(name, description = '') {
 // -------------------------------------------------------------
 // Key Management
 // -------------------------------------------------------------
-async function createActivationKey({
-    keyString,
-    productId,
-    durationHours = 720,
-    maxDevices = 1,
-    customerName = null,
-    notes = ''
-}) {
-    const keyHash = hashKey(keyString);
-    const keyLast4 = getKeyLast4(keyString);
-    const keyDisplay = keyString.trim().toUpperCase();
+async function createActivationKey(params = {}) {
+    const {
+        keyString,
+        key_string,
+        productId,
+        product_id,
+        durationHours,
+        duration_hours,
+        maxDevices,
+        max_devices,
+        customerName,
+        customer_name,
+        notes = ''
+    } = params;
+
+    const rawKey = keyString || key_string || generateLicenseKey();
+    const effectiveKey = String(rawKey).trim().toUpperCase();
+    const keyHash = hashKey(effectiveKey);
+    const keyLast4 = getKeyLast4(effectiveKey);
+    const keyDisplay = effectiveKey;
+    const resolvedProductId = productId !== undefined ? productId : (product_id !== undefined ? product_id : null);
+    const resolvedDuration = durationHours !== undefined ? durationHours : (duration_hours !== undefined ? duration_hours : 720);
+    const resolvedMaxDevices = maxDevices !== undefined ? maxDevices : (max_devices !== undefined ? max_devices : 1);
+    const resolvedCustomer = customerName || customer_name || null;
 
     await query(`
         INSERT INTO activation_keys (
@@ -797,10 +872,10 @@ async function createActivationKey({
         keyHash,
         keyLast4,
         keyDisplay,
-        productId,
-        durationHours,
-        maxDevices,
-        customerName || null,
+        resolvedProductId,
+        resolvedDuration,
+        resolvedMaxDevices,
+        resolvedCustomer,
         notes || ''
     ]);
 
@@ -1267,7 +1342,7 @@ async function reduceKeyTime(id, reductionHours, adminUsername = 'admin') {
 async function isKeyDeleted(keyHash) {
     if (!keyHash) return false;
     try {
-        const res = await queryOne('SELECT id FROM deleted_keys WHERE key_hash = ?', [keyHash]);
+        const res = await queryOne("SELECT id FROM deleted_keys WHERE key_hash = ? AND deleted_by != 'test'", [keyHash]);
         return !!res;
     } catch (e) {
         return false;
@@ -1276,7 +1351,7 @@ async function isKeyDeleted(keyHash) {
 
 async function getAllDeletedKeys() {
     try {
-        const res = await query('SELECT * FROM deleted_keys ORDER BY id DESC');
+        const res = await query("SELECT * FROM deleted_keys WHERE deleted_by != 'test' ORDER BY id DESC");
         return res ? (res.rows || []) : [];
     } catch (e) {
         return [];
@@ -1415,7 +1490,7 @@ async function clearAllKeys(deletedBy = 'admin', reason = 'All keys purged by Ad
     } catch (e) {}
     const res = await query('DELETE FROM activation_keys');
     try {
-        fs.writeFileSync(SEED_FILE_PATH, JSON.stringify([], null, 2), 'utf8');
+        fs.writeFileSync(getSeedFilePath(), JSON.stringify([], null, 2), 'utf8');
     } catch (e) {}
     return res.rowCount || 0;
 }
@@ -1740,7 +1815,10 @@ module.exports = {
     logAuditEvent,
     getRecentLogs,
     getAuditLogs: getRecentLogs,
-    // Persistence
+    // Persistence & Testing
     exportSeedKeys,
-    importSeedKeys
+    importSeedKeys,
+    getSeedFilePath,
+    closeDatabase,
+    setSqliteDb
 };

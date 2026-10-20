@@ -2,7 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const path = require('node:path');
 const fs = require('node:fs');
-const { config, validateConfig, getSanitizedConfig, safeTimingCompare } = require('./config');
+const crypto = require('node:crypto');
+const { config, validateConfig, getSanitizedConfig, safeTimingCompare, INSECURE_DEFAULTS } = require('./config');
 const {
     generateLicenseKey,
     hashKey,
@@ -127,26 +128,48 @@ app.get('/api/health', (req, res) => {
 // Allows setting up initial admin credentials if no admins exist or with setup key
 async function handleAdminSetup(req, res) {
     try {
-        const { username = 'admin', password = 'admin123', email = 'admin@rootoptimizer.com', secret } = req.body;
-        const existingAdmin = await db.getAdminByUsername(username);
-
-        // Allow setup if no admin exists, or if valid ADMIN_SECRET is provided
+        const { username = 'admin', password = 'admin123', email = 'admin@rootoptimizer.com', secret } = req.body || {};
         const requiredSecret = config.adminSecret;
-        if (existingAdmin && (!secret || !safeTimingCompare(secret, requiredSecret))) {
-            return res.status(403).json({
-                success: false,
-                message: 'Admin account already exists. Please log in with your credentials.'
-            });
+        const anyAdmin = await db.queryOne('SELECT id FROM admins LIMIT 1');
+
+        // Security gate: If ANY administrator exists in the system OR an admin secret is configured,
+        // caller MUST provide a matching ADMIN_SECRET.
+        if (anyAdmin || requiredSecret) {
+            if (!secret || !requiredSecret || !safeTimingCompare(secret, requiredSecret)) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Forbidden: Valid administrator secret required for account setup or credential recovery.'
+                });
+            }
         }
 
+        // Production security: reject weak or default placeholder passwords
+        if (config.isProduction) {
+            if (!password || password.length < 8) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Password must be at least 8 characters in production.'
+                });
+            }
+            if (config.INSECURE_DEFAULTS && config.INSECURE_DEFAULTS.has(password)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Password cannot use an insecure default placeholder.'
+                });
+            }
+        }
+
+        const existingAdmin = await db.getAdminByUsername(username);
         if (existingAdmin) {
             await db.updateAdminPassword(existingAdmin.id, password);
+            await db.logAuditEvent('ADMIN_PASSWORD_UPDATED', { username }, getClientIp(req));
             return res.json({
                 success: true,
                 message: `Admin account "${username}" password updated successfully.`
             });
         } else {
             await db.createAdmin(username, password, email, 'superadmin');
+            await db.logAuditEvent('ADMIN_ACCOUNT_CREATED', { username }, getClientIp(req));
             return res.json({
                 success: true,
                 message: `Admin account "${username}" initialized successfully.`
@@ -1760,7 +1783,64 @@ app.post(['/api/app/publish', '/api/admin/app/publish'], express.json(), async (
         });
     }
 
-    // 4. Construct updated release metadata
+    // 4. Artifact validation & verification (PHASE 11.3)
+    let resolvedFileSize = Number(file_size_bytes) || 0;
+    let resolvedSha256 = sha256 ? String(sha256).trim().toLowerCase() : '';
+
+    if (resolvedSha256 && !/^[a-f0-9]{64}$/.test(resolvedSha256)) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid sha256: must be a 64-character hexadecimal checksum'
+        });
+    }
+
+    const targetUrl = download_url ? download_url.trim() : (currentConfig.download_url || '/api/app/download');
+    const isLocalDownload = targetUrl.startsWith('/') || targetUrl.includes('/api/app/download');
+
+    if (isLocalDownload) {
+        const zexoraApk = path.join(__dirname, 'public', 'downloads', 'Zexora.apk');
+        const legacyApk = path.join(__dirname, 'public', 'downloads', 'RootOptimizer.apk');
+        const localApkPath = fs.existsSync(zexoraApk) ? zexoraApk : legacyApk;
+
+        if (fs.existsSync(localApkPath)) {
+            const stats = fs.statSync(localApkPath);
+            if (stats.size === 0) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Corrupt artifact: local APK file exists but is empty (0 bytes)'
+                });
+            }
+
+            // Verify ZIP magic bytes (0x50 0x4B 0x03 0x04)
+            const fd = fs.openSync(localApkPath, 'r');
+            const magicBuf = Buffer.alloc(4);
+            fs.readSync(fd, magicBuf, 0, 4, 0);
+            fs.closeSync(fd);
+            const isZip = magicBuf[0] === 0x50 && magicBuf[1] === 0x4B && magicBuf[2] === 0x03 && magicBuf[3] === 0x04;
+            if (!isZip) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid artifact: local file is not a valid APK ZIP archive'
+                });
+            }
+
+            // Compute artifact SHA-256
+            const fileBuf = fs.readFileSync(localApkPath);
+            const computedSha = crypto.createHash('sha256').update(fileBuf).digest('hex').toLowerCase();
+
+            if (resolvedSha256 && resolvedSha256 !== computedSha) {
+                return res.status(400).json({
+                    success: false,
+                    error: `Checksum mismatch: provided sha256 (${resolvedSha256}) does not match local artifact (${computedSha})`
+                });
+            }
+
+            resolvedSha256 = computedSha;
+            resolvedFileSize = stats.size;
+        }
+    }
+
+    // 5. Construct updated release metadata
     const updatedConfig = {
         latest_version: cleanLatest,
         version_code: parsedCode,
@@ -1768,26 +1848,26 @@ app.post(['/api/app/publish', '/api/admin/app/publish'], express.json(), async (
         title: req.body?.title || currentConfig.title || 'Z E X O Update Available',
         release_notes: release_notes !== undefined ? String(release_notes).trim() : currentConfig.release_notes || '',
         apk_filename: req.body?.apk_filename || currentConfig.apk_filename || 'RootOptimizer.apk',
-        download_url: download_url ? download_url.trim() : (currentConfig.download_url || '/api/app/download'),
-        file_size_bytes: Number(file_size_bytes) || currentConfig.file_size_bytes || 0,
-        sha256: sha256 ? String(sha256).trim().toLowerCase() : (currentConfig.sha256 || ''),
+        download_url: targetUrl,
+        file_size_bytes: resolvedFileSize || currentConfig.file_size_bytes || 0,
+        sha256: resolvedSha256 || currentConfig.sha256 || '',
         updated_at: new Date().toISOString()
     };
 
     try {
-        // 5. Persist to database for multi-node / restart survivability
+        // 6. Persist to database for multi-node / restart survivability
         if (db && typeof db.saveAppRelease === 'function') {
             await db.saveAppRelease(updatedConfig);
         }
 
-        // 6. Atomic write to version.json (write to temp file then atomic rename)
+        // 7. Atomic write to version.json (write to temp file then atomic rename)
         const versionFile = path.join(__dirname, 'public', 'downloads', 'version.json');
-        const tmpVersionFile = `${versionFile}.${Date.now()}.tmp`;
+        const tmpVersionFile = `${versionFile}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
         fs.mkdirSync(path.dirname(versionFile), { recursive: true });
         fs.writeFileSync(tmpVersionFile, JSON.stringify(updatedConfig, null, 2), 'utf8');
         fs.renameSync(tmpVersionFile, versionFile);
 
-        // 7. Audit log event
+        // 8. Audit log event
         await db.logAuditEvent('APP_RELEASE_PUBLISHED', {
             version: updatedConfig.latest_version,
             code: updatedConfig.version_code,
@@ -1801,7 +1881,7 @@ app.post(['/api/app/publish', '/api/admin/app/publish'], express.json(), async (
         });
     } catch (err) {
         console.error('[PUBLISH ERROR]', err);
-        res.status(500).json({ success: false, error: 'Failed to atomically persist update metadata' });
+        res.status(500).json({ success: false, error: 'Failed to atomically persist update metadata: ' + err.message });
     }
 });
 

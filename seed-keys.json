@@ -1,1 +1,80 @@
-[]
+[
+  {
+    "key": "MADARA-FF-5HAQ-MB8E-VCGH-WVMC",
+    "product": "Z E X O",
+    "status": "ACTIVE",
+    "duration_hours": -1,
+    "created_at": "2026-10-20 04:48:49",
+    "activated_at": "2026-10-20 04:48:49",
+    "expires_at": null,
+    "max_devices": 5,
+    "customer_name": "MADARA FF",
+    "notes": "v1.4.3 Active Key",
+    "activations": []
+  },
+  {
+    "key": "MADARA-FF-B2K5-UV4X-YTRN-F8M8",
+    "product": "Z E X O",
+    "status": "ACTIVE",
+    "duration_hours": -1,
+    "created_at": "2026-10-20 04:48:49",
+    "activated_at": "2026-10-20 04:48:49",
+    "expires_at": null,
+    "max_devices": 5,
+    "customer_name": "TRIAL",
+    "notes": "v1.4.3 Active Key",
+    "activations": []
+  },
+  {
+    "key": "MADARA-FF-JFFL-JCHQ-D3AX-4MLC",
+    "product": "Z E X O",
+    "status": "ACTIVE",
+    "duration_hours": -1,
+    "created_at": "2026-10-20 04:48:49",
+    "activated_at": "2026-10-20 04:48:49",
+    "expires_at": null,
+    "max_devices": 5,
+    "customer_name": "MUKESH",
+    "notes": "v1.4.3 Active Key",
+    "activations": []
+  },
+  {
+    "key": "MADARA-FF-53D5-EFGY-6ST5-RMB6",
+    "product": "Z E X O",
+    "status": "ACTIVE",
+    "duration_hours": -1,
+    "created_at": "2026-10-20 04:48:49",
+    "activated_at": "2026-10-20 04:48:49",
+    "expires_at": null,
+    "max_devices": 5,
+    "customer_name": "KAVISH",
+    "notes": "v1.4.3 Active Key",
+    "activations": []
+  },
+  {
+    "key": "MADARA-FF-PSVB-9C3H-FY6W-KEXZ",
+    "product": "Z E X O",
+    "status": "ACTIVE",
+    "duration_hours": -1,
+    "created_at": "2026-10-20 04:48:49",
+    "activated_at": "2026-10-20 04:48:49",
+    "expires_at": null,
+    "max_devices": 5,
+    "customer_name": "DHARSHAN",
+    "notes": "v1.4.3 Active Key",
+    "activations": []
+  },
+  {
+    "key": "MADARA-FF-4W2B-M4KF-T9QS-KEV2",
+    "product": "Z E X O",
+    "status": "ACTIVE",
+    "duration_hours": -1,
+    "created_at": "2026-10-20 04:48:49",
+    "activated_at": "2026-10-20 04:48:49",
+    "expires_at": null,
+    "max_devices": 5,
+    "customer_name": "SRINIVASAN",
+    "notes": "v1.4.3 Active Key",
+    "activations": []
+  }
+]
