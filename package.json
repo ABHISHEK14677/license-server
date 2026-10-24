@@ -1,6 +1,6 @@
 {
   "name": "licenseserver",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "description": "Z E X O License Server & Authority",
   "main": "server.js",
   "engines": {
