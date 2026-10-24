@@ -1,5 +1,29 @@
 [
   {
+    "key": "MADARA-FF-DDSW-3LDC-R9C3-N4YQ",
+    "product": "Z E X O",
+    "status": "ACTIVE",
+    "duration_hours": 168,
+    "created_at": "2026-10-23 11:39:57",
+    "activated_at": "2026-10-23 11:39:57",
+    "expires_at": "2026-10-30T11:39:57.610Z",
+    "max_devices": 1,
+    "customer_name": "MADARA FF",
+    "notes": "v1.4.5 Active Key - 7 Days",
+    "activations": [
+      {
+        "device_identifier": "6b35b758d373144ec2724d5661fe79a47a2a2643d39a14a444caf09ec6fdef15",
+        "device_model": "Xiaomi 2412DPC0AI",
+        "platform": "Android",
+        "activated_at": "2026-10-23 11:39:57",
+        "expires_at": "2026-10-30T11:39:57.610Z",
+        "status": "ACTIVE",
+        "session_token": "9028df8cb93acae5469500da03c0be1c88b21dc3706bc3a6e831cf538f649801",
+        "last_seen_at": "2026-10-24 19:45:00"
+      }
+    ]
+  },
+  {
     "key": "MADARA-FF-5HAQ-MB8E-VCGH-WVMC",
     "product": "Z E X O",
     "status": "ACTIVE",

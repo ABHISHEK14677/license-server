@@ -1,12 +1,12 @@
 {
-  "latest_version": "1.4.4",
-  "version_code": 46,
+  "latest_version": "1.4.5",
+  "version_code": 47,
   "min_version": "1.0.0",
-  "title": "Z E X O Universal Application & Device Performance Update",
-  "release_notes": "Universal application optimization across all 7 fields; dynamic 120 FPS hardware display pacing; universal process priority and network management; full centralized restore defaults.",
+  "title": "Z E X O Shizuku Authorization & Universal Performance Update",
+  "release_notes": "Official Shizuku API integration via Wireless Debugging/ADB; dedicated Settings & Shizuku Connection interface; complete system-level optimization privilege engine bridge.",
   "apk_filename": "RootOptimizer.apk",
-  "download_url": "https://github.com/ABHISHEK14677/license-server/releases/download/v1.4.4/RootOptimizer.apk",
-  "file_size_bytes": 6701544,
-  "sha256": "f6fe08772b66ab189e367b99533b1e43330db9d27096935c346464802f607a29",
-  "updated_at": "2026-10-20T07:42:00.000Z"
+  "download_url": "/api/app/download",
+  "file_size_bytes": 6738618,
+  "sha256": "10ebb788355aab62d05721fec1142b1f4ddb1e47f0ed886c1352a26c90154344",
+  "updated_at": "2026-10-24T19:55:00.000Z"
 }
