@@ -1,12 +1,12 @@
 {
-  "latest_version": "1.4.6",
-  "version_code": 48,
+  "latest_version": "1.4.7",
+  "version_code": 49,
   "min_version": "1.0.0",
-  "title": "Z E X O Dual Execution Architecture & Connection Hub Update",
-  "release_notes": "Settings Connection hub housing Method 1 (Limited) and Method 2 (Admin ADB Mode), dedicated Setup Guide (README) console, hardware Android logo assets, and streamlined single-title layout viewports.",
+  "title": "Z E X O Settings Layout & Custom Connection Hub Update",
+  "release_notes": "Streamlined card layout without redundant section category titles, and updated custom high-definition Connection Hub graphic.",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 6866001,
-  "sha256": "ada415256d55686212227478c3d3f94f21f2555e6a11e13da2be6abd10882487",
-  "updated_at": "2026-10-27T06:58:00.000Z"
+  "file_size_bytes": 7562643,
+  "sha256": "2e49cfb9c5cc34b79990dbfb721ff307775d1a595589afde32e92615e485e897",
+  "updated_at": "2026-10-27T07:33:00.000Z"
 }

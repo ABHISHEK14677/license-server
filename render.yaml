@@ -32,9 +32,9 @@ services:
       - key: ADMIN_SECRET_KEY
         sync: false
       - key: APP_LATEST_VERSION
-        value: 1.4.5
+        value: 1.4.7
       - key: APP_VERSION_CODE
-        value: 47
+        value: 49
       - key: APP_MIN_VERSION
         value: 1.0.0
       - key: APP_DOWNLOAD_URL
