@@ -2,11 +2,11 @@
   "latest_version": "1.4.6",
   "version_code": 48,
   "min_version": "1.0.0",
-  "title": "Z E X O Dual Execution Architecture Update",
-  "release_notes": "Replaced Shizuku connection workflow with two distinct execution methods: Method 1 (Limited Mode - normal Android SDK permissions) and Method 2 (Admin ADB Mode - verified external ADB bridge console with allowlisted execution).",
+  "title": "Z E X O Dual Execution Architecture & Connection Hub Update",
+  "release_notes": "Settings Connection hub housing Method 1 (Limited) and Method 2 (Admin ADB Mode), dedicated Setup Guide (README) console, hardware Android logo assets, and streamlined single-title layout viewports.",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 6738695,
-  "sha256": "9f7d5b2084dec6b3ae12f5ebf7d8cb8d9da4751f55918d8c142e8cb56e16c499",
-  "updated_at": "2026-10-27T05:56:00.000Z"
+  "file_size_bytes": 6866001,
+  "sha256": "ada415256d55686212227478c3d3f94f21f2555e6a11e13da2be6abd10882487",
+  "updated_at": "2026-10-27T06:58:00.000Z"
 }
