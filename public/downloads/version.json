@@ -1,12 +1,12 @@
 {
-  "latest_version": "1.4.5",
-  "version_code": 47,
+  "latest_version": "1.4.6",
+  "version_code": 48,
   "min_version": "1.0.0",
-  "title": "Z E X O Shizuku Authorization & Universal Performance Update",
-  "release_notes": "Official Shizuku API integration via Wireless Debugging/ADB; dedicated Settings & Shizuku Connection interface; complete system-level optimization privilege engine bridge.",
+  "title": "Z E X O Dual Execution Architecture Update",
+  "release_notes": "Replaced Shizuku connection workflow with two distinct execution methods: Method 1 (Limited Mode - normal Android SDK permissions) and Method 2 (Admin ADB Mode - verified external ADB bridge console with allowlisted execution).",
   "apk_filename": "RootOptimizer.apk",
   "download_url": "/api/app/download",
-  "file_size_bytes": 6738618,
-  "sha256": "10ebb788355aab62d05721fec1142b1f4ddb1e47f0ed886c1352a26c90154344",
-  "updated_at": "2026-10-24T19:55:00.000Z"
+  "file_size_bytes": 6738695,
+  "sha256": "9f7d5b2084dec6b3ae12f5ebf7d8cb8d9da4751f55918d8c142e8cb56e16c499",
+  "updated_at": "2026-10-27T05:56:00.000Z"
 }
