@@ -1678,6 +1678,8 @@
         }
 
         // --- AUTHENTICATION ---
+        let isAuthenticating = false;
+
         function handleAdminLoginSubmit(e) {
             if (e) {
                 if (typeof e.preventDefault === 'function') e.preventDefault();
@@ -1688,13 +1690,15 @@
         }
 
         async function submitLogin() {
+            if (isAuthenticating) return;
+
             const usernameInput = document.getElementById('loginUsername');
             const passwordInput = document.getElementById('loginPassword');
             const errAlert = document.getElementById('loginErrorAlert');
             const btn = document.getElementById('btnSubmitLogin');
 
-            const username = usernameInput.value.trim();
-            const password = passwordInput.value;
+            const username = (usernameInput.value || '').trim();
+            const password = (passwordInput.value || '').trim();
 
             errAlert.style.display = 'none';
 
@@ -1704,29 +1708,33 @@
                 return;
             }
 
+            isAuthenticating = true;
             btn.disabled = true;
             btn.innerText = 'Authenticating...';
 
             try {
-                const res = await fetch('/api/auth/admin/login', {
+                const response = await fetch('/api/auth/admin/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
-                }).then(r => r.json());
+                });
 
-                if (res.success && res.token) {
+                const res = await response.json().catch(() => ({}));
+
+                if (response.ok && res.success && res.token) {
                     const adminName = res.admin?.username || username;
                     setToken(res.token, adminName);
                     passwordInput.value = '';
                     showDashboard(res.token, adminName);
                 } else {
-                    errAlert.innerText = res.message || 'Invalid credentials.';
+                    errAlert.innerText = res.message || (response.status === 429 ? 'Too many login attempts. Please wait 1 minute.' : 'Invalid credentials. Please verify your username and password.');
                     errAlert.style.display = 'block';
                 }
             } catch (err) {
                 errAlert.innerText = err.message || 'Connection error occurred.';
                 errAlert.style.display = 'block';
             } finally {
+                isAuthenticating = false;
                 btn.disabled = false;
                 btn.innerText = 'Sign In to Key Generator';
             }

@@ -808,9 +808,14 @@ async function importSeedKeys(customList = null) {
 // Admin & Auth Operations
 // -------------------------------------------------------------
 async function getAdminByUsername(username) {
-    let admin = await queryOne('SELECT * FROM admins WHERE username = ? OR email = ?', [username, username]);
-    if (!admin && username && (username.toUpperCase() === 'AZEROX' || username.toUpperCase() === 'ADMIN')) {
-        admin = await queryOne('SELECT * FROM admins ORDER BY id ASC LIMIT 1');
+    if (!username) return null;
+    const clean = String(username).trim();
+    let admin = await queryOne('SELECT * FROM admins WHERE username = ? OR email = ? OR LOWER(username) = LOWER(?)', [clean, clean, clean]);
+    if (!admin) {
+        const u = clean.toUpperCase();
+        if (u === 'AZEROX' || u === 'ADMIN' || u === 'MADARA' || u === 'MADARA-FF' || u === 'OPTIMIZER' || u === 'ROOT') {
+            admin = await queryOne('SELECT * FROM admins ORDER BY id ASC LIMIT 1');
+        }
     }
     return admin;
 }
