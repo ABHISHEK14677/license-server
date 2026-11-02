@@ -35,8 +35,6 @@ for (let i = 0; i < args.length; i++) {
         prefix = args[++i];
     } else if (arg === '--product') {
         product = args[++i];
-    } else if (arg === '--vip') {
-        product = 'AZEROX VIP';
     } else if (!arg.startsWith('-')) {
         if (i === 0) {
             const val = arg.toLowerCase();
@@ -56,7 +54,7 @@ for (let i = 0; i < args.length; i++) {
 }
 
 if (!prefix) {
-    prefix = (product === 'AZEROX VIP') ? 'AZEROX-VIP' : 'OPTIMIZER';
+    prefix = 'OPTIMIZER';
 }
 
 async function main() {

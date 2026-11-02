@@ -148,18 +148,5 @@
     "customer_name": null,
     "notes": "CLI test optimize",
     "activations": []
-  },
-  {
-    "key": "AZEROX-VIP-4Q2T-A4AN-3QD2-W7VA",
-    "product": "AZEROX VIP",
-    "status": "UNUSED",
-    "duration_hours": 168,
-    "created_at": "2026-11-02 03:27:47",
-    "activated_at": null,
-    "expires_at": null,
-    "max_devices": 1,
-    "customer_name": null,
-    "notes": "CLI test vip",
-    "activations": []
   }
 ]

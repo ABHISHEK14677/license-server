@@ -454,7 +454,7 @@ test('Key Management & UI Test Suite', async (t) => {
         await db.deleteKey(keyObj.id, 'test');
     });
 
-    await t.test('7. Product Isolation: OPTIMIZE vs AZEROX VIP key activation strictly enforced', async () => {
+    await t.test('7. Product Isolation: OPTIMIZE key activation and product mismatch enforcement', async () => {
         // Generate OPTIMIZE key
         const optKeyRes = await makeRequest(server, {
             path: '/api/keys/generate',
@@ -471,65 +471,22 @@ test('Key Management & UI Test Suite', async (t) => {
         const optKey = optKeyRes.body;
         assert.ok(optKey.key.startsWith('OPTIMIZER-'), 'OPTIMIZER key must start with OPTIMIZER-');
 
-        // Generate AZEROX VIP key
-        const vipKeyRes = await makeRequest(server, {
-            path: '/api/keys/generate',
-            method: 'POST',
-            headers: testAdminHeader(),
-            body: {
-                product_name: 'AZEROX VIP',
-                duration_hours: 24,
-                customer_name: 'VIP User',
-                prefix: 'AZEROX-VIP'
-            }
-        });
-        assert.strictEqual(vipKeyRes.status, 200);
-        const vipKey = vipKeyRes.body;
-        assert.ok(vipKey.key.startsWith('AZEROX-VIP-'), 'AZEROX VIP key must start with AZEROX-VIP-');
-
-        // Attempt to activate OPTIMIZE key with AZEROX VIP product / app_identifier
-        const crossAct1 = await makeRequest(server, {
+        // Attempt activation with mismatched foreign product
+        const mismatchAct = await makeRequest(server, {
             path: '/api/activate',
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: {
                 key: optKey.key,
-                device_id: 'device_vip_001',
-                product_name: 'AZEROX VIP'
+                device_id: 'device_foreign_001',
+                product_name: 'FOREIGN_PRODUCT'
             }
         });
-        assert.strictEqual(crossAct1.status, 403, 'OPTIMIZE key cannot activate AZEROX VIP');
-        assert.strictEqual(crossAct1.body.code, 'PRODUCT_MISMATCH');
-
-        // Attempt to activate AZEROX VIP key with OPTIMIZE product / app_identifier
-        const crossAct2 = await makeRequest(server, {
-            path: '/api/activate',
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: {
-                key: vipKey.key,
-                device_id: 'device_opt_001',
-                product_name: 'OPTIMIZE'
-            }
-        });
-        assert.strictEqual(crossAct2.status, 403, 'AZEROX VIP key cannot activate OPTIMIZE');
-        assert.strictEqual(crossAct2.body.code, 'PRODUCT_MISMATCH');
-
-        // Attempt cross-activation using app_identifier
-        const crossAct3 = await makeRequest(server, {
-            path: '/api/activate',
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: {
-                key: optKey.key,
-                device_id: 'device_proxy_001',
-                app_identifier: 'com.azerox.proxy'
-            }
-        });
-        assert.strictEqual(crossAct3.status, 403, 'OPTIMIZE key cannot activate AZEROX VIP proxy client');
+        assert.strictEqual(mismatchAct.status, 403, 'OPTIMIZE key cannot activate foreign product');
+        assert.strictEqual(mismatchAct.body.code, 'PRODUCT_MISMATCH');
 
         // Valid activation: OPTIMIZE key on OPTIMIZE product
-        const validAct1 = await makeRequest(server, {
+        const validAct = await makeRequest(server, {
             path: '/api/activate',
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -539,24 +496,9 @@ test('Key Management & UI Test Suite', async (t) => {
                 product_name: 'OPTIMIZE'
             }
         });
-        assert.strictEqual(validAct1.status, 200, 'Valid OPTIMIZE activation should succeed');
-        assert.strictEqual(validAct1.body.success, true);
-
-        // Valid activation: AZEROX VIP key on AZEROX VIP product
-        const validAct2 = await makeRequest(server, {
-            path: '/api/activate',
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: {
-                key: vipKey.key,
-                device_id: 'device_vip_ok_001',
-                product_name: 'AZEROX VIP'
-            }
-        });
-        assert.strictEqual(validAct2.status, 200, 'Valid AZEROX VIP activation should succeed');
-        assert.strictEqual(validAct2.body.success, true);
+        assert.strictEqual(validAct.status, 200, 'Valid OPTIMIZE activation should succeed');
+        assert.strictEqual(validAct.body.success, true);
 
         await db.deleteKey(optKey.id, 'test');
-        await db.deleteKey(vipKey.id, 'test');
     });
 });

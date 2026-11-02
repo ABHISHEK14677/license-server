@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node --experimental-sqlite server.js",
-    "test": "node --experimental-sqlite --test tests/*.test.js",
+    "test": "node --experimental-sqlite --test --test-concurrency=1 tests/*.test.js",
     "config:check": "node scripts/validate-config.js",
     "config:check:prod": "node scripts/validate-config.js --production",
     "integrity:check": "node scripts/check-integrity.js",

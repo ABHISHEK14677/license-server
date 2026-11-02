@@ -415,7 +415,7 @@ async function initDatabase() {
             } catch (e) {}
         }
 
-        // Seed default products: OPTIMIZE and AZEROX VIP
+        // Seed default product: OPTIMIZE
         let defaultProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['OPTIMIZE']);
         if (!defaultProduct) {
             defaultProduct = await queryOne('SELECT * FROM products WHERE name = ? OR name = ? OR name = ? OR name = ?', ['OPTIMIZER', 'Z E X O', 'Zexora', 'Optimizer']);
@@ -433,16 +433,6 @@ async function initDatabase() {
                 ]);
             }
             console.log('[INIT] Default product set to: OPTIMIZE');
-        }
-
-        let vipProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['AZEROX VIP']);
-        if (!vipProduct) {
-            await query('INSERT INTO products (name, description, status) VALUES (?, ?, ?)', [
-                'AZEROX VIP',
-                'AZEROX VIP',
-                'ACTIVE'
-            ]);
-            console.log('[INIT] Product registered: AZEROX VIP');
         }
 
         // Ensure default admin exists with configured credentials without overwriting on deployment

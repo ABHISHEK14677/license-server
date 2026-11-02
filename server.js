@@ -346,7 +346,7 @@ async function handleKeyGeneration(req, res) {
         const product = await db.getOrCreateProduct(product_name);
         const generatedKeys = [];
         const limitCount = Math.min(Math.max(parseInt(count, 10) || 1, 1), 50);
-        const resolvedPrefix = prefix || (product_name.toUpperCase().includes('VIP') ? 'AZEROX-VIP' : 'OPTIMIZER');
+        const resolvedPrefix = prefix || 'OPTIMIZER';
 
         for (let i = 0; i < limitCount; i++) {
             let rawKey = generateLicenseKey(resolvedPrefix);
@@ -1142,53 +1142,18 @@ async function handleCustomerActivate(req, res) {
         // 4b. Check Product Matching (Enforce product-specific activation)
         const keyProduct = (keyRecord.product_name || 'OPTIMIZE').toUpperCase().trim();
         const requestedProduct = (req.body.product || req.body.product_name || req.body.productName || '').toUpperCase().trim();
-        const reqApp = (req.body.app_identifier || '').toLowerCase().trim();
-        const isVipKey = keyProduct.includes('VIP');
 
-        if (requestedProduct) {
-            const isReqVip = requestedProduct.includes('VIP');
-            if (isVipKey && !isReqVip) {
-                await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Product mismatch: VIP key used for ' + requestedProduct, key: formattedKey, device_id: deviceId }, ip);
+        if (requestedProduct && requestedProduct !== keyProduct) {
+            const isOptKey = keyProduct === 'OPTIMIZE' || keyProduct === 'OPTIMIZER';
+            const isOptReq = requestedProduct === 'OPTIMIZE' || requestedProduct === 'OPTIMIZER';
+            if (!(isOptKey && isOptReq)) {
+                await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Product mismatch: ' + keyProduct + ' key used for ' + requestedProduct, key: formattedKey, device_id: deviceId }, ip);
                 return res.status(403).json({
                     success: false,
                     valid: false,
                     code: 'PRODUCT_MISMATCH',
                     error: 'PRODUCT_MISMATCH',
-                    message: `This activation key is valid exclusively for AZEROX VIP and cannot be used for ${req.body.product || req.body.product_name}.`
-                });
-            }
-            if (!isVipKey && isReqVip) {
-                await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Product mismatch: OPTIMIZE key used for AZEROX VIP', key: formattedKey, device_id: deviceId }, ip);
-                return res.status(403).json({
-                    success: false,
-                    valid: false,
-                    code: 'PRODUCT_MISMATCH',
-                    error: 'PRODUCT_MISMATCH',
-                    message: `This activation key is valid exclusively for OPTIMIZE and cannot be used for AZEROX VIP.`
-                });
-            }
-        }
-
-        if (reqApp === 'com.azerox.proxy' || reqApp === 'com.m1nx.proxy') {
-            if (!isVipKey) {
-                await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Product mismatch: Non-VIP key used in VIP app', key: formattedKey, device_id: deviceId }, ip);
-                return res.status(403).json({
-                    success: false,
-                    valid: false,
-                    code: 'PRODUCT_MISMATCH',
-                    error: 'PRODUCT_MISMATCH',
-                    message: 'This activation key is for OPTIMIZE. Please use a valid AZEROX VIP key.'
-                });
-            }
-        } else if (reqApp === 'com.azerox.optimizer' || reqApp === 'com.example.rootoptimizer') {
-            if (isVipKey) {
-                await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Product mismatch: VIP key used in OPTIMIZE app', key: formattedKey, device_id: deviceId }, ip);
-                return res.status(403).json({
-                    success: false,
-                    valid: false,
-                    code: 'PRODUCT_MISMATCH',
-                    error: 'PRODUCT_MISMATCH',
-                    message: 'This activation key is for AZEROX VIP. Please use a valid OPTIMIZE key.'
+                    message: `This activation key is valid exclusively for ${keyRecord.product_name || 'OPTIMIZER'} and cannot be used for ${req.body.product || req.body.product_name}.`
                 });
             }
         }
@@ -1478,49 +1443,17 @@ async function handleActivationStatus(req, res) {
         // Product Matching Validation
         const valKeyProduct = (keyRecord.product_name || 'OPTIMIZE').toUpperCase().trim();
         const valReqProduct = (req.body.product || req.body.product_name || req.body.productName || '').toUpperCase().trim();
-        const valReqApp = (req.body.app_identifier || '').toLowerCase().trim();
-        const isValVipKey = valKeyProduct.includes('VIP');
 
-        if (valReqProduct) {
-            const isValReqVip = valReqProduct.includes('VIP');
-            if (isValVipKey && !isValReqVip) {
+        if (valReqProduct && valReqProduct !== valKeyProduct) {
+            const isOptKey = valKeyProduct === 'OPTIMIZE' || valKeyProduct === 'OPTIMIZER';
+            const isOptReq = valReqProduct === 'OPTIMIZE' || valReqProduct === 'OPTIMIZER';
+            if (!(isOptKey && isOptReq)) {
                 return res.status(403).json({
                     success: false,
                     valid: false,
                     code: 'PRODUCT_MISMATCH',
                     error: 'PRODUCT_MISMATCH',
-                    message: `This activation key is valid exclusively for AZEROX VIP and cannot be validated for ${req.body.product || req.body.product_name}.`
-                });
-            }
-            if (!isValVipKey && isValReqVip) {
-                return res.status(403).json({
-                    success: false,
-                    valid: false,
-                    code: 'PRODUCT_MISMATCH',
-                    error: 'PRODUCT_MISMATCH',
-                    message: `This activation key is valid exclusively for OPTIMIZE and cannot be validated for AZEROX VIP.`
-                });
-            }
-        }
-
-        if (valReqApp === 'com.azerox.proxy' || valReqApp === 'com.m1nx.proxy') {
-            if (!isValVipKey) {
-                return res.status(403).json({
-                    success: false,
-                    valid: false,
-                    code: 'PRODUCT_MISMATCH',
-                    error: 'PRODUCT_MISMATCH',
-                    message: 'This activation key is for OPTIMIZE. Please use a valid AZEROX VIP key.'
-                });
-            }
-        } else if (valReqApp === 'com.azerox.optimizer' || valReqApp === 'com.example.rootoptimizer') {
-            if (isValVipKey) {
-                return res.status(403).json({
-                    success: false,
-                    valid: false,
-                    code: 'PRODUCT_MISMATCH',
-                    error: 'PRODUCT_MISMATCH',
-                    message: 'This activation key is for AZEROX VIP. Please use a valid OPTIMIZE key.'
+                    message: `This activation key is valid exclusively for ${keyRecord.product_name || 'OPTIMIZER'} and cannot be validated for ${req.body.product || req.body.product_name}.`
                 });
             }
         }
