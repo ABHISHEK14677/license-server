@@ -296,7 +296,7 @@ app.get('/api/admin/stats', requireAdmin, handleDashboardStats);
 async function handleKeyGeneration(req, res) {
     const ip = getClientIp(req);
     const {
-        product_name = 'OPTIMIZE',
+        product_name = 'OPTIMIZER',
         duration_hours = null,
         duration_days = null,
         max_devices = 1,
@@ -327,7 +327,7 @@ async function handleKeyGeneration(req, res) {
         const product = await db.getOrCreateProduct(product_name);
         const generatedKeys = [];
         const limitCount = Math.min(Math.max(parseInt(count, 10) || 1, 1), 50);
-        const resolvedPrefix = prefix || (product_name.toUpperCase().includes('VIP') ? 'AZEROX-VIP' : 'AZEROX');
+        const resolvedPrefix = prefix || (product_name.toUpperCase().includes('VIP') ? 'AZEROX-VIP' : 'OPTIMIZER');
 
         for (let i = 0; i < limitCount; i++) {
             let rawKey = generateLicenseKey(resolvedPrefix);

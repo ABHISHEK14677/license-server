@@ -158,6 +158,67 @@
             border-bottom-color: var(--indigo-primary);
         }
 
+        /* Product Dashboard Switcher Bar */
+        .product-dashboard-bar {
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.95), rgba(11, 15, 25, 0.98));
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 8px 16px;
+        }
+
+        .product-dash-tabs {
+            max-width: 960px;
+            margin: 0 auto;
+            display: flex;
+            gap: 12px;
+            width: 100%;
+        }
+
+        .prod-dash-tab {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 12px 18px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(30, 41, 59, 0.5);
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+
+        .prod-dash-tab:hover {
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-primary);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .prod-dash-tab.active {
+            background: linear-gradient(135deg, rgba(37, 99, 235, 0.25), rgba(59, 130, 246, 0.35));
+            border-color: #3b82f6;
+            color: #ffffff;
+            box-shadow: 0 4px 16px rgba(37, 99, 235, 0.3);
+        }
+
+        .prod-dash-tab#tabDashVip.active {
+            background: linear-gradient(135deg, rgba(217, 119, 6, 0.25), rgba(245, 158, 11, 0.35));
+            border-color: #f59e0b;
+            color: #fef08a;
+            box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3);
+        }
+
+        .prod-badge {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.35);
+            font-family: 'JetBrains Mono', monospace;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
         /* Main Container */
         .main-container {
             max-width: 960px;
@@ -771,14 +832,30 @@
                     </svg>
                 </div>
                 <div>
-                    <h1 class="top-title">A Z E R O X</h1>
-                    <div class="top-subtitle">OPTIMIZE &amp; AZEROX VIP</div>
+                    <h1 class="top-title">OPTIMIZER</h1>
+                    <div class="top-subtitle">OPTIMIZER LICENSE AUTHORITY</div>
                 </div>
             </div>
 
             <div id="authNavArea" class="user-nav-actions" style="display: none;">
-                <span class="user-badge" id="navUserBadge">AZEROX</span>
+                <span class="user-badge" id="navUserBadge">Admin</span>
                 <button class="btn btn-outline btn-sm" onclick="handleLogout()">Sign Out</button>
+            </div>
+        </div>
+
+        <!-- Product Dashboard Switcher Bar: SEPARATE DASHBOARDS FOR OPTIMIZER & AZEROX VIP -->
+        <div id="productDashboardBar" class="product-dashboard-bar" style="display: none;">
+            <div class="product-dash-tabs">
+                <button type="button" class="prod-dash-tab active" id="tabDashOptimizer" onclick="switchProductDashboard('OPTIMIZER')">
+                    <span style="font-size: 16px;">⚡</span>
+                    <span class="prod-name">OPTIMIZER Dashboard</span>
+                    <span class="prod-badge" id="badgeOptimizerCount">0</span>
+                </button>
+                <button type="button" class="prod-dash-tab" id="tabDashVip" onclick="switchProductDashboard('AZEROX VIP')">
+                    <span style="font-size: 16px;">👑</span>
+                    <span class="prod-name">AZEROX VIP Dashboard</span>
+                    <span class="prod-badge" id="badgeVipCount">0</span>
+                </button>
             </div>
         </div>
 
@@ -883,14 +960,10 @@
 
                 <!-- 2. Product & Duration Selector Card -->
                 <div class="card">
-                    <!-- Product Selector Row -->
-                    <div class="section-header-row" style="margin-bottom: 8px;">
-                        <h2 class="section-title">Select Product</h2>
-                        <span class="section-subtitle-value" id="selectedProductLabel">OPTIMIZE</span>
-                    </div>
-                    <div class="duration-chips-scroll" style="margin-bottom: 16px;">
-                        <button type="button" class="chip selected" id="chipProdOptimize" onclick="selectProduct('OPTIMIZE', this)">OPTIMIZE</button>
-                        <button type="button" class="chip" id="chipProdVip" onclick="selectProduct('AZEROX VIP', this)">AZEROX VIP</button>
+                    <!-- Product Header Row -->
+                    <div class="section-header-row" style="margin-bottom: 14px;">
+                        <h2 class="section-title" id="generatorCardTitle">⚡ OPTIMIZER Key Generator</h2>
+                        <span class="section-subtitle-value" id="selectedProductLabel" style="background: rgba(59, 130, 246, 0.15); color: #93c5fd; padding: 4px 10px; border-radius: 6px; font-weight: 700;">OPTIMIZER</span>
                     </div>
 
                     <div class="section-header-row">
@@ -910,7 +983,7 @@
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-top: 10px;">
                         <div>
                             <label class="form-label" style="font-size: 11px;">Key Prefix</label>
-                            <input type="text" id="inputKeyPrefix" class="form-input" value="AZEROX" style="padding: 8px 12px; font-size: 13px; font-family: 'JetBrains Mono', monospace; font-weight: 700;">
+                            <input type="text" id="inputKeyPrefix" class="form-input" value="OPTIMIZER" style="padding: 8px 12px; font-size: 13px; font-family: 'JetBrains Mono', monospace; font-weight: 700;">
                         </div>
                         <div>
                             <label class="form-label" style="font-size: 11px;">Max Devices</label>
@@ -927,7 +1000,7 @@
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                             <circle cx="7.5" cy="15.5" r="5.5"></circle><path d="m21 2-9.6 9.6"></path><path d="m15.5 7.5 3 3"></path>
                         </svg>
-                        <span id="btnGenerateKeyText">Generate Key • OPTIMIZE • 30 Days</span>
+                        <span id="btnGenerateKeyText">Generate Key • OPTIMIZER • 30 Days</span>
                     </button>
                 </div>
 
@@ -1023,11 +1096,10 @@
                     </div>
                 </div>
 
-                <!-- Product Filter Row -->
-                <div class="duration-chips-scroll" style="margin-bottom: 8px;">
-                    <button class="chip selected" data-product="ALL" onclick="setProductFilter('ALL', this)">All Products</button>
-                    <button class="chip" data-product="OPTIMIZE" onclick="setProductFilter('OPTIMIZE', this)">OPTIMIZE</button>
-                    <button class="chip" data-product="AZEROX VIP" onclick="setProductFilter('AZEROX VIP', this)">AZEROX VIP</button>
+                <!-- Current Dashboard Notice in Keys List -->
+                <div style="margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--text-secondary); background: var(--bg-surface-variant); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color);">
+                    <span>Active Dashboard: <b id="totalKeysCurrentProductLabel" style="color: #93c5fd;">OPTIMIZER Keys</b></span>
+                    <span style="font-size: 11px; opacity: 0.7;">Switch tabs at top to toggle dashboard</span>
                 </div>
 
                 <!-- Filter Chips Row -->
@@ -1392,9 +1464,9 @@
     <!-- ========================================== -->
     <script>
         // State variables
+        let currentDashboard = 'OPTIMIZER'; // 'OPTIMIZER' or 'AZEROX VIP'
         let selectedHours = 720; // Default to 30 Days (720h)
-        let selectedProduct = 'OPTIMIZE';
-        let selectedProductFilter = 'ALL';
+        let selectedProduct = 'OPTIMIZER';
         let latestKeyData = null;
         let allKeys = [];
         let currentStatusFilter = 'ALL';
@@ -1680,6 +1752,8 @@
             document.getElementById('viewDashboard').style.display = 'none';
             document.getElementById('authNavArea').style.display = 'none';
             document.getElementById('navTabsBar').style.display = 'none';
+            const prodDashBar = document.getElementById('productDashboardBar');
+            if (prodDashBar) prodDashBar.style.display = 'none';
             if (liveTickerInterval) {
                 clearInterval(liveTickerInterval);
                 liveTickerInterval = null;
@@ -1705,11 +1779,18 @@
             document.getElementById('viewDashboard').style.display = 'block';
             document.getElementById('authNavArea').style.display = 'flex';
             document.getElementById('navTabsBar').style.display = 'block';
+            const prodDashBar = document.getElementById('productDashboardBar');
+            if (prodDashBar) prodDashBar.style.display = 'block';
 
             const user = username || getUsername() || 'AZEROX';
             document.getElementById('navUserBadge').innerText = user;
 
-            loadStatsData();
+            // Check URL hash or storage for dashboard choice
+            const hash = (window.location.hash || '').toLowerCase();
+            const savedDash = localStorage.getItem('active_product_dashboard');
+            const targetProd = (hash.includes('vip') || savedDash === 'AZEROX VIP') ? 'AZEROX VIP' : 'OPTIMIZER';
+            switchProductDashboard(targetProd);
+
             loadKeysData();
 
             // Connect to real-time events stream (SSE) with automatic fallback polling
@@ -1751,35 +1832,133 @@
             switchTab('TOTAL_KEYS');
         }
 
-        // --- PRODUCT & DURATION SELECTOR LOGIC ---
-        function selectProduct(prod, btn) {
-            selectedProduct = prod;
-            document.querySelectorAll('#chipProdOptimize, #chipProdVip').forEach(b => b.classList.remove('selected'));
-            if (btn) btn.classList.add('selected');
+        // --- SEPARATE DASHBOARDS LOGIC (OPTIMIZER vs AZEROX VIP) ---
+        function switchProductDashboard(prod) {
+            currentDashboard = (prod === 'AZEROX VIP') ? 'AZEROX VIP' : 'OPTIMIZER';
+            selectedProduct = currentDashboard;
 
-            const labelEl = document.getElementById('selectedProductLabel');
-            if (labelEl) labelEl.innerText = prod;
+            const isVip = (currentDashboard === 'AZEROX VIP');
+            const tabOpt = document.getElementById('tabDashOptimizer');
+            const tabVip = document.getElementById('tabDashVip');
+
+            if (tabOpt && tabVip) {
+                tabOpt.classList.toggle('active', !isVip);
+                tabVip.classList.toggle('active', isVip);
+            }
+
+            const topTitle = document.querySelector('.top-title');
+            const topSub = document.querySelector('.top-subtitle');
+            const iconBadge = document.querySelector('.key-icon-badge');
+            const genTitle = document.getElementById('generatorCardTitle');
+
+            if (topTitle) topTitle.innerText = isVip ? 'AZEROX VIP' : 'OPTIMIZER';
+            if (topSub) topSub.innerText = isVip ? 'AZEROX VIP LICENSE DASHBOARD' : 'OPTIMIZER LICENSE DASHBOARD';
+            if (genTitle) genTitle.innerText = isVip ? '👑 AZEROX VIP Key Generator' : '⚡ OPTIMIZER Key Generator';
+
+            if (iconBadge) {
+                if (isVip) {
+                    iconBadge.style.background = 'linear-gradient(135deg, #d97706, #f59e0b)';
+                    iconBadge.style.boxShadow = '0 4px 12px rgba(245, 158, 11, 0.35)';
+                } else {
+                    iconBadge.style.background = 'linear-gradient(135deg, #2563eb, #3b82f6)';
+                    iconBadge.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.35)';
+                }
+            }
 
             const prefixInput = document.getElementById('inputKeyPrefix');
             if (prefixInput) {
-                if (prod === 'AZEROX VIP') {
-                    if (prefixInput.value === 'AZEROX' || !prefixInput.value) {
-                        prefixInput.value = 'AZEROX-VIP';
-                    }
-                } else {
-                    if (prefixInput.value === 'AZEROX-VIP' || !prefixInput.value) {
-                        prefixInput.value = 'AZEROX';
-                    }
-                }
+                prefixInput.value = isVip ? 'AZEROX-VIP' : 'OPTIMIZER';
             }
+
+            const selProdLabel = document.getElementById('selectedProductLabel');
+            if (selProdLabel) {
+                selProdLabel.innerText = currentDashboard;
+                selProdLabel.style.color = isVip ? '#fbbf24' : '#93c5fd';
+                selProdLabel.style.background = isVip ? 'rgba(245, 158, 11, 0.15)' : 'rgba(59, 130, 246, 0.15)';
+            }
+
+            const totalKeysProdLabel = document.getElementById('totalKeysCurrentProductLabel');
+            if (totalKeysProdLabel) {
+                totalKeysProdLabel.innerText = isVip ? 'AZEROX VIP Keys' : 'OPTIMIZER Keys';
+                totalKeysProdLabel.style.color = isVip ? '#fbbf24' : '#93c5fd';
+            }
+
             updateGenerateBtnText();
+            updateStatsForCurrentDashboard();
+            syncLatestKeyForCurrentDashboard();
+            renderKeysList();
+            renderHistoryList();
+
+            try {
+                localStorage.setItem('active_product_dashboard', currentDashboard);
+                window.location.hash = isVip ? 'vip' : 'optimizer';
+            } catch (e) {}
+        }
+
+        function updateStatsForCurrentDashboard() {
+            const isVip = (currentDashboard === 'AZEROX VIP');
+            const optKeys = allKeys.filter(k => !((k.product_name || '').toUpperCase().includes('VIP')));
+            const vipKeys = allKeys.filter(k => (k.product_name || '').toUpperCase().includes('VIP'));
+
+            const badgeOpt = document.getElementById('badgeOptimizerCount');
+            if (badgeOpt) badgeOpt.innerText = `${optKeys.length} Keys`;
+            const badgeVip = document.getElementById('badgeVipCount');
+            if (badgeVip) badgeVip.innerText = `${vipKeys.length} Keys`;
+
+            const currentKeys = isVip ? vipKeys : optKeys;
+
+            const total = currentKeys.length;
+            const active = currentKeys.filter(k => computeKeyStatus(k) === 'ACTIVE').length;
+            const unused = currentKeys.filter(k => computeKeyStatus(k) === 'NON-ACTIVE').length;
+            const paused = currentKeys.filter(k => computeKeyStatus(k) === 'PAUSED').length;
+            const revoked = currentKeys.filter(k => computeKeyStatus(k) === 'REVOKED').length;
+            const expired = currentKeys.filter(k => computeKeyStatus(k) === 'EXPIRED').length;
+
+            const elTotal = document.getElementById('metricTotalKeys');
+            if (elTotal) elTotal.innerText = total;
+
+            const elInactive = document.getElementById('metricInactiveKeys');
+            if (elInactive) elInactive.innerText = unused;
+
+            const elActive = document.getElementById('metricActiveKeys');
+            if (elActive) elActive.innerText = active;
+
+            const elPaused = document.getElementById('metricPausedKeys');
+            if (elPaused) elPaused.innerText = paused;
+
+            const elRevoked = document.getElementById('metricRevokedKeys');
+            if (elRevoked) elRevoked.innerText = revoked;
+
+            const elExpired = document.getElementById('metricExpiredKeys');
+            if (elExpired) elExpired.innerText = expired;
+
+            const elNavBadge = document.getElementById('navTotalCountBadge');
+            if (elNavBadge) elNavBadge.innerText = `(${total})`;
+
+            const elTotalTitle = document.getElementById('totalKeysCountTitle');
+            if (elTotalTitle) elTotalTitle.innerText = `${currentDashboard} (${total})`;
+
+            const elHistTitle = document.getElementById('historyCountTitle');
+            if (elHistTitle) elHistTitle.innerText = `${currentDashboard} (${total})`;
+        }
+
+        function syncLatestKeyForCurrentDashboard() {
+            const isVip = (currentDashboard === 'AZEROX VIP');
+            const prodKeys = allKeys.filter(k => isVip ? (k.product_name || '').toUpperCase().includes('VIP') : !(k.product_name || '').toUpperCase().includes('VIP'));
+            if (prodKeys.length > 0) {
+                latestKeyData = prodKeys[0];
+                renderLatestKey(latestKeyData);
+            } else {
+                latestKeyData = null;
+                renderLatestKey(null);
+            }
         }
 
         function updateGenerateBtnText() {
             const label = formatDurationLabel(selectedHours);
             const btnText = document.getElementById('btnGenerateKeyText');
             if (btnText) {
-                btnText.innerText = `Generate Key • ${selectedProduct} • ${label}`;
+                btnText.innerText = `Generate Key • ${currentDashboard} • ${label}`;
             }
         }
 
@@ -1840,13 +2019,13 @@
 
             const maxDevices = parseInt(document.getElementById('inputMaxDevices').value, 10) || 1;
             const notes = document.getElementById('inputCustomerNotes').value.trim();
-            const prefixVal = document.getElementById('inputKeyPrefix')?.value?.trim() || (selectedProduct === 'AZEROX VIP' ? 'AZEROX-VIP' : 'AZEROX');
+            const prefixVal = document.getElementById('inputKeyPrefix')?.value?.trim() || (currentDashboard === 'AZEROX VIP' ? 'AZEROX-VIP' : 'OPTIMIZER');
 
             try {
                 const res = await api('/api/keys/generate', {
                     method: 'POST',
                     body: JSON.stringify({
-                        product_name: selectedProduct,
+                        product_name: currentDashboard,
                         duration_hours: selectedHours,
                         max_devices: maxDevices,
                         customer_name: notes || null,
@@ -1860,7 +2039,7 @@
                     latestKeyData = {
                         id: generated.id,
                         key_display: generated.key || generated.key_display,
-                        product_name: generated.product_name || selectedProduct,
+                        product_name: generated.product_name || currentDashboard,
                         status: generated.status || 'UNUSED',
                         duration_hours: generated.duration_hours,
                         created_at: generated.created_at || new Date().toISOString(),
@@ -2078,47 +2257,7 @@
 
         // --- STATS & KEYS DATA LOADING ---
         async function loadStatsData() {
-            try {
-                const res = await api('/api/dashboard/stats');
-                if (res.success && res.stats) {
-                    const s = res.stats;
-                    const total = s.total_keys || 0;
-                    const active = s.active_keys || 0;
-                    const unused = (s.non_active_keys !== undefined) ? s.non_active_keys : (s.unused_keys || 0);
-                    const paused = (s.paused_keys !== undefined) ? s.paused_keys : (s.suspended_keys || 0);
-                    const revoked = s.revoked_keys || 0;
-                    const expired = s.expired_keys || 0;
-
-                    const elTotal = document.getElementById('metricTotalKeys');
-                    if (elTotal) elTotal.innerText = total;
-
-                    const elInactive = document.getElementById('metricInactiveKeys');
-                    if (elInactive) elInactive.innerText = unused;
-
-                    const elActive = document.getElementById('metricActiveKeys');
-                    if (elActive) elActive.innerText = active;
-
-                    const elPaused = document.getElementById('metricPausedKeys');
-                    if (elPaused) elPaused.innerText = paused;
-
-                    const elRevoked = document.getElementById('metricRevokedKeys');
-                    if (elRevoked) elRevoked.innerText = revoked;
-
-                    const elExpired = document.getElementById('metricExpiredKeys');
-                    if (elExpired) elExpired.innerText = expired;
-
-                    const elNavBadge = document.getElementById('navTotalCountBadge');
-                    if (elNavBadge) elNavBadge.innerText = `(${total})`;
-
-                    const elTotalTitle = document.getElementById('totalKeysCountTitle');
-                    if (elTotalTitle) elTotalTitle.innerText = total;
-
-                    const elHistTitle = document.getElementById('historyCountTitle');
-                    if (elHistTitle) elHistTitle.innerText = total;
-                }
-            } catch (err) {
-                console.error('Stats error:', err);
-            }
+            updateStatsForCurrentDashboard();
         }
 
         async function loadKeysData() {
@@ -2128,19 +2267,8 @@
                     allKeys = res.keys;
                     saveAllKeys(allKeys);
 
-                    // If latestKeyData was null or in list, sync with latest state
-                    if (allKeys.length > 0) {
-                        if (!latestKeyData) {
-                            latestKeyData = allKeys[0];
-                        } else {
-                            const found = allKeys.find(k => k.id === latestKeyData.id || k.key_display === latestKeyData.key_display);
-                            if (found) latestKeyData = found;
-                            else latestKeyData = allKeys[0];
-                        }
-                        saveLatestKey(latestKeyData);
-                        renderLatestKey(latestKeyData);
-                    }
-
+                    updateStatsForCurrentDashboard();
+                    syncLatestKeyForCurrentDashboard();
                     renderKeysList();
                     renderHistoryList();
                 }
@@ -2152,7 +2280,7 @@
         // --- TOTAL KEYS TAB RENDERING ---
         function setStatusFilter(status, btn) {
             currentStatusFilter = (status === 'INACTIVE') ? 'NON-ACTIVE' : status;
-            document.querySelectorAll('#tabContentTotalKeys .chip').forEach(c => c.classList.remove('selected'));
+            document.querySelectorAll('#tabContentTotalKeys .chip[data-status]').forEach(c => c.classList.remove('selected'));
             if (btn) btn.classList.add('selected');
             renderKeysList();
         }
@@ -2163,29 +2291,27 @@
             renderHistoryList();
         }
 
-        function setProductFilter(prod, btn) {
-            selectedProductFilter = prod;
-            document.querySelectorAll('#tabContentTotalKeys [data-product]').forEach(b => b.classList.remove('selected'));
-            if (btn) btn.classList.add('selected');
-            renderKeysList();
-        }
-
         function filterKeys(list) {
+            const isVip = (currentDashboard === 'AZEROX VIP');
             const normFilter = (currentStatusFilter === 'INACTIVE') ? 'NON-ACTIVE' : currentStatusFilter;
             return list.filter(k => {
+                const keyIsVip = (k.product_name || '').toUpperCase().includes('VIP');
+                if (isVip !== keyIsVip) {
+                    return false;
+                }
                 const status = computeKeyStatus(k);
                 if (normFilter !== 'ALL' && status !== normFilter) {
                     return false;
-                }
-                if (selectedProductFilter && selectedProductFilter !== 'ALL') {
-                    if ((k.product_name || 'OPTIMIZE') !== selectedProductFilter) {
-                        return false;
-                    }
                 }
                 if (searchQuery) {
                     const matchesKey = (k.key_display || '').toLowerCase().includes(searchQuery);
                     const matchesCust = (k.customer_name || '').toLowerCase().includes(searchQuery);
                     const matchesNotes = (k.notes || '').toLowerCase().includes(searchQuery);
+                    if (!matchesKey && !matchesCust && !matchesNotes) return false;
+                }
+                return true;
+            });
+        }
                     const matchesProd = (k.product_name || '').toLowerCase().includes(searchQuery);
                     if (!matchesKey && !matchesCust && !matchesNotes && !matchesProd) return false;
                 }

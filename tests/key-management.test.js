@@ -464,12 +464,12 @@ test('Key Management & UI Test Suite', async (t) => {
                 product_name: 'OPTIMIZE',
                 duration_hours: 24,
                 customer_name: 'Optimize User',
-                prefix: 'AZEROX'
+                prefix: 'OPTIMIZER'
             }
         });
         assert.strictEqual(optKeyRes.status, 200);
         const optKey = optKeyRes.body;
-        assert.ok(optKey.key.startsWith('AZEROX-'), 'OPTIMIZE key must start with AZEROX-');
+        assert.ok(optKey.key.startsWith('OPTIMIZER-'), 'OPTIMIZER key must start with OPTIMIZER-');
 
         // Generate AZEROX VIP key
         const vipKeyRes = await makeRequest(server, {

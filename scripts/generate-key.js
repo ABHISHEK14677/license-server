@@ -56,7 +56,7 @@ for (let i = 0; i < args.length; i++) {
 }
 
 if (!prefix) {
-    prefix = (product === 'AZEROX VIP') ? 'AZEROX-VIP' : 'AZEROX';
+    prefix = (product === 'AZEROX VIP') ? 'AZEROX-VIP' : 'OPTIMIZER';
 }
 
 async function main() {
