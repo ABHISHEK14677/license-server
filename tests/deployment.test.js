@@ -232,13 +232,13 @@ test('Deployment Test Suite (Scenarios A through G)', async (t) => {
         await t.test('Test G: Unrelated server settings remain unchanged across releases', async () => {
             const healthRes = await makeRequest(server, { path: '/api/health' });
             assert.strictEqual(healthRes.status, 200);
-            assert.strictEqual(healthRes.body.developedBy, 'MADARA FF');
+            assert.strictEqual(healthRes.body.developedBy, 'AZEROX');
             assert.strictEqual(healthRes.body.service, 'Zexora License Authority');
 
             // Product catalogue in database remains intact
             const products = await db.getAllProducts();
-            const prod = products.find(p => p.name === 'Z E X O');
-            assert.ok(prod, 'Default product "Z E X O" must remain unchanged in database');
+            const prod = products.find(p => p.name === 'OPTIMIZER' || p.name === 'Z E X O');
+            assert.ok(prod, 'Default product "OPTIMIZER" must remain unchanged in database');
         });
 
         // -------------------------------------------------------------

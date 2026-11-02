@@ -114,8 +114,8 @@ app.get('/api/health', (req, res) => {
     res.json({
         status: 'ok',
         service: 'Zexora License Authority',
-        developedBy: 'MADARA FF',
-        copyright: '© Developed by MADARA FF',
+        developedBy: 'AZEROX',
+        copyright: '© All rights reserved',
         serverTime: new Date().toISOString()
     });
 });
@@ -303,7 +303,7 @@ async function handleKeyGeneration(req, res) {
         customer_name = null,
         notes = '',
         count = 1,
-        prefix = 'MADARA-FF'
+        prefix = 'AZEROX'
     } = req.body;
 
     try {
@@ -329,10 +329,10 @@ async function handleKeyGeneration(req, res) {
         const limitCount = Math.min(Math.max(parseInt(count, 10) || 1, 1), 50);
 
         for (let i = 0; i < limitCount; i++) {
-            let rawKey = generateLicenseKey(prefix || 'MADARA-FF');
+            let rawKey = generateLicenseKey(prefix || 'AZEROX');
             let attempts = 0;
             while (attempts < 5 && ((await db.getKeyByIdOrString(rawKey)) || (await db.isKeyDeleted(hashKey(rawKey))))) {
-                rawKey = generateLicenseKey(prefix || 'MADARA-FF');
+                rawKey = generateLicenseKey(prefix || 'AZEROX');
                 attempts++;
             }
 
@@ -415,7 +415,7 @@ async function deleteKeyFromCloud(keyIdentifier) {
         if (!loginData.success || !loginData.token) return;
 
         let targetId = keyIdentifier;
-        if (typeof keyIdentifier === 'string' && keyIdentifier.startsWith('MADARA-FF')) {
+        if (typeof keyIdentifier === 'string' && (keyIdentifier.startsWith('AZEROX') || keyIdentifier.startsWith('MADARA-FF'))) {
             const listRes = await fetch(`${cloudUrl}/api/keys?search=${encodeURIComponent(keyIdentifier)}`, {
                 headers: { 'Authorization': `Bearer ${loginData.token}` }
             });
@@ -454,7 +454,7 @@ async function updateKeyOnCloud(keyIdentifier, updatePayload) {
         if (!loginData.success || !loginData.token) return;
 
         let targetId = keyIdentifier;
-        if (typeof keyIdentifier === 'string' && keyIdentifier.startsWith('MADARA-FF')) {
+        if (typeof keyIdentifier === 'string' && (keyIdentifier.startsWith('AZEROX') || keyIdentifier.startsWith('MADARA-FF'))) {
             const listRes = await fetch(`${cloudUrl}/api/keys?search=${encodeURIComponent(keyIdentifier)}`, {
                 headers: { 'Authorization': `Bearer ${loginData.token}` }
             });
@@ -1205,9 +1205,9 @@ async function handleCustomerActivate(req, res) {
             return res.json({
                 success: true,
                 message: 'Activation Successful',
-                product: keyRecord.product_name || 'Zexora',
-                developer: 'MADARA FF',
-                copyright: '© Developed by MADARA FF',
+                product: keyRecord.product_name || 'OPTIMIZER',
+                developer: 'AZEROX',
+                copyright: '© All rights reserved',
                 status: 'ACTIVE',
                 activated_at: keyRecord.activated_at || existingActivation.activated_at,
                 expires_at: effectiveExpiresAt,
@@ -1218,8 +1218,8 @@ async function handleCustomerActivate(req, res) {
                 device_registered: true,
                 license: {
                     key: keyRecord.key_display,
-                    product: keyRecord.product_name || 'Zexora',
-                    developer: 'MADARA FF',
+                    product: keyRecord.product_name || 'OPTIMIZER',
+                    developer: 'AZEROX',
                     status: 'ACTIVE',
                     activated_at: keyRecord.activated_at || existingActivation.activated_at,
                     expires_at: effectiveExpiresAt,
@@ -1281,9 +1281,9 @@ async function handleCustomerActivate(req, res) {
         return res.json({
             success: true,
             message: 'Activation Successful',
-            product: keyRecord.product_name || 'Zexora',
-            developer: 'MADARA FF',
-            copyright: '© Developed by MADARA FF',
+            product: keyRecord.product_name || 'OPTIMIZER',
+            developer: 'AZEROX',
+            copyright: '© All rights reserved',
             status: 'ACTIVE',
             activated_at: activatedAtIso,
             expires_at: finalExpiresAt,
@@ -1294,8 +1294,8 @@ async function handleCustomerActivate(req, res) {
             device_registered: true,
             license: {
                 key: keyRecord.key_display,
-                product: keyRecord.product_name || 'Zexora',
-                developer: 'MADARA FF',
+                product: keyRecord.product_name || 'OPTIMIZER',
+                developer: 'AZEROX',
                 status: 'ACTIVE',
                 activated_at: activatedAtIso,
                 expires_at: finalExpiresAt,
@@ -1547,9 +1547,9 @@ async function handleActivationStatus(req, res) {
             status: keyRecord.status,
             key: keyRecord.key_display,
             license_key: keyRecord.key_display,
-            product: keyRecord.product_name || 'Zexora',
-            developer: 'MADARA FF',
-            copyright: '© Developed by MADARA FF',
+            product: keyRecord.product_name || 'OPTIMIZER',
+            developer: 'AZEROX',
+            copyright: '© All rights reserved',
             activated_at: keyRecord.activated_at,
             expires_at: keyRecord.expires_at,
             remaining_seconds: remainingSeconds,

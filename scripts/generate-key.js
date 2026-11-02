@@ -6,7 +6,7 @@ const { config } = require('../config');
 let durationHours = 720; // default 30d
 let maxActivations = 1;
 let notes = `Key generated on ${new Date().toISOString()}`;
-let prefix = 'MADARA-FF';
+let prefix = 'AZEROX';
 
 const args = process.argv.slice(2);
 for (let i = 0; i < args.length; i++) {
@@ -106,8 +106,7 @@ async function main() {
             : (durationHours >= 24 ? `${durationHours / 24} Days` : `${durationHours} Hours`);
 
         console.log(`=======================================================`);
-        console.log(`                NEW Z E X O LICENSE KEY                `);
-        console.log(`              Developed by MADARA FF                   `);
+        console.log(`                NEW OPTIMIZER LICENSE KEY              `);
         console.log(`=======================================================`);
         console.log(`License Key:     ${key}`);
         console.log(`Duration:        ${durationDisplay}`);
@@ -116,7 +115,7 @@ async function main() {
         console.log(`Max Devices:     ${maxActivations}`);
         console.log(`Cloud Status:    ${cloudStatus}`);
         console.log(`Notes:           ${notes}`);
-        console.log(`Copyright:       © Developed by MADARA FF`);
+        console.log(`Copyright:       © All rights reserved`);
         console.log(`=======================================================`);
         process.exit(0);
     } catch (err) {

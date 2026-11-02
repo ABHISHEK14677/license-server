@@ -418,21 +418,21 @@ async function initDatabase() {
         // Seed default product: Z E X O
         let defaultProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['Z E X O']);
         if (!defaultProduct) {
-            defaultProduct = await queryOne('SELECT * FROM products WHERE name = ? OR name = ? OR name = ?', ['Zexora', 'Optimizer', 'ADB Optimizer']);
+            defaultProduct = await queryOne('SELECT * FROM products WHERE name = ? OR name = ? OR name = ? OR name = ?', ['OPTIMIZER', 'Z E X O', 'Zexora', 'Optimizer']);
             if (defaultProduct) {
                 await query('UPDATE products SET name = ?, description = ? WHERE id = ?', [
-                    'Z E X O',
-                    'Z E X O - Developed by MADARA FF',
+                    'OPTIMIZER',
+                    'OPTIMIZER',
                     defaultProduct.id
                 ]);
             } else {
                 await query('INSERT INTO products (name, description, status) VALUES (?, ?, ?)', [
-                    'Z E X O',
-                    'Z E X O - Developed by MADARA FF',
+                    'OPTIMIZER',
+                    'OPTIMIZER',
                     'ACTIVE'
                 ]);
             }
-            console.log('[INIT] Default product set to: Z E X O');
+            console.log('[INIT] Default product set to: OPTIMIZER');
         }
 
         // Ensure default admin exists with configured credentials without overwriting on deployment
@@ -1753,7 +1753,7 @@ async function createLicense({
         productId: product.id,
         durationHours: effectiveHours,
         maxDevices: maxActivations,
-        customerName: 'MADARA FF User',
+        customerName: 'AZEROX User',
         notes: notes
     });
 }

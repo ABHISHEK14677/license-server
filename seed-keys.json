@@ -1,14 +1,14 @@
 [
   {
-    "key": "MADARA-FF-FN46-V9K7-K7LH-XXF5",
-    "product": "Z E X O",
+    "key": "AZEROX-FN46-V9K7-K7LH-XXF5",
+    "product": "OPTIMIZER",
     "status": "ACTIVE",
     "duration_hours": 720,
     "created_at": "2026-10-24 14:45:00",
     "activated_at": "2026-10-24T14:45:09.780Z",
     "expires_at": "2026-11-23T14:45:09.780Z",
     "max_devices": 1,
-    "customer_name": "MADARA FF",
+    "customer_name": "AZEROX",
     "notes": "v1.4.5 Active Key - 30 Days",
     "activations": [
       {
@@ -24,15 +24,15 @@
     ]
   },
   {
-    "key": "MADARA-FF-DDSW-3LDC-R9C3-N4YQ",
-    "product": "Z E X O",
+    "key": "AZEROX-DDSW-3LDC-R9C3-N4YQ",
+    "product": "OPTIMIZER",
     "status": "ACTIVE",
     "duration_hours": 168,
     "created_at": "2026-10-23 11:39:57",
     "activated_at": "2026-10-23 11:39:57",
     "expires_at": "2026-10-30T11:39:57.610Z",
     "max_devices": 1,
-    "customer_name": "MADARA FF",
+    "customer_name": "AZEROX",
     "notes": "v1.4.5 Active Key - 7 Days",
     "activations": [
       {
@@ -48,15 +48,15 @@
     ]
   },
   {
-    "key": "MADARA-FF-5HAQ-MB8E-VCGH-WVMC",
-    "product": "Z E X O",
+    "key": "AZEROX-5HAQ-MB8E-VCGH-WVMC",
+    "product": "OPTIMIZER",
     "status": "ACTIVE",
     "duration_hours": 24,
     "created_at": "2026-10-20 04:48:49",
     "activated_at": "2026-10-20 04:48:49",
     "expires_at": "2026-10-21T05:16:41.348Z",
     "max_devices": 5,
-    "customer_name": "MADARA FF",
+    "customer_name": "AZEROX",
     "notes": "v1.4.3 Active Key - 1 Day",
     "activations": [
       {
@@ -72,8 +72,8 @@
     ]
   },
   {
-    "key": "MADARA-FF-B2K5-UV4X-YTRN-F8M8",
-    "product": "Z E X O",
+    "key": "AZEROX-B2K5-UV4X-YTRN-F8M8",
+    "product": "OPTIMIZER",
     "status": "ACTIVE",
     "duration_hours": 24,
     "created_at": "2026-10-20 04:48:49",
@@ -85,8 +85,8 @@
     "activations": []
   },
   {
-    "key": "MADARA-FF-JFFL-JCHQ-D3AX-4MLC",
-    "product": "Z E X O",
+    "key": "AZEROX-JFFL-JCHQ-D3AX-4MLC",
+    "product": "OPTIMIZER",
     "status": "ACTIVE",
     "duration_hours": 24,
     "created_at": "2026-10-20 04:48:49",
@@ -98,8 +98,8 @@
     "activations": []
   },
   {
-    "key": "MADARA-FF-53D5-EFGY-6ST5-RMB6",
-    "product": "Z E X O",
+    "key": "AZEROX-53D5-EFGY-6ST5-RMB6",
+    "product": "OPTIMIZER",
     "status": "ACTIVE",
     "duration_hours": 24,
     "created_at": "2026-10-20 04:48:49",
@@ -111,8 +111,8 @@
     "activations": []
   },
   {
-    "key": "MADARA-FF-PSVB-9C3H-FY6W-KEXZ",
-    "product": "Z E X O",
+    "key": "AZEROX-PSVB-9C3H-FY6W-KEXZ",
+    "product": "OPTIMIZER",
     "status": "ACTIVE",
     "duration_hours": 24,
     "created_at": "2026-10-20 04:48:49",
@@ -124,8 +124,8 @@
     "activations": []
   },
   {
-    "key": "MADARA-FF-4W2B-M4KF-T9QS-KEV2",
-    "product": "Z E X O",
+    "key": "AZEROX-4W2B-M4KF-T9QS-KEV2",
+    "product": "OPTIMIZER",
     "status": "ACTIVE",
     "duration_hours": 24,
     "created_at": "2026-10-20 04:48:49",

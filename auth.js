@@ -1,10 +1,10 @@
 const crypto = require('node:crypto');
 
 // Cryptographically secure license key generator
-// Format: MADARA-FF-XXXX-XXXX-XXXX-XXXX (16 random chars, 4 blocks)
+// Format: AZEROX-XXXX-XXXX-XXXX-XXXX (16 random chars, 4 blocks)
 const KEY_CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Excludes ambiguous chars: 0, O, 1, I
 
-function generateLicenseKey(prefix = 'MADARA-FF') {
+function generateLicenseKey(prefix = 'AZEROX') {
     const segments = 4;
     const segmentLength = 4;
     const parts = [prefix.toUpperCase()];
@@ -36,8 +36,8 @@ function getKeyLast4(key) {
 function isValidKeyFormat(key) {
     if (!key || typeof key !== 'string') return false;
     const trimmed = key.trim().toUpperCase();
-    // Support MADARA-FF-XXXX-XXXX-XXXX-XXXX, ADB-XXXX-XXXX-XXXX-XXXX, RO-XXXX-XXXX-XXXX-XXXX
-    return /^(MADARA-FF|[A-Z0-9]{2,10})(-[A-Z0-9]{4}){3,5}$/.test(trimmed) ||
+    // Support AZEROX-XXXX-XXXX-XXXX-XXXX, MADARA-FF-XXXX-XXXX-XXXX-XXXX, ADB-XXXX-XXXX-XXXX-XXXX, RO-XXXX-XXXX-XXXX-XXXX
+    return /^(AZEROX|MADARA-FF|[A-Z0-9]{2,10})(-[A-Z0-9]{4}){3,5}$/.test(trimmed) ||
            /^[A-Z0-9]{2,5}(-[A-Z0-9]{4}){4}$/.test(trimmed) ||
            /^[A-Z0-9_-]{16,36}$/.test(trimmed);
 }
