@@ -36,10 +36,10 @@ function getKeyLast4(key) {
 function isValidKeyFormat(key) {
     if (!key || typeof key !== 'string') return false;
     const trimmed = key.trim().toUpperCase();
-    // Support AZEROX-XXXX-XXXX-XXXX-XXXX, MADARA-FF-XXXX-XXXX-XXXX-XXXX, ADB-XXXX-XXXX-XXXX-XXXX, RO-XXXX-XXXX-XXXX-XXXX
-    return /^(AZEROX|MADARA-FF|[A-Z0-9]{2,10})(-[A-Z0-9]{4}){3,5}$/.test(trimmed) ||
-           /^[A-Z0-9]{2,5}(-[A-Z0-9]{4}){4}$/.test(trimmed) ||
-           /^[A-Z0-9_-]{16,36}$/.test(trimmed);
+    // Support AZEROX-XXXX-XXXX-XXXX-XXXX, AZEROX-VIP-XXXX-XXXX-XXXX-XXXX, MADARA-FF-XXXX-XXXX-XXXX-XXXX, etc.
+    return /^(AZEROX-VIP|AZEROX|VIP|MADARA-FF|[A-Z0-9_-]{2,12})(-[A-Z0-9]{4}){3,5}$/.test(trimmed) ||
+           /^[A-Z0-9_-]{2,6}(-[A-Z0-9]{4}){4}$/.test(trimmed) ||
+           /^[A-Z0-9_-]{16,40}$/.test(trimmed);
 }
 
 function hashPassword(password) {

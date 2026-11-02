@@ -415,24 +415,34 @@ async function initDatabase() {
             } catch (e) {}
         }
 
-        // Seed default product: Z E X O
-        let defaultProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['Z E X O']);
+        // Seed default products: OPTIMIZE and AZEROX VIP
+        let defaultProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['OPTIMIZE']);
         if (!defaultProduct) {
             defaultProduct = await queryOne('SELECT * FROM products WHERE name = ? OR name = ? OR name = ? OR name = ?', ['OPTIMIZER', 'Z E X O', 'Zexora', 'Optimizer']);
             if (defaultProduct) {
                 await query('UPDATE products SET name = ?, description = ? WHERE id = ?', [
-                    'OPTIMIZER',
-                    'OPTIMIZER',
+                    'OPTIMIZE',
+                    'OPTIMIZE',
                     defaultProduct.id
                 ]);
             } else {
                 await query('INSERT INTO products (name, description, status) VALUES (?, ?, ?)', [
-                    'OPTIMIZER',
-                    'OPTIMIZER',
+                    'OPTIMIZE',
+                    'OPTIMIZE',
                     'ACTIVE'
                 ]);
             }
-            console.log('[INIT] Default product set to: OPTIMIZER');
+            console.log('[INIT] Default product set to: OPTIMIZE');
+        }
+
+        let vipProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['AZEROX VIP']);
+        if (!vipProduct) {
+            await query('INSERT INTO products (name, description, status) VALUES (?, ?, ?)', [
+                'AZEROX VIP',
+                'AZEROX VIP',
+                'ACTIVE'
+            ]);
+            console.log('[INIT] Product registered: AZEROX VIP');
         }
 
         // Ensure default admin exists with configured credentials without overwriting on deployment
@@ -606,7 +616,7 @@ async function exportSeedKeys() {
 
             const item = {
                 key: k.key_display,
-                product: k.product_name || 'Z E X O',
+                product: k.product_name || 'OPTIMIZE',
                 status: effectiveStatus,
                 duration_hours: k.duration_hours,
                 created_at: k.created_at,
@@ -661,9 +671,10 @@ async function importSeedKeys(customList = null) {
         }
         if (!Array.isArray(seedList) || seedList.length === 0) return 0;
 
-        let defaultProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['Z E X O']) ||
-                             await queryOne('SELECT * FROM products WHERE name = ?', ['Zexora']) ||
-                             await queryOne('SELECT * FROM products WHERE name = ?', ['Optimizer']);
+        let defaultProduct = await queryOne('SELECT * FROM products WHERE name = ?', ['OPTIMIZE']) ||
+                             await queryOne('SELECT * FROM products WHERE name = ?', ['OPTIMIZER']) ||
+                             await queryOne('SELECT * FROM products WHERE name = ?', ['Z E X O']) ||
+                             await queryOne('SELECT * FROM products WHERE name = ?', ['Zexora']);
         const prodId = defaultProduct ? defaultProduct.id : 1;
         let count = 0;
 
@@ -1736,7 +1747,7 @@ async function createLicense({
     notes = '',
     status = 'ACTIVE'
 }) {
-    const product = await getOrCreateProduct('Zexora');
+    const product = await getOrCreateProduct('OPTIMIZE');
     let effectiveHours = 720;
     if (durationHours !== null && durationHours !== undefined) {
         effectiveHours = parseInt(durationHours, 10);

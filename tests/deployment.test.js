@@ -237,8 +237,8 @@ test('Deployment Test Suite (Scenarios A through G)', async (t) => {
 
             // Product catalogue in database remains intact
             const products = await db.getAllProducts();
-            const prod = products.find(p => p.name === 'OPTIMIZER' || p.name === 'Z E X O');
-            assert.ok(prod, 'Default product "OPTIMIZER" must remain unchanged in database');
+            const prod = products.find(p => p.name === 'OPTIMIZE' || p.name === 'OPTIMIZER' || p.name === 'Z E X O');
+            assert.ok(prod, 'Default product "OPTIMIZE" must remain unchanged in database');
         });
 
         // -------------------------------------------------------------

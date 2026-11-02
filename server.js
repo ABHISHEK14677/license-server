@@ -296,14 +296,14 @@ app.get('/api/admin/stats', requireAdmin, handleDashboardStats);
 async function handleKeyGeneration(req, res) {
     const ip = getClientIp(req);
     const {
-        product_name = 'Zexora',
+        product_name = 'OPTIMIZE',
         duration_hours = null,
         duration_days = null,
         max_devices = 1,
         customer_name = null,
         notes = '',
         count = 1,
-        prefix = 'AZEROX'
+        prefix = null
     } = req.body;
 
     try {
@@ -327,12 +327,13 @@ async function handleKeyGeneration(req, res) {
         const product = await db.getOrCreateProduct(product_name);
         const generatedKeys = [];
         const limitCount = Math.min(Math.max(parseInt(count, 10) || 1, 1), 50);
+        const resolvedPrefix = prefix || (product_name.toUpperCase().includes('VIP') ? 'AZEROX-VIP' : 'AZEROX');
 
         for (let i = 0; i < limitCount; i++) {
-            let rawKey = generateLicenseKey(prefix || 'AZEROX');
+            let rawKey = generateLicenseKey(resolvedPrefix);
             let attempts = 0;
             while (attempts < 5 && ((await db.getKeyByIdOrString(rawKey)) || (await db.isKeyDeleted(hashKey(rawKey))))) {
-                rawKey = generateLicenseKey(prefix || 'AZEROX');
+                rawKey = generateLicenseKey(resolvedPrefix);
                 attempts++;
             }
 
@@ -1070,7 +1071,7 @@ async function handleCustomerActivate(req, res) {
                 error: 'KEY_DELETED',
                 errorCode: 'KEY_DELETED',
                 title: 'Access Revoked',
-                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Z E X O app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
+                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the A Z E R O X app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
             });
         }
 
@@ -1092,7 +1093,7 @@ async function handleCustomerActivate(req, res) {
                     error: 'KEY_DELETED',
                     errorCode: 'KEY_DELETED',
                     title: 'Access Revoked',
-                    message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Z E X O app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
+                    message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the A Z E R O X app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
                 });
             }
 
@@ -1115,8 +1116,62 @@ async function handleCustomerActivate(req, res) {
                 error: 'KEY_REVOKED',
                 errorCode: 'KEY_REVOKED',
                 title: 'Access Revoked',
-                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Z E X O app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
+                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the A Z E R O X app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
             });
+        }
+
+        // 4b. Check Product Matching (Enforce product-specific activation)
+        const keyProduct = (keyRecord.product_name || 'OPTIMIZE').toUpperCase().trim();
+        const requestedProduct = (req.body.product || req.body.product_name || req.body.productName || '').toUpperCase().trim();
+        const reqApp = (req.body.app_identifier || '').toLowerCase().trim();
+        const isVipKey = keyProduct.includes('VIP');
+
+        if (requestedProduct) {
+            const isReqVip = requestedProduct.includes('VIP');
+            if (isVipKey && !isReqVip) {
+                await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Product mismatch: VIP key used for ' + requestedProduct, key: formattedKey, device_id: deviceId }, ip);
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    code: 'PRODUCT_MISMATCH',
+                    error: 'PRODUCT_MISMATCH',
+                    message: `This activation key is valid exclusively for AZEROX VIP and cannot be used for ${req.body.product || req.body.product_name}.`
+                });
+            }
+            if (!isVipKey && isReqVip) {
+                await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Product mismatch: OPTIMIZE key used for AZEROX VIP', key: formattedKey, device_id: deviceId }, ip);
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    code: 'PRODUCT_MISMATCH',
+                    error: 'PRODUCT_MISMATCH',
+                    message: `This activation key is valid exclusively for OPTIMIZE and cannot be used for AZEROX VIP.`
+                });
+            }
+        }
+
+        if (reqApp === 'com.azerox.proxy' || reqApp === 'com.m1nx.proxy') {
+            if (!isVipKey) {
+                await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Product mismatch: Non-VIP key used in VIP app', key: formattedKey, device_id: deviceId }, ip);
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    code: 'PRODUCT_MISMATCH',
+                    error: 'PRODUCT_MISMATCH',
+                    message: 'This activation key is for OPTIMIZE. Please use a valid AZEROX VIP key.'
+                });
+            }
+        } else if (reqApp === 'com.azerox.optimizer' || reqApp === 'com.example.rootoptimizer') {
+            if (isVipKey) {
+                await db.logAuditEvent('ACTIVATION_FAILED', { reason: 'Product mismatch: VIP key used in OPTIMIZE app', key: formattedKey, device_id: deviceId }, ip);
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    code: 'PRODUCT_MISMATCH',
+                    error: 'PRODUCT_MISMATCH',
+                    message: 'This activation key is for AZEROX VIP. Please use a valid OPTIMIZE key.'
+                });
+            }
         }
 
         // 5. Check whether key is suspended / paused
@@ -1205,7 +1260,7 @@ async function handleCustomerActivate(req, res) {
             return res.json({
                 success: true,
                 message: 'Activation Successful',
-                product: keyRecord.product_name || 'OPTIMIZER',
+                product: keyRecord.product_name || 'OPTIMIZE',
                 developer: 'AZEROX',
                 copyright: '© All rights reserved',
                 status: 'ACTIVE',
@@ -1218,7 +1273,7 @@ async function handleCustomerActivate(req, res) {
                 device_registered: true,
                 license: {
                     key: keyRecord.key_display,
-                    product: keyRecord.product_name || 'OPTIMIZER',
+                    product: keyRecord.product_name || 'OPTIMIZE',
                     developer: 'AZEROX',
                     status: 'ACTIVE',
                     activated_at: keyRecord.activated_at || existingActivation.activated_at,
@@ -1281,7 +1336,7 @@ async function handleCustomerActivate(req, res) {
         return res.json({
             success: true,
             message: 'Activation Successful',
-            product: keyRecord.product_name || 'OPTIMIZER',
+            product: keyRecord.product_name || 'OPTIMIZE',
             developer: 'AZEROX',
             copyright: '© All rights reserved',
             status: 'ACTIVE',
@@ -1294,7 +1349,7 @@ async function handleCustomerActivate(req, res) {
             device_registered: true,
             license: {
                 key: keyRecord.key_display,
-                product: keyRecord.product_name || 'OPTIMIZER',
+                product: keyRecord.product_name || 'OPTIMIZE',
                 developer: 'AZEROX',
                 status: 'ACTIVE',
                 activated_at: activatedAtIso,
@@ -1361,7 +1416,7 @@ async function handleActivationStatus(req, res) {
                 error: 'KEY_DELETED',
                 errorCode: 'KEY_DELETED',
                 title: 'Access Revoked',
-                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Z E X O app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
+                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the A Z E R O X app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
             });
         }
 
@@ -1397,8 +1452,58 @@ async function handleActivationStatus(req, res) {
                 error: 'KEY_REVOKED',
                 errorCode: 'KEY_REVOKED',
                 title: 'Access Revoked',
-                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the Z E X O app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
+                message: 'Your activation key has been deleted by the administrator. Your session has been terminated, and access to the A Z E R O X app has been revoked. Please contact the administrator if you believe this action was taken by mistake.'
             });
+        }
+
+        // Product Matching Validation
+        const valKeyProduct = (keyRecord.product_name || 'OPTIMIZE').toUpperCase().trim();
+        const valReqProduct = (req.body.product || req.body.product_name || req.body.productName || '').toUpperCase().trim();
+        const valReqApp = (req.body.app_identifier || '').toLowerCase().trim();
+        const isValVipKey = valKeyProduct.includes('VIP');
+
+        if (valReqProduct) {
+            const isValReqVip = valReqProduct.includes('VIP');
+            if (isValVipKey && !isValReqVip) {
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    code: 'PRODUCT_MISMATCH',
+                    error: 'PRODUCT_MISMATCH',
+                    message: `This activation key is valid exclusively for AZEROX VIP and cannot be validated for ${req.body.product || req.body.product_name}.`
+                });
+            }
+            if (!isValVipKey && isValReqVip) {
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    code: 'PRODUCT_MISMATCH',
+                    error: 'PRODUCT_MISMATCH',
+                    message: `This activation key is valid exclusively for OPTIMIZE and cannot be validated for AZEROX VIP.`
+                });
+            }
+        }
+
+        if (valReqApp === 'com.azerox.proxy' || valReqApp === 'com.m1nx.proxy') {
+            if (!isValVipKey) {
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    code: 'PRODUCT_MISMATCH',
+                    error: 'PRODUCT_MISMATCH',
+                    message: 'This activation key is for OPTIMIZE. Please use a valid AZEROX VIP key.'
+                });
+            }
+        } else if (valReqApp === 'com.azerox.optimizer' || valReqApp === 'com.example.rootoptimizer') {
+            if (isValVipKey) {
+                return res.status(403).json({
+                    success: false,
+                    valid: false,
+                    code: 'PRODUCT_MISMATCH',
+                    error: 'PRODUCT_MISMATCH',
+                    message: 'This activation key is for AZEROX VIP. Please use a valid OPTIMIZE key.'
+                });
+            }
         }
 
         if (keyRecord.status === 'SUSPENDED' || keyRecord.status === 'PAUSED') {
@@ -1547,7 +1652,7 @@ async function handleActivationStatus(req, res) {
             status: keyRecord.status,
             key: keyRecord.key_display,
             license_key: keyRecord.key_display,
-            product: keyRecord.product_name || 'OPTIMIZER',
+            product: keyRecord.product_name || 'OPTIMIZE',
             developer: 'AZEROX',
             copyright: '© All rights reserved',
             activated_at: keyRecord.activated_at,

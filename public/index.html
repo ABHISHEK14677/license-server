@@ -771,25 +771,13 @@
                     </svg>
                 </div>
                 <div>
-                    <h1 class="top-title">Z E X O</h1>
-                    <div class="top-subtitle">OPTIMIZER</div>
+                    <h1 class="top-title">A Z E R O X</h1>
+                    <div class="top-subtitle">OPTIMIZE &amp; AZEROX VIP</div>
                 </div>
             </div>
 
             <div id="authNavArea" class="user-nav-actions" style="display: none;">
-                <a href="https://discord.gg/z8HCwPPDZZ" target="_blank" rel="noopener noreferrer" class="btn btn-outline btn-sm" style="border-color: #5865F2; color: #5865F2; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center;" title="Join Discord Community">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px;">
-                        <path d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a0.09 0.09 0 0 0-.08 0.04c-.21.38-.45.88-.61 1.27a18.3 18.3 0 0 0-5.62 0c-.16-.39-.41-.89-.62-1.27A0.09 0.09 0 0 0 8 4C6.5 4.26 5.06 4.71 3.73 5.33a0.08 0.08 0 0 0-.03.03C1.03 9.36 0.28 13.28.65 17.15a0.08 0.08 0 0 0 .03.06c2 1.47 3.93 2.37 5.83 2.96a0.08 0.08 0 0 0 .09-.03c.45-.61.85-1.27 1.2-1.95a0.08 0.08 0 0 0-.04-.11c-.64-.24-1.24-.55-1.82-.91a0.08 0.08 0 0 1-.01-.13c.12-.09.24-.19.36-.28a0.08 0.08 0 0 1 .08-.01c3.85 1.76 8.01 1.76 11.82 0a0.08 0.08 0 0 1 .08.01c.12.1.24.19.36.29a0.08 0.08 0 0 1-.01.13c-.58.36-1.18.67-1.82.91a0.08 0.08 0 0 0-.04.11c.35.68.75 1.34 1.2 1.95a0.08 0.08 0 0 0 .09.03c1.9-.59 3.83-1.49 5.83-2.96a0.08 0.08 0 0 0 .03-.06c.44-4.45-.74-8.34-3.14-11.79a0.08 0.08 0 0 0-.03-.03zM8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.83-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12 0 1.17-.83 2.12-1.89 2.12zm6.97 0c-1.03 0-1.89-.95-1.89-2.12s.83-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12 0 1.17-.83 2.12-1.89 2.12z"/>
-                    </svg>
-                    Discord
-                </a>
-                <button class="btn btn-outline btn-sm" id="btnSyncCloud" onclick="triggerCloudSync()" style="border-color: var(--cyan-accent); color: var(--cyan-accent); font-weight: 700;" title="Synchronize keys with Render Cloud">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 4px;">
-                        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-                    </svg>
-                    Sync Cloud
-                </button>
-                <span class="user-badge" id="navUserBadge">MADARA-FF</span>
+                <span class="user-badge" id="navUserBadge">AZEROX</span>
                 <button class="btn btn-outline btn-sm" onclick="handleLogout()">Sign Out</button>
             </div>
         </div>
@@ -841,7 +829,7 @@
                 <form id="adminLoginForm" action="javascript:void(0);" onsubmit="handleAdminLoginSubmit(event); return false;" style="text-align: left;">
                     <div class="form-group">
                         <label class="form-label">Username</label>
-                        <input type="text" id="loginUsername" class="form-input" placeholder="MADARA-FF" autocomplete="username" required autofocus>
+                        <input type="text" id="loginUsername" class="form-input" placeholder="AZEROX" autocomplete="username" required autofocus>
                     </div>
 
                     <div class="form-group">
@@ -893,8 +881,18 @@
                     </div>
                 </div>
 
-                <!-- 2. Duration Selector & Generate Button Card (DurationSelectorCard) -->
+                <!-- 2. Product & Duration Selector Card -->
                 <div class="card">
+                    <!-- Product Selector Row -->
+                    <div class="section-header-row" style="margin-bottom: 8px;">
+                        <h2 class="section-title">Select Product</h2>
+                        <span class="section-subtitle-value" id="selectedProductLabel">OPTIMIZE</span>
+                    </div>
+                    <div class="duration-chips-scroll" style="margin-bottom: 16px;">
+                        <button type="button" class="chip selected" id="chipProdOptimize" onclick="selectProduct('OPTIMIZE', this)">OPTIMIZE</button>
+                        <button type="button" class="chip" id="chipProdVip" onclick="selectProduct('AZEROX VIP', this)">AZEROX VIP</button>
+                    </div>
+
                     <div class="section-header-row">
                         <h2 class="section-title">Key Validity Duration</h2>
                         <span class="section-subtitle-value" id="selectedDurationLabel">30 Days</span>
@@ -908,8 +906,12 @@
                         <button class="chip selected" data-hours="720" onclick="selectDuration(720, this)">30d</button>
                     </div>
 
-                    <!-- Collapsible optional details -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px;">
+                    <!-- Key options: Prefix, Devices, Notes -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-top: 10px;">
+                        <div>
+                            <label class="form-label" style="font-size: 11px;">Key Prefix</label>
+                            <input type="text" id="inputKeyPrefix" class="form-input" value="AZEROX" style="padding: 8px 12px; font-size: 13px; font-family: 'JetBrains Mono', monospace; font-weight: 700;">
+                        </div>
                         <div>
                             <label class="form-label" style="font-size: 11px;">Max Devices</label>
                             <input type="number" id="inputMaxDevices" class="form-input" value="1" min="1" max="10" style="padding: 8px 12px; font-size: 13px;">
@@ -925,7 +927,7 @@
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                             <circle cx="7.5" cy="15.5" r="5.5"></circle><path d="m21 2-9.6 9.6"></path><path d="m15.5 7.5 3 3"></path>
                         </svg>
-                        <span id="btnGenerateKeyText">Generate Key • 30 Days</span>
+                        <span id="btnGenerateKeyText">Generate Key • OPTIMIZE • 30 Days</span>
                     </button>
                 </div>
 
@@ -946,7 +948,11 @@
                             <div id="latestKeyText" class="key-text-mono" style="font-size: 18px; word-break: break-all; color: #93c5fd;"></div>
                         </div>
 
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; font-size: 12px;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px; font-size: 12px;">
+                            <div>
+                                <span style="color: var(--text-muted);">Product:</span><br>
+                                <b id="latestProductVal" style="color: #93c5fd;">OPTIMIZE</b>
+                            </div>
                             <div>
                                 <span style="color: var(--text-muted);">Created:</span><br>
                                 <b id="latestCreatedVal" style="color: var(--text-primary);">-</b>
@@ -1015,6 +1021,13 @@
                             Purge All
                         </button>
                     </div>
+                </div>
+
+                <!-- Product Filter Row -->
+                <div class="duration-chips-scroll" style="margin-bottom: 8px;">
+                    <button class="chip selected" data-product="ALL" onclick="setProductFilter('ALL', this)">All Products</button>
+                    <button class="chip" data-product="OPTIMIZE" onclick="setProductFilter('OPTIMIZE', this)">OPTIMIZE</button>
+                    <button class="chip" data-product="AZEROX VIP" onclick="setProductFilter('AZEROX VIP', this)">AZEROX VIP</button>
                 </div>
 
                 <!-- Filter Chips Row -->
@@ -1370,15 +1383,7 @@
 
     <!-- Footer -->
     <footer>
-        <div>OPTIMIZER</div>
-        <div style="margin-top: 6px;">
-            <a href="https://discord.gg/z8HCwPPDZZ" target="_blank" rel="noopener noreferrer" style="color: #5865F2; text-decoration: none; font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; gap: 5px;">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19.27 5.33C17.94 4.71 16.5 4.26 15 4a0.09 0.09 0 0 0-.08 0.04c-.21.38-.45.88-.61 1.27a18.3 18.3 0 0 0-5.62 0c-.16-.39-.41-.89-.62-1.27A0.09 0.09 0 0 0 8 4C6.5 4.26 5.06 4.71 3.73 5.33a0.08 0.08 0 0 0-.03.03C1.03 9.36 0.28 13.28.65 17.15a0.08 0.08 0 0 0 .03.06c2 1.47 3.93 2.37 5.83 2.96a0.08 0.08 0 0 0 .09-.03c.45-.61.85-1.27 1.2-1.95a0.08 0.08 0 0 0-.04-.11c-.64-.24-1.24-.55-1.82-.91a0.08 0.08 0 0 1-.01-.13c.12-.09.24-.19.36-.28a0.08 0.08 0 0 1 .08-.01c3.85 1.76 8.01 1.76 11.82 0a0.08 0.08 0 0 1 .08.01c.12.1.24.19.36.29a0.08 0.08 0 0 1-.01.13c-.58.36-1.18.67-1.82.91a0.08 0.08 0 0 0-.04.11c.35.68.75 1.34 1.2 1.95a0.08 0.08 0 0 0 .09.03c1.9-.59 3.83-1.49 5.83-2.96a0.08 0.08 0 0 0 .03-.06c.44-4.45-.74-8.34-3.14-11.79a0.08 0.08 0 0 0-.03-.03zM8.52 14.91c-1.03 0-1.89-.95-1.89-2.12s.83-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12 0 1.17-.83 2.12-1.89 2.12zm6.97 0c-1.03 0-1.89-.95-1.89-2.12s.83-2.12 1.89-2.12c1.06 0 1.9.96 1.89 2.12 0 1.17-.83 2.12-1.89 2.12z"/>
-                </svg>
-                Join Discord: https://discord.gg/z8HCwPPDZZ
-            </a>
-        </div>
+        <div>A Z E R O X</div>
         <div style="margin-top: 4px; opacity: 0.6;">© All rights reserved</div>
     </footer>
 
@@ -1388,6 +1393,8 @@
     <script>
         // State variables
         let selectedHours = 720; // Default to 30 Days (720h)
+        let selectedProduct = 'OPTIMIZE';
+        let selectedProductFilter = 'ALL';
         let latestKeyData = null;
         let allKeys = [];
         let currentStatusFilter = 'ALL';
@@ -1398,8 +1405,8 @@
         let activeAdminUsername = null;
         let isHandlingUnauthorized = false;
 
-        const TOKEN_STORAGE_KEY = 'madara_admin_token';
-        const USERNAME_STORAGE_KEY = 'madara_admin_username';
+        const TOKEN_STORAGE_KEY = 'azerox_admin_token';
+        const USERNAME_STORAGE_KEY = 'azerox_admin_username';
 
         // Purge any stale client-side key storage so server is the single source of truth
         try {
@@ -1486,43 +1493,17 @@
             loadKeysData();
         }
 
-        async function triggerCloudSync() {
-            const btn = document.getElementById('btnSyncCloud');
-            const oldText = btn ? btn.innerHTML : '';
-            if (btn) {
-                btn.disabled = true;
-                btn.innerText = 'Syncing...';
-            }
-            try {
-                const res = await api('/api/admin/sync-cloud', { method: 'POST' });
-                if (res.success) {
-                    showToast('✓ Cloud Sync Successful!');
-                    loadStatsData();
-                    loadKeysData();
-                } else {
-                    showToast('Sync warning: ' + (res.message || 'Check connection'));
-                }
-            } catch (e) {
-                showToast('Sync notice: ' + (e.message || 'Connecting to cloud...'));
-            } finally {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = oldText;
-                }
-            }
-        }
-
         function getToken() {
             if (activeAdminToken) return activeAdminToken;
             try {
-                const ls = localStorage.getItem(TOKEN_STORAGE_KEY);
+                const ls = localStorage.getItem(TOKEN_STORAGE_KEY) || localStorage.getItem('madara_admin_token');
                 if (ls) {
                     activeAdminToken = ls;
                     return ls;
                 }
             } catch (e) {}
             try {
-                const ss = sessionStorage.getItem(TOKEN_STORAGE_KEY);
+                const ss = sessionStorage.getItem(TOKEN_STORAGE_KEY) || sessionStorage.getItem('madara_admin_token');
                 if (ss) {
                     activeAdminToken = ss;
                     return ss;
@@ -1534,20 +1515,20 @@
         function getUsername() {
             if (activeAdminUsername) return activeAdminUsername;
             try {
-                const ls = localStorage.getItem(USERNAME_STORAGE_KEY);
+                const ls = localStorage.getItem(USERNAME_STORAGE_KEY) || localStorage.getItem('madara_admin_username');
                 if (ls) {
                     activeAdminUsername = ls;
                     return ls;
                 }
             } catch (e) {}
             try {
-                const ss = sessionStorage.getItem(USERNAME_STORAGE_KEY);
+                const ss = sessionStorage.getItem(USERNAME_STORAGE_KEY) || sessionStorage.getItem('madara_admin_username');
                 if (ss) {
                     activeAdminUsername = ss;
                     return ss;
                 }
             } catch (e) {}
-            return 'MADARA-FF';
+            return 'AZEROX';
         }
 
         function setToken(token, username) {
@@ -1725,7 +1706,7 @@
             document.getElementById('authNavArea').style.display = 'flex';
             document.getElementById('navTabsBar').style.display = 'block';
 
-            const user = username || getUsername() || 'MADARA-FF';
+            const user = username || getUsername() || 'AZEROX';
             document.getElementById('navUserBadge').innerText = user;
 
             loadStatsData();
@@ -1763,14 +1744,45 @@
         function filterAndSwitch(status) {
             const target = (status === 'INACTIVE') ? 'NON-ACTIVE' : status;
             currentStatusFilter = target;
-            document.querySelectorAll('#tabContentTotalKeys .chip').forEach(c => {
+            document.querySelectorAll('#tabContentTotalKeys .chip[data-status]').forEach(c => {
                 const s = c.getAttribute('data-status');
                 c.classList.toggle('selected', s === target || (target === 'NON-ACTIVE' && s === 'INACTIVE'));
             });
             switchTab('TOTAL_KEYS');
         }
 
-        // --- DURATION SELECTOR LOGIC ---
+        // --- PRODUCT & DURATION SELECTOR LOGIC ---
+        function selectProduct(prod, btn) {
+            selectedProduct = prod;
+            document.querySelectorAll('#chipProdOptimize, #chipProdVip').forEach(b => b.classList.remove('selected'));
+            if (btn) btn.classList.add('selected');
+
+            const labelEl = document.getElementById('selectedProductLabel');
+            if (labelEl) labelEl.innerText = prod;
+
+            const prefixInput = document.getElementById('inputKeyPrefix');
+            if (prefixInput) {
+                if (prod === 'AZEROX VIP') {
+                    if (prefixInput.value === 'AZEROX' || !prefixInput.value) {
+                        prefixInput.value = 'AZEROX-VIP';
+                    }
+                } else {
+                    if (prefixInput.value === 'AZEROX-VIP' || !prefixInput.value) {
+                        prefixInput.value = 'AZEROX';
+                    }
+                }
+            }
+            updateGenerateBtnText();
+        }
+
+        function updateGenerateBtnText() {
+            const label = formatDurationLabel(selectedHours);
+            const btnText = document.getElementById('btnGenerateKeyText');
+            if (btnText) {
+                btnText.innerText = `Generate Key • ${selectedProduct} • ${label}`;
+            }
+        }
+
         function formatDurationLabel(hours) {
             if (hours === 1) return '1 Hour (1h)';
             if (hours === 24) return '1 Day (1d)';
@@ -1782,12 +1794,12 @@
 
         function selectDuration(hours, btn) {
             selectedHours = hours;
-            document.querySelectorAll('.duration-chips-scroll .chip').forEach(c => c.classList.remove('selected'));
+            document.querySelectorAll('.duration-chips-scroll .chip[data-hours]').forEach(c => c.classList.remove('selected'));
             if (btn) btn.classList.add('selected');
 
             const label = formatDurationLabel(hours);
             document.getElementById('selectedDurationLabel').innerText = label;
-            document.getElementById('btnGenerateKeyText').innerText = `Generate Key • ${label}`;
+            updateGenerateBtnText();
         }
 
         function openCustomHoursModal() {
@@ -1807,13 +1819,15 @@
             }
             selectedHours = val;
             const chipCustom = document.getElementById('chipCustom');
-            document.querySelectorAll('.duration-chips-scroll .chip').forEach(c => c.classList.remove('selected'));
-            chipCustom.classList.add('selected');
-            chipCustom.innerText = `Custom (${val}h)`;
+            document.querySelectorAll('.duration-chips-scroll .chip[data-hours]').forEach(c => c.classList.remove('selected'));
+            if (chipCustom) {
+                chipCustom.classList.add('selected');
+                chipCustom.innerText = `Custom (${val}h)`;
+            }
 
             const label = formatDurationLabel(val);
             document.getElementById('selectedDurationLabel').innerText = label;
-            document.getElementById('btnGenerateKeyText').innerText = `Generate Key • ${label}`;
+            updateGenerateBtnText();
             closeModal('modalCustomHours');
         }
 
@@ -1826,17 +1840,18 @@
 
             const maxDevices = parseInt(document.getElementById('inputMaxDevices').value, 10) || 1;
             const notes = document.getElementById('inputCustomerNotes').value.trim();
+            const prefixVal = document.getElementById('inputKeyPrefix')?.value?.trim() || (selectedProduct === 'AZEROX VIP' ? 'AZEROX-VIP' : 'AZEROX');
 
             try {
                 const res = await api('/api/keys/generate', {
                     method: 'POST',
                     body: JSON.stringify({
-                        product_name: 'Z E X O',
+                        product_name: selectedProduct,
                         duration_hours: selectedHours,
                         max_devices: maxDevices,
                         customer_name: notes || null,
                         notes: notes || '',
-                        prefix: 'AZEROX'
+                        prefix: prefixVal
                     })
                 });
 
@@ -1845,6 +1860,7 @@
                     latestKeyData = {
                         id: generated.id,
                         key_display: generated.key || generated.key_display,
+                        product_name: generated.product_name || selectedProduct,
                         status: generated.status || 'UNUSED',
                         duration_hours: generated.duration_hours,
                         created_at: generated.created_at || new Date().toISOString(),
@@ -1868,8 +1884,7 @@
                 alert('Error: ' + err.message);
             } finally {
                 btn.disabled = false;
-                const label = formatDurationLabel(selectedHours);
-                btnText.innerText = `Generate Key • ${label}`;
+                updateGenerateBtnText();
             }
         }
 
@@ -1890,6 +1905,9 @@
 
             const keyText = document.getElementById('latestKeyText');
             if (keyText) keyText.innerText = k.key_display;
+
+            const prodVal = document.getElementById('latestProductVal');
+            if (prodVal) prodVal.innerText = k.product_name || selectedProduct || 'OPTIMIZE';
 
             // Status badge
             const statusBadge = document.getElementById('latestKeyStatusBadge');
@@ -2145,6 +2163,13 @@
             renderHistoryList();
         }
 
+        function setProductFilter(prod, btn) {
+            selectedProductFilter = prod;
+            document.querySelectorAll('#tabContentTotalKeys [data-product]').forEach(b => b.classList.remove('selected'));
+            if (btn) btn.classList.add('selected');
+            renderKeysList();
+        }
+
         function filterKeys(list) {
             const normFilter = (currentStatusFilter === 'INACTIVE') ? 'NON-ACTIVE' : currentStatusFilter;
             return list.filter(k => {
@@ -2152,11 +2177,17 @@
                 if (normFilter !== 'ALL' && status !== normFilter) {
                     return false;
                 }
+                if (selectedProductFilter && selectedProductFilter !== 'ALL') {
+                    if ((k.product_name || 'OPTIMIZE') !== selectedProductFilter) {
+                        return false;
+                    }
+                }
                 if (searchQuery) {
                     const matchesKey = (k.key_display || '').toLowerCase().includes(searchQuery);
                     const matchesCust = (k.customer_name || '').toLowerCase().includes(searchQuery);
                     const matchesNotes = (k.notes || '').toLowerCase().includes(searchQuery);
-                    if (!matchesKey && !matchesCust && !matchesNotes) return false;
+                    const matchesProd = (k.product_name || '').toLowerCase().includes(searchQuery);
+                    if (!matchesKey && !matchesCust && !matchesNotes && !matchesProd) return false;
                 }
                 return true;
             });
@@ -2202,11 +2233,17 @@
                     validityText = 'Key Revoked';
                 }
 
+                const isVip = (k.product_name === 'AZEROX VIP');
+                const prodBadgeColor = isVip ? '#fbbf24' : '#93c5fd';
+                const prodBadgeBg = isVip ? 'rgba(251, 191, 36, 0.15)' : 'rgba(59, 130, 246, 0.15)';
+                const prodBadgeBorder = isVip ? 'rgba(251, 191, 36, 0.35)' : 'rgba(59, 130, 246, 0.35)';
+
                 return `
                     <div class="key-list-item">
                         <div class="key-item-header">
-                            <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                                 <span class="key-text-mono" style="font-size: 16px;">${k.key_display}</span>
+                                <span class="status-badge" style="background: ${prodBadgeBg}; color: ${prodBadgeColor}; border: 1px solid ${prodBadgeBorder}; font-size: 10px; padding: 2px 7px; font-weight: 700;">${k.product_name || 'OPTIMIZE'}</span>
                             </div>
                             ${formatStatusBadge(status)}
                         </div>
@@ -2818,7 +2855,7 @@
 
                         <div class="info-meta-row">
                             <span class="info-meta-label">Product</span>
-                            <span class="info-meta-val">${keyData.product_name || 'Z E X O'}</span>
+                            <span class="info-meta-val">${keyData.product_name || 'OPTIMIZE'}</span>
                         </div>
                         <div class="info-meta-row">
                             <span class="info-meta-label">Validity Duration</span>
@@ -2900,7 +2937,7 @@
                     }).then(r => r.json());
 
                     if (res && res.success && res.admin) {
-                        const adminName = res.admin.username || 'MADARA-FF';
+                        const adminName = res.admin.username || 'AZEROX';
                         setToken(token, adminName);
                         showDashboard(token, adminName);
                         return;

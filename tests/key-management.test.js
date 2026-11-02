@@ -105,16 +105,15 @@ test('Key Management & UI Test Suite', async (t) => {
         return res.body;
     }
 
-    await t.test('1. Discord Link: updated everywhere and old link removed', async () => {
+    await t.test('1. Discord and Sync Cloud Removal: removed from UI completely', async () => {
         const indexHtmlPath = path.join(__dirname, '..', 'public', 'index.html');
         const content = fs.readFileSync(indexHtmlPath, 'utf8');
 
-        // Verify new link is present
-        assert.ok(content.includes('https://discord.gg/z8HCwPPDZZ'), 'public/index.html must contain new discord link');
-
-        // Verify old links are NOT present
+        // Verify Discord links and buttons are NOT present
+        assert.strictEqual(content.includes('discord.gg'), false, 'public/index.html must not contain discord links');
         assert.strictEqual(content.includes('CM3KgmuHm'), false, 'public/index.html must not contain old discord invite link CM3KgmuHm');
         assert.strictEqual(content.includes('hBvx4Avpe'), false, 'public/index.html must not contain old discord invite link hBvx4Avpe');
+        assert.strictEqual(content.includes('btnSyncCloud'), false, 'public/index.html must not contain Sync Cloud button');
     });
 
     await t.test('2. UI Key View Statuses & Non-Active renaming', async () => {
@@ -453,5 +452,111 @@ test('Key Management & UI Test Suite', async (t) => {
         assert.strictEqual(actRevokedRes.status, 403, 'Activation must return 403 on revoked key');
 
         await db.deleteKey(keyObj.id, 'test');
+    });
+
+    await t.test('7. Product Isolation: OPTIMIZE vs AZEROX VIP key activation strictly enforced', async () => {
+        // Generate OPTIMIZE key
+        const optKeyRes = await makeRequest(server, {
+            path: '/api/keys/generate',
+            method: 'POST',
+            headers: testAdminHeader(),
+            body: {
+                product_name: 'OPTIMIZE',
+                duration_hours: 24,
+                customer_name: 'Optimize User',
+                prefix: 'AZEROX'
+            }
+        });
+        assert.strictEqual(optKeyRes.status, 200);
+        const optKey = optKeyRes.body;
+        assert.ok(optKey.key.startsWith('AZEROX-'), 'OPTIMIZE key must start with AZEROX-');
+
+        // Generate AZEROX VIP key
+        const vipKeyRes = await makeRequest(server, {
+            path: '/api/keys/generate',
+            method: 'POST',
+            headers: testAdminHeader(),
+            body: {
+                product_name: 'AZEROX VIP',
+                duration_hours: 24,
+                customer_name: 'VIP User',
+                prefix: 'AZEROX-VIP'
+            }
+        });
+        assert.strictEqual(vipKeyRes.status, 200);
+        const vipKey = vipKeyRes.body;
+        assert.ok(vipKey.key.startsWith('AZEROX-VIP-'), 'AZEROX VIP key must start with AZEROX-VIP-');
+
+        // Attempt to activate OPTIMIZE key with AZEROX VIP product / app_identifier
+        const crossAct1 = await makeRequest(server, {
+            path: '/api/activate',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: {
+                key: optKey.key,
+                device_id: 'device_vip_001',
+                product_name: 'AZEROX VIP'
+            }
+        });
+        assert.strictEqual(crossAct1.status, 403, 'OPTIMIZE key cannot activate AZEROX VIP');
+        assert.strictEqual(crossAct1.body.code, 'PRODUCT_MISMATCH');
+
+        // Attempt to activate AZEROX VIP key with OPTIMIZE product / app_identifier
+        const crossAct2 = await makeRequest(server, {
+            path: '/api/activate',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: {
+                key: vipKey.key,
+                device_id: 'device_opt_001',
+                product_name: 'OPTIMIZE'
+            }
+        });
+        assert.strictEqual(crossAct2.status, 403, 'AZEROX VIP key cannot activate OPTIMIZE');
+        assert.strictEqual(crossAct2.body.code, 'PRODUCT_MISMATCH');
+
+        // Attempt cross-activation using app_identifier
+        const crossAct3 = await makeRequest(server, {
+            path: '/api/activate',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: {
+                key: optKey.key,
+                device_id: 'device_proxy_001',
+                app_identifier: 'com.azerox.proxy'
+            }
+        });
+        assert.strictEqual(crossAct3.status, 403, 'OPTIMIZE key cannot activate AZEROX VIP proxy client');
+
+        // Valid activation: OPTIMIZE key on OPTIMIZE product
+        const validAct1 = await makeRequest(server, {
+            path: '/api/activate',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: {
+                key: optKey.key,
+                device_id: 'device_opt_ok_001',
+                product_name: 'OPTIMIZE'
+            }
+        });
+        assert.strictEqual(validAct1.status, 200, 'Valid OPTIMIZE activation should succeed');
+        assert.strictEqual(validAct1.body.success, true);
+
+        // Valid activation: AZEROX VIP key on AZEROX VIP product
+        const validAct2 = await makeRequest(server, {
+            path: '/api/activate',
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: {
+                key: vipKey.key,
+                device_id: 'device_vip_ok_001',
+                product_name: 'AZEROX VIP'
+            }
+        });
+        assert.strictEqual(validAct2.status, 200, 'Valid AZEROX VIP activation should succeed');
+        assert.strictEqual(validAct2.body.success, true);
+
+        await db.deleteKey(optKey.id, 'test');
+        await db.deleteKey(vipKey.id, 'test');
     });
 });

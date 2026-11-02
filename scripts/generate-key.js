@@ -6,7 +6,8 @@ const { config } = require('../config');
 let durationHours = 720; // default 30d
 let maxActivations = 1;
 let notes = `Key generated on ${new Date().toISOString()}`;
-let prefix = 'AZEROX';
+let prefix = null;
+let product = 'OPTIMIZE';
 
 const args = process.argv.slice(2);
 for (let i = 0; i < args.length; i++) {
@@ -33,7 +34,9 @@ for (let i = 0; i < args.length; i++) {
     } else if (arg === '--prefix' || arg === '-p') {
         prefix = args[++i];
     } else if (arg === '--product') {
-        i++; // skip product name argument
+        product = args[++i];
+    } else if (arg === '--vip') {
+        product = 'AZEROX VIP';
     } else if (!arg.startsWith('-')) {
         if (i === 0) {
             const val = arg.toLowerCase();
@@ -52,14 +55,20 @@ for (let i = 0; i < args.length; i++) {
     }
 }
 
+if (!prefix) {
+    prefix = (product === 'AZEROX VIP') ? 'AZEROX-VIP' : 'AZEROX';
+}
+
 async function main() {
     try {
         await db.initDatabase();
+        const prodObj = await db.getOrCreateProduct(product);
         const key = generateLicenseKey(prefix);
-        await db.createLicenseKey({
-            licenseKey: key,
-            durationHours,
-            maxActivations,
+        await db.createActivationKey({
+            keyString: key,
+            productId: prodObj.id,
+            durationHours: durationHours === -1 ? 720 : durationHours,
+            maxDevices: maxActivations,
             notes,
             status: 'UNUSED'
         });
@@ -86,6 +95,7 @@ async function main() {
                         body: JSON.stringify({
                             keys: [{
                                 key,
+                                product_name: product,
                                 duration_hours: durationHours,
                                 max_devices: maxActivations,
                                 notes
@@ -106,9 +116,10 @@ async function main() {
             : (durationHours >= 24 ? `${durationHours / 24} Days` : `${durationHours} Hours`);
 
         console.log(`=======================================================`);
-        console.log(`                NEW OPTIMIZER LICENSE KEY              `);
+        console.log(`                NEW A Z E R O X LICENSE KEY            `);
         console.log(`=======================================================`);
         console.log(`License Key:     ${key}`);
+        console.log(`Product:         ${product}`);
         console.log(`Duration:        ${durationDisplay}`);
         console.log(`Active Timer:    Starts upon user activation`);
         console.log(`Status:          UNUSED (Timer starts on activation)`);
