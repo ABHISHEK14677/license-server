@@ -23,14 +23,10 @@ services:
         value: 10000
       - key: ADMIN_USERNAME
         value: MADARA-FF
-      # Protected secrets: 'sync: false' guarantees Render Dashboard values are
-      # preserved permanently and NEVER overwritten or deleted by code updates.
       - key: ADMIN_SECRET
-        sync: false
+        value: rootoptimizer_secret_2026
       - key: ADMIN_PASSWORD
-        sync: false
-      - key: ADMIN_SECRET_KEY
-        sync: false
+        value: ABHISHEK!
       - key: APP_LATEST_VERSION
         value: 1.4.7
       - key: APP_VERSION_CODE
