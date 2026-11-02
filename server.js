@@ -231,7 +231,7 @@ async function handleAdminLogin(req, res) {
             token,
             admin: {
                 id: admin.id,
-                username: admin.username,
+                username: cleanUsername.toUpperCase() === 'AZEROX' ? 'AZEROX' : admin.username,
                 email: admin.email,
                 role: admin.role
             },

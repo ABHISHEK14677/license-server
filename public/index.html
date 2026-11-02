@@ -2315,11 +2315,6 @@
                     const matchesKey = (k.key_display || '').toLowerCase().includes(searchQuery);
                     const matchesCust = (k.customer_name || '').toLowerCase().includes(searchQuery);
                     const matchesNotes = (k.notes || '').toLowerCase().includes(searchQuery);
-                    if (!matchesKey && !matchesCust && !matchesNotes) return false;
-                }
-                return true;
-            });
-        }
                     const matchesProd = (k.product_name || '').toLowerCase().includes(searchQuery);
                     if (!matchesKey && !matchesCust && !matchesNotes && !matchesProd) return false;
                 }
